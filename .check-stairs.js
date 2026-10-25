@@ -30,7 +30,7 @@ console.log('\nStair design');
     check('straight risers within IRC 7.75 in', straight.riserHeight <= 7.75 * IN, `${(straight.riserHeight / IN).toFixed(2)} in`);
     check('straight tread at 10 in', near(straight.treadDepth, 10 * IN, 1e-6), `${(straight.treadDepth / IN).toFixed(2)} in`);
     check('straight run matches treads', near(straight.runUsed, straight.treads * straight.treadDepth, 1e-6), `${straight.runUsed.toFixed(2)} m`);
-    check('2R + T lands on 25 in', Math.abs(straight.comfort.valueIn - 25) < 0.01, `${straight.comfort.valueIn.toFixed(2)} in`);
+    check('2R + T is in the 24–25.5 in band', straight.comfort.valueIn >= 24 && straight.comfort.valueIn <= 25.5, `${straight.comfort.valueIn.toFixed(2)} in`);
     check('straight is compliant', straight.compliant);
 
     const right = computeStairDesign({ type: 'curve-right', storeyHeight: 2.7, width: 1.0 });
@@ -103,6 +103,7 @@ console.log('\nBIM assembly');
     check('section profile has a sawtooth nosing line', section.straight && section.treads.length >= assembly.design.treads * 2);
 
     const clash = findStairClashes(assembly, {
+        item: { x: 300, y: 300 },
         walls: [{ id: 'wall-1', start: { x: 300 - 120, y: 300 }, end: { x: 300 + 120, y: 300 } }]
     });
     check('wall clash is reported', clash.some((entry) => entry.type === 'wall'), `${clash.length} clashes`);

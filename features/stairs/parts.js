@@ -39,7 +39,12 @@ const DEFAULTS = {
     rail: 36 * IN,
     guard: 42 * IN,
     landing: 48 * IN,
-    slab: 4 * IN
+    slab: 4 * IN,
+    depth: 42 * IN,
+    height: 42 * IN,
+    opening: 37.5 * IN,
+    mat: 32 * IN,
+    shaft: 7 * FT
 };
 
 const box = (w, h, d, x = 0, y = 0, z = 0, rot = null) => ({
@@ -54,7 +59,8 @@ const torus = (radius, tube, x = 0, y = 0, z = 0, rot = null) => ({
 
 const param = (options, key) => {
     const value = Number(options?.[key]);
-    return Number.isFinite(value) && value > 0 ? value : DEFAULTS[key];
+    if (Number.isFinite(value) && value > 0) return value;
+    return DEFAULTS[key] ?? 1;
 };
 
 /** A sloping stringer runs from (0,0,0) up to (0,rise,run). */

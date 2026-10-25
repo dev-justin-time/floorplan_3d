@@ -458,8 +458,9 @@ function init() {
         systems: () => OUTDOOR_SYSTEMS,
         design: () => currentStairDesign(),
         assembly: () => currentStairAssembly(),
-        clashes: () => findStairClashes(currentStairAssembly(), { walls: AppState.walls }),
-        walker: () => stairWalker,
+        clashes: () => findStairClashes(currentStairAssembly(), { walls: AppState.walls, item: stairPanelApi().selected }),
+        walker: () => stairPanelApi().walker(),
+        selected: () => stairPanelApi().selected,
         summary: () => assemblySummary(currentStairAssembly())
     };
 

@@ -140,7 +140,11 @@ export function createStairHeightField(state) {
             if (height == null || value >= height - 1e-6) {
                 height = value;
                 source = 'stair';
-                storeyIndex = stair.storeyIndex;
+                // The last tread is the upper floor, not the storey the stair
+                // model lives on.
+                storeyIndex = surface.height >= stair.design.rise - 0.02
+                    ? stair.storeyIndex + 1
+                    : stair.storeyIndex;
             }
         });
 

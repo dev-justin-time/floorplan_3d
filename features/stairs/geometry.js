@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PIXELS_PER_METER } from '../../world-space.js';
 import { stairDesignForItem } from './design.js';
 import { buildStairAssembly } from './assembly.js';
+import { getOutdoorSystem } from './outdoor.js';
 
 /**
  * Stair geometry.
@@ -272,7 +273,7 @@ function addLanding(group, design, assembly, end, mats) {
 /** Outdoor structure: piers under the stringers and posts at the landing. */
 function addOutdoorStructure(group, design, assembly, mats) {
     if (!assembly?.system) return;
-    const spec = assembly.design?.spec;
+    const spec = getOutdoorSystem(assembly.system);
     if (!spec || spec.structure === 'concrete' || !spec.footingDepth) return;
     const depth = spec.footingDepth;
     const width = design.width;

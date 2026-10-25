@@ -224,9 +224,12 @@ export function computeStairDesign(input = {}) {
     const type = STAIR_TYPES.includes(input.type) ? input.type : 'straight';
     const code = STAIR_CODES[input.code] || STAIR_CODES.IRC2021;
     const rise = clamp(number(input.storeyHeight ?? input.rise, WALL_HEIGHT), 0.6, 20);
-    const width = clamp(number(input.width, code.minWidth), 0.6, 4);
-    const availableRun = clamp(number(input.availableRun, 4.2), 0.4, 30);
-    const availableWidth = clamp(number(input.availableWidth, 1.9), 0.6, 30);
+    // Type-aware fallbacks: a curved stair needs more outside depth than a
+    // straight one before its walkline tread reaches the minimum.
+    const typeDefaults = defaultStairConfig(type, { storeyHeight: rise });
+    const width = clamp(number(input.width, typeDefaults.width), 0.6, 4);
+    const availableRun = clamp(number(input.availableRun, typeDefaults.availableRun), 0.4, 30);
+    const availableWidth = clamp(number(input.availableWidth, typeDefaults.availableWidth), 0.6, 30);
     const issues = [];
 
     if (type === 'fire-pole') {

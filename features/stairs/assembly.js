@@ -1,4 +1,4 @@
-import { WALL_HEIGHT } from '../../world-space.js';
+import { WALL_HEIGHT, PIXELS_PER_METER } from '../../world-space.js';
 import { computeStairDesign, IN, FT } from './design.js';
 import { computeOutdoorStair, getOutdoorSystem } from './outdoor.js';
 
@@ -277,21 +277,24 @@ function segmentHitsRect(start, end, rect) {
  * `placements` are world-metre rectangles: { id, label, minX, maxX, minZ, maxZ, top }
  * (top = height above the base, for a vertical overlap test).
  */
-export function findStairClashes(assembly, { walls = [], placements = [] } = {}) {
+export function findStairClashes(assembly, { walls = [], placements = [], item = null, origin = null } = {}) {
     const design = assembly.design || assembly;
     const halfW = (design.footprint?.width || design.width) / 2;
     const halfD = (design.footprint?.depth || design.runUsed || 0) / 2;
+    // Walls and placements are in plan pixels, like the editor's canvas; the
+    // design is in metres, so the footprint is scaled and moved to the item.
+    const base = item ? { x: item.x, y: item.y } : (origin || { x: 0, y: 0 });
     const rect = {
-        minX: (design.offset?.x || 0) - halfW,
-        maxX: (design.offset?.x || 0) + halfW,
-        minZ: (design.offset?.z || 0) - halfD,
-        maxZ: (design.offset?.z || 0) + halfD
+        minX: base.x + ((design.offset?.x || 0) - halfW) * PIXELS_PER_METER,
+        maxX: base.x + ((design.offset?.x || 0) + halfW) * PIXELS_PER_METER,
+        minZ: base.y + ((design.offset?.z || 0) - halfD) * PIXELS_PER_METER,
+        maxZ: base.y + ((design.offset?.z || 0) + halfD) * PIXELS_PER_METER
     };
     const clashes = [];
 
     walls.forEach((wall) => {
-        const start = { x: (wall.start.x ?? wall.x1) / 30, z: (wall.start.y ?? wall.y1) / 30 };
-        const end = { x: (wall.end.x ?? wall.x2) / 30, z: (wall.end.y ?? wall.y2) / 30 };
+        const start = { x: wall.start.x ?? wall.x1, z: wall.start.y ?? wall.y1 };
+        const end = { x: wall.end.x ?? wall.x2, z: wall.end.y ?? wall.y2 };
         if (segmentHitsRect(start, end, rect)) {
             clashes.push({
                 type: 'wall',
