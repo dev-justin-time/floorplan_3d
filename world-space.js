@@ -21,6 +21,11 @@ export const WALL_THICKNESS = 0.15;
 export const ROOF_PITCH = 1.5;
 export const ROOF_OVERHANG = 0.5;
 
+// Openings. Sill heights are measured from the floor to the bottom of the unit.
+export const INCH = 0.0254;
+export const WINDOW_SILL_HEIGHT = 36 * INCH; // 36 in = 0.9144 m
+export const DOOR_HEIGHT = 2.1;
+
 // Defaults for sample/placeholder scenes so they match plan dimensions.
 export const DEFAULT_ROOM_SIZE = 10;
 export const FLOOR_ELEVATION = 0;

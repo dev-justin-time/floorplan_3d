@@ -20,8 +20,9 @@ export const TEXTURES = {
 export const ITEM_METADATA = {
     // Structural
     door: { type: 'in_wall_floor', width: 1.0, depth: 0.15, height: 2.1, color: 0x8b4513 },
-    window: { type: 'in_wall', width: 1.2, depth: 0.15, height: 1.2, color: 0x87ceeb, altitude: 0.9 },
-    round_window: { type: 'in_wall', width: 1.0, depth: 0.15, height: 1.0, color: 0x87ceeb, altitude: 1.5, shape: 'circle' },
+    // sillHeight = floor to the bottom edge of the unit.
+    window: { type: 'in_wall', width: 1.2, depth: 0.15, height: 1.2, color: 0x87ceeb, sillHeight: WINDOW_SILL_HEIGHT, altitude: WINDOW_SILL_HEIGHT },
+    round_window: { type: 'in_wall', width: 1.0, depth: 0.15, height: 1.0, color: 0x87ceeb, sillHeight: 1.5, altitude: 1.5, shape: 'circle' },
     
     // Bathroom
     bathtub: { type: 'floor', width: 1.6, depth: 0.8, height: 0.5, color: 0xffffff },
@@ -35,6 +36,32 @@ export const ITEM_METADATA = {
     kitchen_cabinet: { type: 'floor', width: 0.6, depth: 0.6, height: 0.9, color: 0x8b5a2b },
     kitchen_sink: { type: 'floor', width: 0.9, depth: 0.6, height: 0.9, color: 0xdddddd },
     kitchen_island: { type: 'floor', width: 1.5, depth: 0.9, height: 0.9, color: 0xf5f5dc },
+
+    // Merlot cabinetry line - one finish across a complete kitchen set.
+    // Dimensions are metres; base/wall units are US cabinet sizes.
+    merlot_base_cabinet: { type: 'floor', width: 0.762, depth: 0.6, height: 0.9, color: 0x5c2b26, line: 'merlot', label: 'Base Cabinet 30"' },
+    merlot_drawer_base: { type: 'floor', width: 0.762, depth: 0.6, height: 0.9, color: 0x5c2b26, line: 'merlot', label: 'Drawer Base 30"' },
+    merlot_sink_base: { type: 'floor', width: 0.914, depth: 0.6, height: 0.9, color: 0x5c2b26, line: 'merlot', label: 'Sink Base 36"' },
+    merlot_corner_base: { type: 'floor', width: 0.9, depth: 0.9, height: 0.9, color: 0x5c2b26, line: 'merlot', label: 'Corner Base 36"' },
+    merlot_wall_cabinet: { type: 'floor', width: 0.762, depth: 0.33, height: 0.762, color: 0x5c2b26, line: 'merlot', label: 'Wall Cabinet 30"', mountHeight: 1.37 },
+    merlot_wall_cabinet_double: { type: 'floor', width: 0.914, depth: 0.33, height: 0.9, color: 0x5c2b26, line: 'merlot', label: 'Wall Cabinet 36" Double', mountHeight: 1.37 },
+    merlot_tall_pantry: { type: 'floor', width: 0.61, depth: 0.6, height: 2.13, color: 0x5c2b26, line: 'merlot', label: 'Tall Pantry 24"' },
+    merlot_oven_tower: { type: 'floor', width: 0.762, depth: 0.6, height: 2.13, color: 0x5c2b26, line: 'merlot', label: 'Oven Tower 30"' },
+    merlot_island: { type: 'floor', width: 1.83, depth: 0.9, height: 0.9, color: 0x5c2b26, line: 'merlot', label: 'Island 72"' },
+    merlot_open_shelf: { type: 'floor', width: 0.914, depth: 0.3, height: 0.19, color: 0x5c2b26, line: 'merlot', label: 'Open Shelf 36"', mountHeight: 1.52 },
+    merlot_bar_pull: { type: 'floor', width: 0.16, depth: 0.03, height: 0.03, color: 0xb9c0c7, line: 'merlot', label: 'Bar Pull (accent)' },
+    merlot_crown: { type: 'floor', width: 0.914, depth: 0.36, height: 0.09, color: 0x5c2b26, line: 'merlot', label: 'Crown Moulding 36"', mountHeight: 2.18 },
+
+    // Shaker cabinetry line - modelled on shaker.glb: five-piece shaker fronts
+    // on a frameless carcass, drawn as wireframe in 3D so the frame/panel
+    // construction stays visible. Dimensions are metres (US cabinet sizes).
+    shaker_base_cabinet: { type: 'floor', width: 0.762, depth: 0.6, height: 0.9, color: 0xd9d2c5, line: 'shaker', wireframe: true, label: 'Shaker Base 30"' },
+    shaker_drawer_base: { type: 'floor', width: 0.762, depth: 0.6, height: 0.9, color: 0xd9d2c5, line: 'shaker', wireframe: true, label: 'Shaker Drawer Base 30"' },
+    shaker_sink_base: { type: 'floor', width: 0.914, depth: 0.6, height: 0.9, color: 0xd9d2c5, line: 'shaker', wireframe: true, label: 'Shaker Sink Base 36"' },
+    shaker_wall_cabinet: { type: 'floor', width: 0.61, depth: 0.33, height: 0.762, color: 0xd9d2c5, line: 'shaker', wireframe: true, label: 'Shaker Wall 24"', mountHeight: 1.37 },
+    shaker_wall_cabinet_double: { type: 'floor', width: 0.914, depth: 0.33, height: 0.9, color: 0xd9d2c5, line: 'shaker', wireframe: true, label: 'Shaker Wall 36" Double', mountHeight: 1.37 },
+    shaker_tall_pantry: { type: 'floor', width: 0.61, depth: 0.6, height: 2.13, color: 0xd9d2c5, line: 'shaker', wireframe: true, label: 'Shaker Tall Pantry 24"' },
+    shaker_island: { type: 'floor', width: 1.83, depth: 0.9, height: 0.9, color: 0xd9d2c5, line: 'shaker', wireframe: true, label: 'Shaker Island 72"' },
 
     // Living Room
     sofa: { type: 'floor', width: 2.2, depth: 0.9, height: 0.8, color: 0x555555 },
@@ -91,7 +118,8 @@ import {
     WALL_HEIGHT,
     WALL_THICKNESS,
     ROOF_PITCH,
-    ROOF_OVERHANG
+    ROOF_OVERHANG,
+    WINDOW_SILL_HEIGHT
 } from './world-space.js';
 
 export const GLOBAL_CONFIG = {

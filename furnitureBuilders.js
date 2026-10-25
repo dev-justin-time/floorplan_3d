@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WINDOW_SILL_HEIGHT } from './world-space.js';
 
 // --- Helpers ---
 export const createMat = (color, metalness = 0, roughness = 0.9, map = null) => 
@@ -37,7 +38,8 @@ export const buildDoor = (width, height, depth, material, fixture) => {
 
 export const buildWindow = (width, height, depth, material, fixture) => {
     const group = new THREE.Group();
-    const alt = fixture?.metadata?.altitude || 1.0;
+    // sillHeight is measured from the floor to the bottom of the window.
+    const sill = fixture?.metadata?.sillHeight ?? fixture?.metadata?.altitude ?? WINDOW_SILL_HEIGHT;
     const frameMat = createMat(0xffffff, 0.1, 0.5);
     
     // Outer frame
@@ -57,16 +59,16 @@ export const buildWindow = (width, height, depth, material, fixture) => {
         addChild(group, barH, 0, 0, 0.07);
         const barV = new THREE.Mesh(new THREE.BoxGeometry(0.04, height - 0.08, 0.03), frameMat);
         addChild(group, barV, 0, 0, 0.07);
-    }
-
-    group.position.y = alt;
+    }    group.position.y = sill + height / 2;
     return group;
+
+
 };
 
 export const buildRoundWindow = (width, height, depth, material, fixture) => {
     const group = new THREE.Group();
     const r = width / 2;
-    const alt = fixture?.metadata?.altitude || 1.5;
+    const sill = fixture?.metadata?.sillHeight ?? fixture?.metadata?.altitude ?? 1.5;
     const frameMat = createMat(0xffffff, 0.1, 0.5);
     
     const torus = new THREE.Mesh(new THREE.TorusGeometry(r, 0.04, 16, 32), frameMat);
@@ -76,7 +78,7 @@ export const buildRoundWindow = (width, height, depth, material, fixture) => {
     const glass = new THREE.Mesh(new THREE.CircleGeometry(r - 0.02, 32), glassMat);
     addChild(group, glass, 0, 0, 0.02);
 
-    group.position.y = alt;
+    group.position.y = sill + r;
     return group;
 };
 
@@ -542,10 +544,10 @@ export const buildWallLamp = (width, height, depth, material, fixture) => {
 
     const light = new THREE.PointLight(0xffaa00, 0.4, 2.5);
     light.position.set(0, -height * 0.2, depth);
-    group.add(light);
-
-    group.position.y = alt;
+    group.add(light);    group.position.y = sill + height / 2;
     return group;
+
+
 };
 
 export const buildPatioTable = (width, height, depth, material, fixture) => {
@@ -604,11 +606,321 @@ export const buildDefaultBox = (width, height, depth, material, fixture) => {
     return mesh;
 };
 
+// --- Merlot cabinetry line -------------------------------------------------
+// One finish, one construction language, across a full kitchen: base units,
+// wall units, tall units, island and trim. All sizes are metres.
+
+const MERLOT_COUNTER = () => createMat(0xe9e6df, 0.05, 0.3);
+const MERLOT_PULL = () => createMat(0xb9c0c7, 0.9, 0.22);
+const MERLOT_KICK = () => createMat(0x241110, 0.0, 0.9);
+const merlotCarcass = (material) => material || createMat(0x5c2b26, 0.05, 0.42);
+
+const addPanel = (group, w, h, x, y, z, mat, depth = 0.02) => {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(w, h, depth), mat);
+    return addChild(group, panel, x, y, z);
+};
+
+const addBarPull = (group, panelWidth, x, y, z) => {
+    const pull = new THREE.Mesh(new THREE.BoxGeometry(Math.min(panelWidth * 0.6, 0.16), 0.015, 0.02), MERLOT_PULL());
+    return addChild(group, pull, x, y, z + 0.022);
+};
+
+const buildMerlotUnit = (width, height, depth, material, options = {}) => {
+    const { doors = 1, drawers = 0, counter = true, toeKick = 0.1 } = options;
+    const group = new THREE.Group();
+    const carcass = merlotCarcass(material);
+
+    const counterThickness = counter ? 0.03 : 0;
+    const bodyHeight = height - counterThickness;
+    const kickHeight = Math.min(toeKick, height * 0.15);
+
+    // Recessed toe kick
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width * 0.94, kickHeight, depth * 0.8), MERLOT_KICK()),
+        0, kickHeight / 2, -depth * 0.08);
+
+    // Carcass
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, bodyHeight - kickHeight, depth), carcass),
+        0, kickHeight + (bodyHeight - kickHeight) / 2, 0);
+
+    // Countertop
+    if (counter) {
+        addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width + 0.02, counterThickness, depth + 0.02), MERLOT_COUNTER()),
+            0, height - counterThickness / 2, 0.01);
+    }
+
+    const frontZ = depth / 2 + 0.011;
+    const gap = 0.008;
+    const frontHeight = bodyHeight - kickHeight - 0.02;
+    const frontY = kickHeight + frontHeight / 2 + 0.01;
+
+    if (drawers > 0) {
+        const rowHeight = (frontHeight - gap * (drawers + 1)) / drawers;
+        for (let i = 0; i < drawers; i++) {
+            const y = kickHeight + gap * (i + 1) + rowHeight * (i + 0.5);
+            addPanel(group, width - gap * 2, rowHeight, 0, y, frontZ, carcass);
+            addBarPull(group, width, 0, y, frontZ);
+        }
+    } else {
+        const colWidth = (width - gap * (doors + 1)) / doors;
+        for (let i = 0; i < doors; i++) {
+            const x = -width / 2 + gap * (i + 1) + colWidth * (i + 0.5);
+            addPanel(group, colWidth, frontHeight, x, frontY, frontZ, carcass);
+            const pullOffset = colWidth * 0.3 * (doors > 1 && i % 2 === 1 ? -1 : 1);
+            addBarPull(group, colWidth, x + pullOffset, frontY, frontZ);
+        }
+    }
+
+    return group;
+};
+
+export const buildMerlotBaseCabinet = (w, h, d, m) => buildMerlotUnit(w, h, d, m, { doors: 1 });
+export const buildMerlotDrawerBase = (w, h, d, m) => buildMerlotUnit(w, h, d, m, { drawers: 3 });
+
+export const buildMerlotSinkBase = (w, h, d, m) => {
+    const group = buildMerlotUnit(w, h, d, m, { doors: 2, drawers: 1 });
+    // Undermount basin, sunk into the counter
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(w * 0.62, 0.2, d * 0.55), createMat(0x9aa3ad, 0.9, 0.25)),
+        0, h - 0.12, 0);
+    return group;
+};
+
+export const buildMerlotCornerBase = (w, h, d, m) => {
+    const group = buildMerlotUnit(w, h, d, m, { doors: 1 });
+    // Blind corner panel on the return side
+    addPanel(group, d - 0.04, h - 0.16, w / 2 + 0.011, (h - 0.13) / 2 + 0.05, 0, merlotCarcass(m))
+        .rotation.y = Math.PI / 2;
+    return group;
+};
+
+export const buildMerlotWallCabinet = (w, h, d, m, fixture) => {
+    const group = buildMerlotUnit(w, h, d, m, { doors: 1, counter: false, toeKick: 0 });
+    group.position.y = fixture?.metadata?.mountHeight ?? 1.37;
+    return group;
+};
+
+export const buildMerlotWallCabinetDouble = (w, h, d, m, fixture) => {
+    const group = buildMerlotUnit(w, h, d, m, { doors: 2, counter: false, toeKick: 0 });
+    group.position.y = fixture?.metadata?.mountHeight ?? 1.37;
+    return group;
+};
+
+export const buildMerlotTallPantry = (w, h, d, m) => buildMerlotUnit(w, h, d, m, { doors: 2, counter: false });
+
+export const buildMerlotOvenTower = (w, h, d, m) => {
+    const group = buildMerlotUnit(w, h, d, m, { counter: false });
+    const frontZ = d / 2 + 0.02;
+    // Built-in oven: dark glass panel with a bar handle
+    addPanel(group, w - 0.06, 0.55, 0, h * 0.55, frontZ, createMat(0x14171a, 0.35, 0.25));
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(w - 0.16, 0.02, 0.03), MERLOT_PULL()), 0, h * 0.55 + 0.29, frontZ + 0.03);
+    return group;
+};
+
+export const buildMerlotIsland = (w, h, d, m) => {
+    // Three-door island; the counter stays within the declared footprint so the
+    // 2D plan rectangle matches the 3D body exactly.
+    return buildMerlotUnit(w, h, d, m, { doors: 3 });
+};
+
+export const buildMerlotOpenShelf = (w, h, d, m, fixture) => {
+    const group = new THREE.Group();
+    const plankThickness = 0.05;
+    const bracketHeight = 0.14;
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(w, plankThickness, d), merlotCarcass(m)), 0, 0, 0);
+    const bracket = merlotCarcass(m);
+    [-w / 2 + 0.1, w / 2 - 0.1].forEach((x) => {
+        addChild(group, new THREE.Mesh(new THREE.BoxGeometry(0.03, bracketHeight, d * 0.7), bracket), x, -plankThickness / 2 - bracketHeight / 2, -d * 0.1);
+    });
+    // Consistent with the other wall-mounted pieces: mountHeight is the bottom
+    // of the unit's bounding box.
+    group.position.y = (fixture?.metadata?.mountHeight ?? 1.52) + plankThickness / 2 + bracketHeight;
+    return group;
+};
+
+export const buildMerlotBarPull = (w, h, d, m, fixture) => {
+    const group = new THREE.Group();
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(w || 0.16, h || 0.03, d || 0.03), MERLOT_PULL()), 0, 0, 0);
+    return group;
+};
+
+export const buildMerlotCrown = (w, h, d, m, fixture) => {
+    const group = new THREE.Group();
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(w, h, d), merlotCarcass(m)), 0, 0, 0);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(w, h * 0.4, d * 1.15), merlotCarcass(m)), 0, -h * 0.5, d * 0.05);
+    // mountHeight is the underside of the moulding.
+    group.position.y = (fixture?.metadata?.mountHeight ?? 2.18) + (h || 0.09) / 2 + 0.01;
+    return group;
+};
+
+// --- Shaker cabinetry line (wireframe) -------------------------------------
+// Modelled on the reference kitchen in shaker.glb: five-piece shaker fronts
+// (two stiles, two rails, recessed centre panel) on a frameless carcass with a
+// recessed toe kick. The line is drawn as wireframe in 3D, so the stile/rail
+// construction stays visible; the frame proportions below are the reference's.
+
+export const SHAKER_STYLE = {
+    finish: 0xefeae2,          // RAL 9016 traffic white panels (W980 grain)
+    counter: 0xd7d2c7,
+    frameWidth: 0.057,         // 2 1/4" stile / rail
+    doorThickness: 0.019,      // 3/4" door
+    panelThickness: 0.019,
+    recessDepth: 0.008
+};
+
+const shakerFinish = (material) => material || createMat(SHAKER_STYLE.finish, 0.02, 0.55);
+
+// A five-piece door or drawer front, centred on (x, y) and mounted on the
+// cabinet face at `faceZ`. The centre panel sits back from the frame.
+const addShakerFront = (group, frontWidth, frontHeight, x, y, faceZ, mat, options = {}) => {
+    const { frameWidth = SHAKER_STYLE.frameWidth, thickness = SHAKER_STYLE.doorThickness } = options;
+    const f = Math.max(0.02, Math.min(frameWidth, frontWidth / 3, frontHeight / 3));
+    const frameZ = faceZ + thickness / 2;
+    const innerWidth = frontWidth - f * 2;
+    const innerHeight = frontHeight - f * 2;
+
+    // Stiles (full height) and rails (between them)
+    addPanel(group, f, frontHeight, x - frontWidth / 2 + f / 2, y, frameZ, mat, thickness);
+    addPanel(group, f, frontHeight, x + frontWidth / 2 - f / 2, y, frameZ, mat, thickness);
+    addPanel(group, innerWidth, f, x, y + frontHeight / 2 - f / 2, frameZ, mat, thickness);
+    addPanel(group, innerWidth, f, x, y - frontHeight / 2 + f / 2, frameZ, mat, thickness);
+
+    // Recessed centre panel, set back from the frame face
+    const panelDepth = Math.max(0.008, thickness - SHAKER_STYLE.recessDepth);
+    addPanel(group, innerWidth, innerHeight, x, y, faceZ + panelDepth / 2, mat, panelDepth);
+};
+
+const addShakerPull = (group, x, y, faceZ) => {
+    // Bar pull sits on the door face and stops at the cabinet's depth envelope
+    const pullDepth = 0.02;
+    const pull = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.015, pullDepth), MERLOT_PULL());
+    return addChild(group, pull, x, y, faceZ + SHAKER_STYLE.doorThickness + pullDepth / 2);
+};
+
+const buildShakerUnit = (width, height, depth, material, options = {}) => {
+    const { doors = 1, drawers = 0, counter = true, toeKick = 0.1, shelf = false } = options;
+    const group = new THREE.Group();
+    const mat = shakerFinish(material);
+    const t = SHAKER_STYLE.panelThickness;
+    const doorT = SHAKER_STYLE.doorThickness;
+    const pullT = 0.02;
+
+    const counterThickness = counter ? 0.03 : 0;
+    const bodyHeight = height - counterThickness;
+    const kickHeight = Math.min(toeKick, height * 0.15);
+    const innerWidth = Math.max(0.05, width - t * 2);
+
+    // Declared depth is the outer envelope: carcass + door + pull. Everything
+    // built here stays inside it, so the 2D footprint matches the 3D body.
+    const carcassDepth = Math.max(0.05, depth - doorT - pullT);
+    const backZ = -depth / 2;
+    const faceZ = backZ + carcassDepth;
+    const carcassMidZ = backZ + carcassDepth / 2;
+
+    // Carcass as panels, not a solid block
+    addPanel(group, t, bodyHeight, -width / 2 + t / 2, bodyHeight / 2, carcassMidZ, mat, carcassDepth);
+    addPanel(group, t, bodyHeight, width / 2 - t / 2, bodyHeight / 2, carcassMidZ, mat, carcassDepth);
+    addPanel(group, innerWidth, t, 0, bodyHeight - t / 2, carcassMidZ, mat, carcassDepth);
+    addPanel(group, innerWidth, t, 0, kickHeight + t / 2, carcassMidZ, mat, carcassDepth);
+    addPanel(group, innerWidth, bodyHeight - kickHeight - t, 0, kickHeight + (bodyHeight - kickHeight) / 2, backZ + 0.006, mat, 0.012);
+
+    // Recessed toe kick
+    if (kickHeight > 0.01) {
+        addPanel(group, width - 0.02, kickHeight, 0, kickHeight / 2, faceZ - 0.075, mat, t);
+    }
+
+    // Shelf (wall units / tall units)
+    if (shelf) {
+        const shelfY = kickHeight + (bodyHeight - kickHeight) * 0.5;
+        addPanel(group, innerWidth - 0.004, t * 0.8, 0, shelfY, carcassMidZ, mat, carcassDepth - 0.03);
+    }
+
+    // Countertop, full footprint
+    if (counter) {
+        addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, counterThickness, depth), createMat(SHAKER_STYLE.counter, 0.05, 0.35)),
+            0, height - counterThickness / 2, 0);
+    }
+
+    const gap = 0.008;
+    const frontHeight = bodyHeight - kickHeight - 0.02;
+    const frontY = kickHeight + 0.01 + frontHeight / 2;
+
+    if (drawers > 0) {
+        const rowHeight = (frontHeight - gap * (drawers + 1)) / drawers;
+        for (let i = 0; i < drawers; i++) {
+            const y = kickHeight + gap * (i + 1) + rowHeight * (i + 0.5);
+            addShakerFront(group, width - gap * 2, rowHeight, 0, y, faceZ, mat);
+            addShakerPull(group, 0, y, faceZ);
+        }
+    } else {
+        const colWidth = (width - gap * (doors + 1)) / doors;
+        for (let i = 0; i < doors; i++) {
+            const x = -width / 2 + gap * (i + 1) + colWidth * (i + 0.5);
+            addShakerFront(group, colWidth, frontHeight, x, frontY, faceZ, mat);
+            // Pulls sit on the stiles next to the opening edge
+            const side = doors > 1 && i % 2 === 1 ? -1 : 1;
+            const pullX = x + side * (colWidth / 2 - SHAKER_STYLE.frameWidth - 0.02);
+            addShakerPull(group, pullX, frontY + frontHeight / 2 - 0.12, faceZ);
+        }
+    }
+
+    return group;
+};
+
+export const buildShakerBaseCabinet = (w, h, d, m) => buildShakerUnit(w, h, d, m, { doors: 1 });
+export const buildShakerDrawerBase = (w, h, d, m) => buildShakerUnit(w, h, d, m, { drawers: 3 });
+
+export const buildShakerSinkBase = (w, h, d, m) => {
+    const group = buildShakerUnit(w, h, d, m, { doors: 2 });
+    // Undermount basin sunk into the stone top
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, 0.2, d * 0.55), createMat(0x9aa3ad, 0.9, 0.25)),
+        0, h - 0.12, 0);
+    return group;
+};
+
+export const buildShakerWallCabinet = (w, h, d, m, fixture) => {
+    const group = buildShakerUnit(w, h, d, m, { doors: 1, counter: false, toeKick: 0, shelf: true });
+    group.position.y = fixture?.metadata?.mountHeight ?? 1.37;
+    return group;
+};
+
+export const buildShakerWallCabinetDouble = (w, h, d, m, fixture) => {
+    const group = buildShakerUnit(w, h, d, m, { doors: 2, counter: false, toeKick: 0, shelf: true });
+    group.position.y = fixture?.metadata?.mountHeight ?? 1.37;
+    return group;
+};
+
+export const buildShakerTallPantry = (w, h, d, m) => buildShakerUnit(w, h, d, m, { doors: 2, counter: false });
+
+export const buildShakerIsland = (w, h, d, m) => buildShakerUnit(w, h, d, m, { doors: 3 });
+
 // --- Factory Registry ---
 export const FurnitureFactory = {
     'door': buildDoor,
     'window': buildWindow,
     'round_window': buildRoundWindow,
+
+    // Merlot cabinetry line
+    'merlot_base_cabinet': buildMerlotBaseCabinet,
+    'merlot_drawer_base': buildMerlotDrawerBase,
+    'merlot_sink_base': buildMerlotSinkBase,
+    'merlot_corner_base': buildMerlotCornerBase,
+    'merlot_wall_cabinet': buildMerlotWallCabinet,
+    'merlot_wall_cabinet_double': buildMerlotWallCabinetDouble,
+    'merlot_tall_pantry': buildMerlotTallPantry,
+    'merlot_oven_tower': buildMerlotOvenTower,
+    'merlot_island': buildMerlotIsland,
+    'merlot_open_shelf': buildMerlotOpenShelf,
+    'merlot_bar_pull': buildMerlotBarPull,
+    'merlot_crown': buildMerlotCrown,
+
+    // Shaker cabinetry line (wireframe)
+    'shaker_base_cabinet': buildShakerBaseCabinet,
+    'shaker_drawer_base': buildShakerDrawerBase,
+    'shaker_sink_base': buildShakerSinkBase,
+    'shaker_wall_cabinet': buildShakerWallCabinet,
+    'shaker_wall_cabinet_double': buildShakerWallCabinetDouble,
+    'shaker_tall_pantry': buildShakerTallPantry,
+    'shaker_island': buildShakerIsland,
     'bathtub': (w, h, d, m, f) => {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w || 1.6, h || 0.5, d || 0.8), m || createMat(0xffffff, 0.1, 0.2));
         mesh.position.y = (h || 0.5) / 2;

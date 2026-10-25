@@ -142,10 +142,14 @@
                     <div class="item-category-header pb-2 border-b border-gray-100 dark:border-gray-700">
                         <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Tools</h3>
                     </div>
-                    <div class="grid grid-cols-3 gap-2 mt-3">
+                    <div class="grid grid-cols-4 gap-2 mt-3">
                         <button class="tool-btn active flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary transition-all shadow-sm" data-tool="wall" title="Shortcut: W">
                             <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 mb-1">edit</span>
                             <span class="text-xs font-bold text-gray-600 dark:text-gray-300">Wall</span>
+                        </button>
+                        <button class="tool-btn flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary hover:text-primary transition-all shadow-sm group" data-tool="select" title="Select &amp; drag (Escape) — G moves, R rotates in 3D">
+                            <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-primary mb-1">arrow_selector_tool</span>
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-primary">Select</span>
                         </button>
                         <button class="tool-btn flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-red-500 hover:text-red-500 transition-all shadow-sm group" data-tool="delete" title="Shortcut: D">
                             <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-red-500 mb-1">delete</span>
@@ -177,6 +181,53 @@
                             <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">circle</span>
                             <span class="text-[10px] mt-1 text-center">Round</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Merlot Cabinetry line -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('merlot-items')">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Merlot Cabinetry</h3>
+                        <span class="material-symbols-outlined text-gray-400" id="merlot-items-icon">expand_more</span>
+                    </div>
+                    <div id="merlot-items" class="mt-1">
+                        <label class="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" for="merlot-select">Select a piece, then click the plan to place it</label>
+                        <select id="merlot-select" class="w-full text-xs p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                            <option value="">Choose a piece…</option>
+                            <option value="merlot_base_cabinet">Base Cabinet 30"</option>
+                            <option value="merlot_drawer_base">Drawer Base 30"</option>
+                            <option value="merlot_sink_base">Sink Base 36"</option>
+                            <option value="merlot_corner_base">Corner Base 36"</option>
+                            <option value="merlot_wall_cabinet">Wall Cabinet 30"</option>
+                            <option value="merlot_wall_cabinet_double">Wall Cabinet 36" Double</option>
+                            <option value="merlot_tall_pantry">Tall Pantry 24"</option>
+                            <option value="merlot_oven_tower">Oven Tower 30"</option>
+                            <option value="merlot_island">Island 72"</option>
+                            <option value="merlot_open_shelf">Open Shelf 36"</option>
+                            <option value="merlot_crown">Crown Moulding 36"</option>
+                            <option value="merlot_bar_pull">Bar Pull (accent)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Shaker Cabinetry line (wireframe) -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('shaker-items')">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Shaker Cabinetry <span class="text-[10px] font-normal text-gray-400">wireframe</span></h3>
+                        <span class="material-symbols-outlined text-gray-400" id="shaker-items-icon">expand_more</span>
+                    </div>
+                    <div id="shaker-items" class="mt-1">
+                        <label class="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" for="shaker-select">Select a piece, then click the plan to place it</label>
+                        <select id="shaker-select" class="w-full text-xs p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                            <option value="">Choose a piece…</option>
+                            <option value="shaker_base_cabinet">Shaker Base 30"</option>
+                            <option value="shaker_drawer_base">Shaker Drawer Base 30"</option>
+                            <option value="shaker_sink_base">Shaker Sink Base 36"</option>
+                            <option value="shaker_wall_cabinet">Shaker Wall 24"</option>
+                            <option value="shaker_wall_cabinet_double">Shaker Wall 36" Double</option>
+                            <option value="shaker_tall_pantry">Shaker Tall Pantry 24"</option>
+                            <option value="shaker_island">Shaker Island 72"</option>
+                        </select>
                     </div>
                 </div>
 

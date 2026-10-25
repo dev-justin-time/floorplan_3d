@@ -6,7 +6,10 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 // Import the refactored factory pattern
 import { FurnitureFactory, buildDefaultBox } from './furnitureBuilders.js';
+import { toWireframe } from './wireframe.js';
 import { formatLength, formatArea } from './measurements.js';
+
+import { WINDOW_SILL_HEIGHT } from './world-space.js';
 
 const SCALE = GLOBAL_CONFIG.pixelsPerMeter;
 const ROOM_HEIGHT = GLOBAL_CONFIG.wallHeight;
@@ -370,9 +373,18 @@ export class ConversionEngine3D {
                     const hx = (hole.x - canvasWidth / 2) / SCALE;
                     const hz = (hole.y - canvasHeight / 2) / SCALE;
                     
-                    let hy = h / 2; 
-                    if (hole.type === 'window' || hole.type === 'round_window') hy = hole.metadata?.altitude || 1.0;
-                    else if (hole.type === 'door') hy = h / 2 + 0.01;
+                    // Windows are positioned by sill height (floor to bottom edge),
+                    // so the hole centre is sill + half the opening height. Doors
+                    // sit on the floor. The hole is rebuilt from the fixture's
+                    // current x/y every conversion, so dragging the window along
+                    // the wall moves the opening with it.
+                    let hy = h / 2;
+                    if (hole.type === 'window' || hole.type === 'round_window') {
+                        const sill = hole.metadata?.sillHeight ?? hole.metadata?.altitude ?? WINDOW_SILL_HEIGHT;
+                        hy = sill + h / 2;
+                    } else if (hole.type === 'door') {
+                        hy = h / 2 + 0.01;
+                    }
 
                     holeBrush.position.set(hx, hy, hz);
                     holeBrush.rotation.y = -hole.rotation;
@@ -489,7 +501,17 @@ export class ConversionEngine3D {
         // Delegate to the factory registry, fallback to default box builder
         const builder = FurnitureFactory[fixture.type] || buildDefaultBox;
         const mesh = builder(width, height, depth, material, fixture);
-        
+
+        // Lines-only lines (e.g. the shaker cabinetry) keep the built geometry
+        // but render it as edges, so the construction stays readable.
+        if (mesh && fixture.metadata?.wireframe) {
+            const wire = toWireframe(mesh, {
+                color: style.wireframeColor || fixture.metadata.wireframeColor || style.color || 0x334155
+            });
+            this.disposeObject(mesh); // the solid source is never rendered
+            return wire;
+        }
+
         return mesh;
     }
 }

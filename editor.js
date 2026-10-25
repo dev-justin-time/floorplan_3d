@@ -11,6 +11,9 @@ import { graphFromWalls } from './floorplan-graph.js';
 import { measurePlan } from './measurements.js';
 import { WALL_HEIGHT } from './world-space.js';
 import { fitCameraToGraph } from './scene-camera.js';
+import { fixtureAt, beginDrag, dragTo } from './scene-drag.js';
+import { snapToWalls } from './wall-snap.js';
+import { createItemGizmo, planFromObject, pickItemId } from './scene-gizmo.js';
 
 // Application State
 const AppState = {
@@ -21,6 +24,7 @@ const AppState = {
     walls: [],
     fixtures: [],
     selectedFixture: null,
+    drag: null,
     
     // Settings
     showDimensions: true,
@@ -48,6 +52,8 @@ const AppState = {
 let blueprintCanvas, blueprintCtx;
 let scene3D, camera3D, renderer3D, controls3D;
 let conversionEngine;
+let itemGizmo;
+let gizmoMode = 'translate';
 let stateManager;
 
 // Constants
@@ -168,12 +174,23 @@ function onPointerDown(e) {
         AppState.wallStart = pos;
     } else if (AppState.currentTool === 'delete') {
         deleteObjectAt(pos.x, pos.y);
+    } else if (AppState.currentTool === 'select') {
+        const fixture = fixtureAt(AppState.fixtures, pos, { slack: 10 / AppState.scale });
+        AppState.selectedFixture = fixture;
+        AppState.drag = beginDrag(fixture, pos);
+        draw2D(pos);
+        refreshGizmo();
     } else if (AppState.currentTool) {
         // Place item
         const item = ItemFactory.create(AppState.currentTool, pos.x, pos.y);
         
-        // Basic snapping
-        if (item.snapToWall) item.snapToWall(AppState.walls);
+        // In-wall items ride the wall centreline; floor items sit flush on the
+        // wall face, width along the wall.
+        if (item.metadata?.type === 'in_wall' || item.metadata?.type === 'in_wall_floor') {
+            if (item.snapToWall) item.snapToWall(AppState.walls);
+        } else {
+            snapToWalls(item, AppState.walls, { threshold: 24 / AppState.scale });
+        }
         
         // Default style for new items
         if (!AppState.fixtureStyles[item.id]) {
@@ -204,6 +221,17 @@ function onPointerMove(e) {
         return;
     }
 
+    if (AppState.drag) {
+        const dragPos = getCanvasCoordinates(e);
+        dragTo(AppState.drag, dragPos, AppState.walls, {
+            gridSize: AppState.gridSize,
+            snapThreshold: 20 / AppState.scale
+        });
+        draw2D(dragPos);
+        scheduleDragUpdate();
+        return;
+    }
+
     const pos = getCanvasCoordinates(e);
     
     // Redraw for hover effects / previews
@@ -214,6 +242,13 @@ function onPointerUp(e) {
     if (AppState.isPanning) {
         AppState.isPanning = false;
         blueprintCanvas.style.cursor = 'crosshair';
+        return;
+    }
+
+    if (AppState.drag) {
+        AppState.drag = null;
+        saveAndSync();
+        draw2D();
         return;
     }
 
@@ -320,7 +355,7 @@ function draw2D(cursorPos = null) {
     AppState.fixtures.forEach(f => drawFixture(ctx, f));
 
     // Ghost Item Preview
-    if (cursorPos && AppState.currentTool && AppState.currentTool !== 'wall' && AppState.currentTool !== 'delete') {
+    if (cursorPos && !AppState.drag && AppState.currentTool && !['wall', 'delete', 'select'].includes(AppState.currentTool)) {
         ctx.globalAlpha = 0.5;
         // Mock fixture for drawing
         const ghost = { x: cursorPos.x, y: cursorPos.y, rotation: 0, type: AppState.currentTool, metadata: ItemFactory.create(AppState.currentTool,0,0).metadata };
@@ -402,10 +437,15 @@ function drawFixture(ctx, f) {
     const w = (f.metadata.width || 0.5) * SCALE;
     const d = (f.metadata.depth || 0.5) * SCALE;
     
-    // Highlight if selected (todo)
-    ctx.fillStyle = f.type === 'window' ? '#93c5fd' : (f.type === 'door' ? '#b45309' : '#64748b');
-    ctx.strokeStyle = '#334155';
-    
+    const isSelected = AppState.selectedFixture && AppState.selectedFixture.id === f.id;
+
+    const metaColor = f.metadata?.color != null
+        ? '#' + f.metadata.color.toString(16).padStart(6, '0')
+        : null;
+    ctx.fillStyle = f.type === 'window' ? '#93c5fd' : (f.type === 'door' ? '#b45309' : (metaColor || '#64748b'));
+    ctx.strokeStyle = isSelected ? '#f59e0b' : '#334155';
+    ctx.lineWidth = isSelected ? 3 : 1;
+
     ctx.beginPath();
     ctx.rect(-w/2, -d/2, w, d);
     ctx.fill();
@@ -452,12 +492,94 @@ function init3D() {
     scene3D.add(dir);
     
     conversionEngine = new ConversionEngine3D(scene3D);
+
+    initGizmo();
+
+    // Picking in the 3D view: click selects, drag orbits.
+    let pointerDownAt = null;
+    renderer3D.domElement.addEventListener('pointerdown', (e) => {
+        pointerDownAt = { x: e.clientX, y: e.clientY, button: e.button };
+    });
+    renderer3D.domElement.addEventListener('pointerup', (e) => {
+        const start = pointerDownAt;
+        pointerDownAt = null;
+        if (!start || start.button !== 0 || e.button !== 0) return;
+        // A press that grabbed a gizmo handle belongs to the gizmo, not selection
+        if (itemGizmo && (itemGizmo.dragging || itemGizmo.controls.axis)) return;
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) return; // orbit, not a click
+        selectItemAtPointer(e);
+    });
     
     animate3D();
 }
 
+function initGizmo() {
+    if (itemGizmo || !scene3D) return;
+    itemGizmo = createItemGizmo({
+        scene: scene3D,
+        camera: camera3D,
+        renderer: renderer3D,
+        orbit: controls3D,
+        onPreview: (object) => {
+            const fixture = AppState.selectedFixture;
+            if (!fixture) return;
+            // The gizmo moves the mesh; mirror it back into plan coordinates
+            // so the 2D canvas follows while the handle is still held.
+            const plan = planFromObject(object, blueprintCanvas);
+            fixture.x = plan.x;
+            fixture.y = plan.y;
+            fixture.rotation = plan.rotation;
+            draw2D();
+        },
+        onCommit: () => {
+            const fixture = AppState.selectedFixture;
+            if (!fixture) return;
+            snapToWalls(fixture, AppState.walls, { threshold: 24 / AppState.scale });
+            saveAndSync();
+        }
+    });
+    itemGizmo.setMode(gizmoMode);
+}
+
+function findItemObject(id) {
+    let found = null;
+    if (!scene3D) return null;
+    scene3D.traverse((child) => {
+        if (!found && child.userData && child.userData.type === 'item' && child.userData.id === id) found = child;
+    });
+    return found;
+}
+
+function refreshGizmo() {
+    if (!itemGizmo) return;
+    const fixture = AppState.selectedFixture;
+    if (!fixture || AppState.viewMode !== '3d') {
+        itemGizmo.detach();
+        return;
+    }
+    const object = findItemObject(fixture.id);
+    if (object) itemGizmo.attach(object);
+    else itemGizmo.detach();
+}
+
+function selectItemAtPointer(event) {
+    if (!scene3D || !renderer3D) return;
+    const id = pickItemId(scene3D, camera3D, renderer3D.domElement, event);
+    AppState.selectedFixture = id ? AppState.fixtures.find((f) => f.id === id) || null : null;
+    if (AppState.selectedFixture) AppState.currentTool = 'select';
+    draw2D();
+    refreshGizmo();
+}
+
+function setGizmoMode(mode) {
+    gizmoMode = mode === 'rotate' ? 'rotate' : 'translate';
+    if (itemGizmo) itemGizmo.setMode(gizmoMode);
+}
+
 function update3D() {
     if (!conversionEngine) return;
+    // The rebuild replaces the meshes, so drop the old gizmo target first.
+    if (itemGizmo) itemGizmo.detach();
 
     // The 3D preview is built from the same graph the 2D canvas edits, so wall
     // ids, shared corners and the metre labels line up between both views.
@@ -493,6 +615,8 @@ function update3D() {
         AppState.hasFramed3D = true;
     }
     if (graph.edges.length === 0) AppState.hasFramed3D = false;
+
+    refreshGizmo();
 }
 
 function animate3D() {
@@ -527,7 +651,10 @@ function setupEventListeners() {
             case 'escape': 
                 setTool('select'); 
                 document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active', 'border-primary', 'bg-blue-50', 'text-primary'));
+                refreshGizmo();
                 break;
+            case 'g': setGizmoMode('translate'); break;
+            case 'r': setGizmoMode('rotate'); break;
             case 'z':
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
@@ -552,6 +679,24 @@ function setupEventListeners() {
         }
     });
     
+    // Merlot cabinetry dropdown
+    const merlotSelect = document.getElementById('merlot-select');
+    if (merlotSelect) {
+        merlotSelect.addEventListener('change', () => {
+            if (!merlotSelect.value) return;
+            setTool(merlotSelect.value);
+        });
+    }
+
+    // Shaker cabinetry dropdown
+    const shakerSelect = document.getElementById('shaker-select');
+    if (shakerSelect) {
+        shakerSelect.addEventListener('change', () => {
+            if (!shakerSelect.value) return;
+            setTool(shakerSelect.value);
+        });
+    }
+
     // Items
     document.querySelectorAll('.item-button').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -672,6 +817,9 @@ function wireUploadModal() {
 
 function setTool(tool) {
     AppState.currentTool = tool;
+    AppState.drag = null;
+    AppState.selectedFixture = null;
+    refreshGizmo();
     console.log('Tool set to:', tool);
 }
 
@@ -715,6 +863,7 @@ function toggleView() {
         update3D();
     } else {
         AppState.viewMode = '2d';
+        if (itemGizmo) itemGizmo.detach();
         v2d.style.opacity = '1';
         v2d.style.pointerEvents = 'auto';
         v3d.style.opacity = '0';
@@ -737,6 +886,17 @@ function updateUI() {
     draw2D();
     update3D();
     saveToStorage();
+}
+
+let dragUpdateTimer = null;
+
+/** Rebuild the 3D preview while dragging, throttled so CSG does not run per pixel. */
+function scheduleDragUpdate() {
+    if (dragUpdateTimer) return;
+    dragUpdateTimer = setTimeout(() => {
+        dragUpdateTimer = null;
+        update3D();
+    }, 60);
 }
 
 function saveAndSync() {
