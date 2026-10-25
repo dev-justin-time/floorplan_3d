@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>measurements check</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
+    "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+    "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js",
+    "three-bvh-csg": "https://esm.sh/three-bvh-csg@0.0.16?external=three"
+  }
+}
+</script>
+<style>body{margin:0;font:12px monospace}#log{white-space:pre-wrap;background:#000;color:#0f0;padding:4px}</style>
+</head><body>
+<div style="display:flex;width:600px;height:240px">
+  <canvas id="demo-sync-2d" style="width:300px;height:240px"></canvas>
+  <div id="demo-sync-3d" style="width:300px;height:240px"></div>
+</div>
+<div id="log"></div>
+<script type="module">
+const log = (m) => { document.getElementById('log').textContent += m + '\n'; };
+window.addEventListener('error', e => log('ERROR: ' + e.message));
+window.addEventListener('unhandledrejection', e => log('REJECT: ' + (e.reason?.message || e.reason)));
+
+import * as THREE from 'three';
+import { FloorplanSyncDemo } from './demo-floorplan-sync.js';
+import { measurePlan, findRooms, polygonArea } from './measurements.js';
+import { ConversionEngine3D } from './3dConversionEngine.js';
+
+const demo = new FloorplanSyncDemo('demo-sync-2d', 'demo-sync-3d');
+const cx = demo.view.width / 2, cy = demo.view.height / 2;
+const box = [[cx - 90, cy - 60], [cx + 90, cy - 60], [cx + 90, cy + 60], [cx - 90, cy + 60], [cx - 90, cy - 60]];
+for (let i = 0; i < box.length - 1; i++) demo.addWall({ x: box[i][0], y: box[i][1] }, { x: box[i + 1][0], y: box[i + 1][1] });
+
+const m = measurePlan(demo.graph);
+log('wall lengths=' + m.walls.map(w => w.length.toFixed(2)).join(','));
+log('rooms=' + m.rooms.length + ' areas=' + m.rooms.map(r => r.area.toFixed(2)).join(','));
+log('expected 6x4=24 -> ' + (Math.abs(m.rooms[0].area - 24) < 0.01));
+
+const sprites = [];
+const walls3d = [];
+demo.scene.traverse(o => {
+  if (o.isSprite) sprites.push(o);
+  if (o.userData?.type === 'wall') walls3d.push(o);
+});
+log('3D sprites=' + sprites.length + ' (expect 4 walls + 1 room) walls=' + walls3d.length);
+
+let err = 0;
+for (const edge of demo.graph.edges) {
+  const mid = { x: (edge.a.x + edge.b.x) / 2, z: (edge.a.z + edge.b.z) / 2 };
+  const mesh = walls3d.find(w => w.userData.id === edge.id);
+  if (mesh) err = Math.max(err, Math.hypot(mesh.position.x - mid.x, mesh.position.z - mid.z));
+}
+log('3D walls vs graph maxErr=' + err.toFixed(4));
+
+// Texture fallback: force a missing texture and inspect the resolved source.
+const scene = new THREE.Scene();
+const engine = new ConversionEngine3D(scene);
+engine.convert({
+  stories: [{ id: 's', walls: [{ id: 'w1', start: { x: 0, y: 0 }, end: { x: 300, y: 0 } }], fixtures: [], height: 2.7 }],
+  walls: [{ id: 'w1', start: { x: 0, y: 0 }, end: { x: 300, y: 0 } }],
+  fixtures: [],
+  defaultWallTexture: 'painted_wall',
+  defaultFloorTexture: 'tile'
+}, 600, 400);
+
+await new Promise(r => setTimeout(r, 2500));
+let fallbackOk = false;
+scene.traverse(o => {
+  const map = o.material && o.material.map;
+  if (map && map.source && map.source.data && map.source.data.length === 4) fallbackOk = true;
+});
+log('texture fallback to 1x1 white source: ' + fallbackOk);
+</script>
+</body></html>

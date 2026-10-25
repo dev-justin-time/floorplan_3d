@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
+import { WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
 
 // Simple hard-coded floorplan (rectangle room + inner wall) rendered via R3F
 const FLOOR_WALLS = [
@@ -13,7 +14,7 @@ const FLOOR_WALLS = [
   { start: { x: 0, y: -3 }, end: { x: 0, y: 3 } }
 ];
 
-function R3FWall({ wall, height = 2.7, thickness = 0.15 }) {
+function R3FWall({ wall, height = WALL_HEIGHT, thickness = WALL_THICKNESS }) {
   const { length, position, angle } = useMemo(() => {
     const dx = wall.end.x - wall.start.x;
     const dz = wall.end.y - wall.start.y;

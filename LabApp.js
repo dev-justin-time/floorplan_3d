@@ -4,6 +4,7 @@ import LabScene from './LabScene.js';
 import LabCustomizationPanel from './LabCustomizationPanel.js';
 import LabUpload from './LabUpload.js';
 import { RotateCcw, Undo, Redo, Save, Download, Upload, Play, Settings } from 'lucide-react';
+import { WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
 
 const getRandomPastelColor = () => {
   const hue = Math.floor(Math.random() * 360);
@@ -13,8 +14,8 @@ const getRandomPastelColor = () => {
 // State Management Reducer
 const initialState = {
   floorPlanData: null,
-  roomHeight: 2.5,
-  wallThickness: 0.15,
+  roomHeight: WALL_HEIGHT,
+  wallThickness: WALL_THICKNESS,
   lightIntensity: 1.0,
   roomColors: {},
   roomTextures: {},

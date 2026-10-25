@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { ConversionEngine3D } from './3dConversionEngine.js';
+import { graphFromWalls } from './floorplan-graph.js';
+import { measurePlan } from './measurements.js';
+import { WALL_HEIGHT } from './world-space.js';
 
 // Floorplan mini-demos
 import { FloorplanSyncDemo } from './demo-floorplan-sync.js';
@@ -344,16 +347,26 @@ function init3D() {
 
 function update3DFrom2D() {
   if (!conversionEngine || !blueprintCanvas) return;
+
+  // Rebuild the graph from the 2D walls: nodes are shared corners, so the 3D
+  // scene, the 2D canvas and the measurements all reference the same geometry.
+  const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+  const graph = graphFromWalls(AppState.walls, view, { snapPixels: 2 });
+  AppState.graph = graph;
+  const walls = graph.toCanvasWalls(view);
+
   const appState = {
     stories: [{
       id: 'demo_story',
-      walls: AppState.walls,
+      walls,
       fixtures: AppState.fixtures,
-      height: 2.7
+      height: WALL_HEIGHT
     }],
     currentStoryIndex: 0,
-    walls: AppState.walls,
+    walls,
     fixtures: AppState.fixtures,
+    measurements: measurePlan(graph),
+    showMeasurements: AppState.showDimensions,
     fixtureStyles: {},
     showCeiling: AppState.showCeiling,
     showRoof: AppState.showRoof,

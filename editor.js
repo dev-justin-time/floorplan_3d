@@ -7,6 +7,9 @@ import { Wall, ItemFactory } from './items.js';
 import { StateManager } from './state-manager.js';
 import { StorageManager } from './storage.js';
 import { FloorPlanProcessor } from './floorPlanProcessor.js';
+import { graphFromWalls } from './floorplan-graph.js';
+import { measurePlan } from './measurements.js';
+import { WALL_HEIGHT } from './world-space.js';
 
 // Application State
 const AppState = {
@@ -454,14 +457,23 @@ function init3D() {
 
 function update3D() {
     if (!conversionEngine) return;
-    
+
+    // The 3D preview is built from the same graph the 2D canvas edits, so wall
+    // ids, shared corners and the metre labels line up between both views.
+    const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+    const graph = graphFromWalls(AppState.walls, view, { snapPixels: 2 });
+    AppState.graph = graph;
+    const walls = graph.toCanvasWalls(view);
+
     const engineState = {
         stories: [{
-            walls: AppState.walls,
+            walls,
             fixtures: AppState.fixtures,
-            height: 2.7
+            height: WALL_HEIGHT
         }],
         currentStoryIndex: 0,
+        measurements: measurePlan(graph),
+        showMeasurements: AppState.showDimensions,
         fixtureStyles: AppState.fixtureStyles,
         showCeiling: AppState.showCeiling,
         showRoof: AppState.showRoof,

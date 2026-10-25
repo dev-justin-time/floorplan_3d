@@ -6,6 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 // Import the refactored factory pattern
 import { FurnitureFactory, buildDefaultBox } from './furnitureBuilders.js';
+import { formatLength, formatArea } from './measurements.js';
 
 const SCALE = GLOBAL_CONFIG.pixelsPerMeter;
 const ROOM_HEIGHT = GLOBAL_CONFIG.wallHeight;
@@ -16,6 +17,12 @@ const loadingManager = new THREE.LoadingManager();
 loadingManager.onLoad = () => console.log('All textures loaded');
 const textureLoader = new THREE.TextureLoader(loadingManager);
 const loadedTextures = {};
+
+// 1x1 white texture: a map that failed to load samples black, so materials fall
+// back to this and keep their base colour.
+const WHITE_PIXEL = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
+WHITE_PIXEL.colorSpace = THREE.SRGBColorSpace;
+WHITE_PIXEL.needsUpdate = true;
 
 function loadTexture(url) {
     if (!url) return null;
@@ -31,9 +38,57 @@ function loadTexture(url) {
             loadedTextures[url] = tex;
         },
         undefined,
-        (err) => console.warn(`Failed to load texture ${url}`)
+        () => {
+            console.warn(`Failed to load texture ${url}, using flat colour`);
+            // Point this texture at a 1x1 white source so every material that
+            // already references it renders its base colour instead of black.
+            if (WHITE_PIXEL.source) {
+                texture.source = WHITE_PIXEL.source;
+                texture.needsUpdate = true;
+            } else {
+                texture.image = undefined;
+            }
+        }
     );
     return texture;
+}
+
+/** Canvas-textured sprite used for metre labels in 3D. */
+function createLabelSprite(text) {
+    const fontSize = 64;
+    const measureCanvas = document.createElement('canvas');
+    const measureCtx = measureCanvas.getContext('2d');
+    measureCtx.font = `bold ${fontSize}px sans-serif`;
+
+    const padding = 28;
+    const width = Math.ceil(measureCtx.measureText(text).width) + padding * 2;
+    const height = Math.ceil(fontSize * 1.6);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(17, 24, 39, 0.82)';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, width / 2, height / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false
+    }));
+
+    const spriteHeight = 0.34;
+    sprite.scale.set(spriteHeight * (width / height), spriteHeight, 1);
+    return sprite;
 }
 
 export class ConversionEngine3D {
@@ -117,6 +172,12 @@ export class ConversionEngine3D {
 
             this.addWallsToGroup(storyGroup, story.walls, appState.defaultWallTexture, canvasWidth, canvasHeight, story.fixtures, storyHeight, appState.selectedWallId);
             this.addItemsToGroup(storyGroup, story.fixtures, appState.fixtureStyles, canvasWidth, canvasHeight, appState.selectedFixture?.id);
+
+            // Labels only on the ground floor, from the same measurement data
+            // the 2D canvas draws, so both views quote identical numbers.
+            if (index === 0 && appState.showMeasurements && appState.measurements) {
+                this.addMeasurementsToGroup(storyGroup, appState.measurements, storyHeight);
+            }
 
             if (isTopStory && appState.showRoof) {
                 this.addRoof(story.walls, currentElevation + storyHeight, canvasWidth, canvasHeight);
@@ -327,6 +388,28 @@ export class ConversionEngine3D {
             wallMeshes.forEach(mesh => g.add(mesh));
             group.add(g);
         }
+    }
+
+    /**
+     * Metre labels for walls and room areas. Both views read these from
+     * measurements.js, so 2D and 3D always agree.
+     */
+    addMeasurementsToGroup(group, measurements, wallHeight) {
+        if (!measurements) return;
+
+        (measurements.walls || []).forEach((wall) => {
+            if (!wall.midpoint || wall.length < 0.6) return;
+            const sprite = createLabelSprite(formatLength(wall.length));
+            sprite.position.set(wall.midpoint.x, wallHeight + 0.2, wall.midpoint.z);
+            group.add(sprite);
+        });
+
+        (measurements.rooms || []).forEach((room) => {
+            if (!room.centroid || room.area < 0.5) return;
+            const sprite = createLabelSprite(formatArea(room.area));
+            sprite.position.set(room.centroid.x, 0.15, room.centroid.z);
+            group.add(sprite);
+        });
     }
 
     // FIX 3 Applied: Guard async loads

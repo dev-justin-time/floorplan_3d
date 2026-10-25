@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
 
 export class PlacementConstraintsDemo {
   constructor(containerId) {
@@ -74,12 +75,12 @@ export class PlacementConstraintsDemo {
     const wallMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0 });
     this.walls.forEach(wall => {
       const length = wall.start.distanceTo(wall.end);
-      const wallGeo = new THREE.BoxGeometry(length, 2.7, 0.15);
+      const wallGeo = new THREE.BoxGeometry(length, WALL_HEIGHT, WALL_THICKNESS);
       const wallMesh = new THREE.Mesh(wallGeo, wallMat);
       
       const midpoint = new THREE.Vector3().addVectors(wall.start, wall.end).multiplyScalar(0.5);
       wallMesh.position.copy(midpoint);
-      wallMesh.position.y = 1.35;
+      wallMesh.position.y = WALL_HEIGHT / 2;
       
       const angle = Math.atan2(wall.end.z - wall.start.z, wall.end.x - wall.start.x);
       wallMesh.rotation.y = angle;

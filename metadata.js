@@ -84,12 +84,22 @@ export const ITEM_METADATA = {
 };
 
 
+// Sourced from world-space.js: the numbers live in exactly one place, so the
+// 2D canvases, the 3D converters and the sample scenes cannot drift apart.
+import {
+    PIXELS_PER_METER,
+    WALL_HEIGHT,
+    WALL_THICKNESS,
+    ROOF_PITCH,
+    ROOF_OVERHANG
+} from './world-space.js';
+
 export const GLOBAL_CONFIG = {
-    pixelsPerMeter: 30,
-    wallHeight: 2.7,
-    wallThickness: 0.15,
-    roofPitch: 1.5,
-    roofOverhang: 0.5
+    pixelsPerMeter: PIXELS_PER_METER,
+    wallHeight: WALL_HEIGHT,
+    wallThickness: WALL_THICKNESS,
+    roofPitch: ROOF_PITCH,
+    roofOverhang: ROOF_OVERHANG
 };
 
 
