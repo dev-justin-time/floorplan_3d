@@ -9,11 +9,12 @@ import { StorageManager } from './storage.js';
 import { FloorPlanProcessor } from './floorPlanProcessor.js';
 import { graphFromWalls } from './floorplan-graph.js';
 import { measurePlan } from './measurements.js';
-import { WALL_HEIGHT } from './world-space.js';
+import { PIXELS_PER_METER, WALL_HEIGHT } from './world-space.js';
 import { fitCameraToGraph } from './scene-camera.js';
 import { fixtureAt, beginDrag, dragTo } from './scene-drag.js';
 import { snapToWalls } from './wall-snap.js';
 import { createItemGizmo, planFromObject, pickItemId } from './scene-gizmo.js';
+import { createElevationDrag, frameElevation, applyElevationVisibility, ELEVATION_SIDES } from './scene-elevation.js';
 
 // Application State
 const AppState = {
@@ -38,6 +39,9 @@ const AppState = {
     isPanning: false,
     panStart: { x: 0, y: 0 },
     
+    // Elevation view ('front' | 'back' | 'left' | 'right'); null is the 3D orbit
+    elevationSide: null,
+    
     // Background
     backgroundImage: null,
     backgroundScale: 1.0, // Added scale property
@@ -51,6 +55,8 @@ const AppState = {
 // Systems
 let blueprintCanvas, blueprintCtx;
 let scene3D, camera3D, renderer3D, controls3D;
+let orthoCamera3D, orthoControls3D; // side elevation views
+let elevationBounds = null, elevationDrag = null;
 let conversionEngine;
 let itemGizmo;
 let gizmoMode = 'translate';
@@ -91,6 +97,7 @@ function init() {
     window.undo = () => { stateManager.undo(); updateUI(); };
     window.redo = () => { stateManager.redo(); updateUI(); };
     window.toggleView = toggleView;
+    window.setElevationView = setElevationView;
     window.toggleDimensions = () => { AppState.showDimensions = !AppState.showDimensions; draw2D(); };
     window.toggleCeiling = () => { AppState.showCeiling = !AppState.showCeiling; update3D(); };
     window.exportProject = exportProject;
@@ -475,6 +482,10 @@ function init3D() {
     camera3D = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
     camera3D.position.set(10, 10, 10);
     
+    // Side elevation camera: orthographic, head-on to one of the four sides.
+    orthoCamera3D = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 200);
+    orthoCamera3D.position.set(0, 1.35, 20);
+
     renderer3D = new THREE.WebGLRenderer({ antialias: true });
     renderer3D.setSize(w, h);
     renderer3D.shadowMap.enabled = true;
@@ -482,6 +493,12 @@ function init3D() {
     
     controls3D = new OrbitControls(camera3D, renderer3D.domElement);
     controls3D.enableDamping = true;
+
+    // Elevation controls keep the drawing head-on: no orbit, pan and zoom only.
+    orthoControls3D = new OrbitControls(orthoCamera3D, renderer3D.domElement);
+    orthoControls3D.enableDamping = true;
+    orthoControls3D.enableRotate = false;
+    orthoControls3D.enabled = false;
     
     // Lights
     const amb = new THREE.AmbientLight(0xffffff, 0.5);
@@ -495,6 +512,26 @@ function init3D() {
 
     initGizmo();
 
+    // Up/down and side-to-side dragging inside an elevation view.
+    elevationDrag = createElevationDrag({
+        scene: scene3D,
+        domElement: renderer3D.domElement,
+        getCamera: activeCamera,
+        getSide: () => AppState.elevationSide,
+        getView: () => ({ width: blueprintCanvas.width, height: blueprintCanvas.height }),
+        getFixtures: () => AppState.fixtures,
+        getObject: findItemObject,
+        onDraggingChange: (active) => {
+            if (orthoControls3D) orthoControls3D.enabled = Boolean(AppState.elevationSide) && !active;
+        },
+        onCommit: () => {
+            // The mesh was moved live; rebuild so the 2D plan and storage agree
+            // (and so snapping is baked into the saved position).
+            saveAndSync();
+            refreshGizmo();
+        }
+    });
+
     // Picking in the 3D view: click selects, drag orbits.
     let pointerDownAt = null;
     renderer3D.domElement.addEventListener('pointerdown', (e) => {
@@ -504,7 +541,9 @@ function init3D() {
         const start = pointerDownAt;
         pointerDownAt = null;
         if (!start || start.button !== 0 || e.button !== 0) return;
-        // A press that grabbed a gizmo handle belongs to the gizmo, not selection
+        // A press that grabbed a gizmo handle or dragged a piece belongs to the
+        // gizmo / elevation drag, not to selection
+        if (elevationDrag && elevationDrag.dragging) return;
         if (itemGizmo && (itemGizmo.dragging || itemGizmo.controls.axis)) return;
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) return; // orbit, not a click
         selectItemAtPointer(e);
@@ -553,7 +592,7 @@ function findItemObject(id) {
 function refreshGizmo() {
     if (!itemGizmo) return;
     const fixture = AppState.selectedFixture;
-    if (!fixture || AppState.viewMode !== '3d') {
+    if (!fixture || AppState.viewMode !== '3d' || AppState.elevationSide) {
         itemGizmo.detach();
         return;
     }
@@ -564,7 +603,7 @@ function refreshGizmo() {
 
 function selectItemAtPointer(event) {
     if (!scene3D || !renderer3D) return;
-    const id = pickItemId(scene3D, camera3D, renderer3D.domElement, event);
+    const id = pickItemId(scene3D, activeCamera(), renderer3D.domElement, event);
     AppState.selectedFixture = id ? AppState.fixtures.find((f) => f.id === id) || null : null;
     if (AppState.selectedFixture) AppState.currentTool = 'select';
     draw2D();
@@ -574,6 +613,92 @@ function selectItemAtPointer(event) {
 function setGizmoMode(mode) {
     gizmoMode = mode === 'rotate' ? 'rotate' : 'translate';
     if (itemGizmo) itemGizmo.setMode(gizmoMode);
+}
+
+function activeCamera() {
+    return AppState.elevationSide && orthoCamera3D ? orthoCamera3D : camera3D;
+}
+
+/** World-space (metres) footprint of the plan, used to frame the elevations. */
+function worldBounds() {
+    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const points = [];
+    (AppState.walls || []).forEach((wall) => {
+        if (wall.start) points.push(wall.start);
+        if (wall.end) points.push(wall.end);
+    });
+    if (points.length === 0) {
+        (AppState.fixtures || []).forEach((fixture) => points.push({ x: fixture.x, y: fixture.y }));
+    }
+    if (points.length === 0) return { minX: -5, maxX: 5, minZ: -5, maxZ: 5 };
+
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    points.forEach((point) => {
+        const x = (point.x - view.width / 2) / PIXELS_PER_METER;
+        const z = (point.y - view.height / 2) / PIXELS_PER_METER;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+    });
+    return { minX, maxX, minZ, maxZ };
+}
+
+function updateElevationCamera() {
+    if (!AppState.elevationSide || !orthoCamera3D) return;
+    const container = document.getElementById('render-3d-view');
+    const width = container?.clientWidth || 1;
+    const height = container?.clientHeight || 1;
+
+    elevationBounds = worldBounds();
+    const target = frameElevation(orthoCamera3D, {
+        bounds: elevationBounds,
+        side: AppState.elevationSide,
+        aspect: width / height
+    });
+    if (target && orthoControls3D) {
+        orthoControls3D.target.copy(target);
+        orthoControls3D.update();
+    }
+    applyElevationVisibility(scene3D, AppState.elevationSide, elevationBounds);
+}
+
+/**
+ * Switch the 3D preview between the orbit view and one of the four side
+ * elevations (front/back/left/right). Passing null goes back to the orbit.
+ */
+function setElevationView(side) {
+    AppState.elevationSide = side && ELEVATION_SIDES.includes(side) ? side : null;
+
+    if (AppState.elevationSide && AppState.viewMode !== '3d') {
+        const toggle = document.getElementById('view-toggle');
+        if (toggle) toggle.checked = true;
+        toggleView();
+    }
+
+    if (itemGizmo) itemGizmo.detach();
+    if (controls3D) controls3D.enabled = !AppState.elevationSide;
+    if (orthoControls3D) {
+        orthoControls3D.enabled = Boolean(AppState.elevationSide) && !(elevationDrag && elevationDrag.dragging);
+    }
+
+    if (AppState.elevationSide) updateElevationCamera();
+    else if (scene3D) applyElevationVisibility(scene3D, null);
+
+    refreshGizmo();
+    updateElevationButtons();
+}
+
+function updateElevationButtons() {
+    document.querySelectorAll('.elevation-btn').forEach((btn) => {
+        const isActive = (btn.dataset.side || '') === (AppState.elevationSide || '');
+        btn.classList.toggle('bg-primary', isActive);
+        btn.classList.toggle('font-bold', isActive);
+    });
+    const hint = document.getElementById('elevation-hint');
+    if (hint) {
+        hint.textContent = AppState.elevationSide
+            ? 'Elevation • drag a piece up/down or side to side — it snaps to the run'
+            : 'Click an object to select • G move • R rotate • Elevation for up/down';
+    }
 }
 
 function update3D() {
@@ -616,14 +741,24 @@ function update3D() {
     }
     if (graph.edges.length === 0) AppState.hasFramed3D = false;
 
+    // The rebuild replaces every wall mesh, so the elevation cut has to be
+    // re-applied to the new ones.
+    if (AppState.elevationSide) {
+        elevationBounds = worldBounds();
+        applyElevationVisibility(scene3D, AppState.elevationSide, elevationBounds);
+    } else {
+        applyElevationVisibility(scene3D, null);
+    }
+
     refreshGizmo();
 }
 
 function animate3D() {
     requestAnimationFrame(animate3D);
-    controls3D.update();
+    const controls = AppState.elevationSide ? orthoControls3D : controls3D;
+    if (controls) controls.update();
     if (AppState.viewMode === '3d') {
-        renderer3D.render(scene3D, camera3D);
+        renderer3D.render(scene3D, activeCamera());
     }
 }
 
@@ -687,6 +822,12 @@ function setupEventListeners() {
             setTool(merlotSelect.value);
         });
     }
+
+    // Elevation view buttons (3D | Front | Back | Left | Right)
+    document.querySelectorAll('.elevation-btn').forEach((btn) => {
+        btn.addEventListener('click', () => setElevationView(btn.dataset.side || null));
+    });
+    updateElevationButtons();
 
     // Shaker cabinetry dropdown
     const shakerSelect = document.getElementById('shaker-select');
@@ -844,6 +985,9 @@ function onResize() {
         renderer3D.setSize(container3D.clientWidth, container3D.clientHeight);
         camera3D.aspect = container3D.clientWidth / container3D.clientHeight;
         camera3D.updateProjectionMatrix();
+        // The ortho frustum is derived from the viewport, so it has to be
+        // reframed whenever the size changes.
+        if (AppState.elevationSide) updateElevationCamera();
     }
 }
 
@@ -861,9 +1005,11 @@ function toggleView() {
         v3d.style.pointerEvents = 'auto';
         r3d.style.display = 'block';
         update3D();
+        if (AppState.elevationSide) updateElevationCamera();
     } else {
         AppState.viewMode = '2d';
         if (itemGizmo) itemGizmo.detach();
+        if (elevationDrag) elevationDrag.end();
         v2d.style.opacity = '1';
         v2d.style.pointerEvents = 'auto';
         v3d.style.opacity = '0';

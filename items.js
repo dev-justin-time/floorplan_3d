@@ -1,4 +1,5 @@
 import { ITEM_METADATA } from './metadata.js';
+import { WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
 
 export class Item {
     constructor(type, x, y, rotation = 0, id = null) {
@@ -11,6 +12,10 @@ export class Item {
         this.selected = false;
         this.visible = true;
         this.modelUrl = null; // Support for custom 3D models
+        // Metres the piece is lifted above its default height position (0 for
+        // floor-standing pieces, which sit on the floor). Dragged up/down in
+        // the elevation view.
+        this.elevation = 0;
     }
     
     setPosition(x, y) {
@@ -30,7 +35,8 @@ export class Item {
             y: this.y,
             rotation: this.rotation,
             id: this.id,
-            modelUrl: this.modelUrl // Include in serialization
+            modelUrl: this.modelUrl, // Include in serialization
+            elevation: this.elevation || 0
         };
     }
 }
@@ -142,6 +148,30 @@ export class Wall {
     }
 }
 
+/**
+ * The single wall renderer's source of geometry. `Wall` is the model (plan
+ * endpoints + thickness); this turns it into the box a 3D scene draws, in world
+ * metres, so the React scene and any three.js scene agree on size and placement.
+ *
+ *   const { position, size, rotation } = wallBox(wall, { height })
+ */
+export function wallBox(wall, options = {}) {
+    if (!wall || !wall.start || !wall.end) return null;
+
+    const height = options.height ?? WALL_HEIGHT;
+    const thickness = options.thickness ?? wall.thickness ?? WALL_THICKNESS;
+    const dx = wall.end.x - wall.start.x;
+    const dz = wall.end.y - wall.start.y;
+    const length = Math.hypot(dx, dz);
+
+    return {
+        position: [(wall.start.x + wall.end.x) / 2, height / 2, (wall.start.y + wall.end.y) / 2],
+        size: [length, height, thickness],
+        rotation: [0, -Math.atan2(dz, dx), 0],
+        length
+    };
+}
+
 export class ItemFactory {
     static create(type, x, y, rotation = 0, id = null) {
         const meta = ITEM_METADATA[type];
@@ -161,6 +191,7 @@ export class ItemFactory {
         
         if (json.boundToWallId) item.boundToWallId = json.boundToWallId;
         if (json.modelUrl) item.modelUrl = json.modelUrl; // Restore custom model URL
+        if (typeof json.elevation === 'number') item.elevation = json.elevation;
         return item;
     }
 }

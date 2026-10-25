@@ -116,19 +116,6 @@ export class ConversionEngine3D {
         this.loadedModels = new Map();
     }
 
-    updateItemTransform(item, canvasWidth, canvasHeight) {
-        const mesh = this.meshes.find(m => m.userData.id === item.id);
-        if (mesh) {
-            const x = (item.x - canvasWidth / 2) / SCALE;
-            const z = (item.y - canvasHeight / 2) / SCALE;
-            mesh.position.set(x, mesh.position.y, z);
-            mesh.rotation.y = -item.rotation;
-            
-            const box = this.meshes.find(m => m.type === 'BoxHelper');
-            if (box) box.update();
-        }
-    }
-
     // FIX 4: Recursive disposal to prevent massive memory leaks
     clear() {
         // Abort pending loads to prevent callbacks firing on disposed scenes
@@ -288,7 +275,11 @@ export class ConversionEngine3D {
             if (mesh) {
                 const x = (fixture.x - canvasWidth / 2) / SCALE;
                 const z = (fixture.y - canvasHeight / 2) / SCALE;
-                mesh.position.set(x, mesh.position.y, z);
+                // Builders place a piece at its default height (floor-standing or
+                // mounted); `elevation` is the extra lift set by elevation-view
+                // dragging, so it is added on top without touching the builders.
+                const lift = fixture.elevation || 0;
+                mesh.position.set(x, mesh.position.y + lift, z);
                 mesh.rotation.y = -fixture.rotation;
                 
                 mesh.userData.id = fixture.id;

@@ -1132,7 +1132,7 @@ room.<span class="function">requestPresenceUpdate</span>(clientId, {
                         <span class="text-sm font-bold">Monolith Core</span>
                         <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Refactored</span>
                     </div>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Original entry point. Functions split into modular <code>main.js</code> and <code>Scene.tsx</code> components.</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Original entry point. Functions split into modular <code>app/js/main.js</code> and <code>Scene.jsx</code> components.</p>
                 </div>
 
                 <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
@@ -1159,7 +1159,7 @@ room.<span class="function">requestPresenceUpdate</span>(clientId, {
                         <span class="text-sm font-bold">Input Controller</span>
                         <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Migrated</span>
                     </div>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Mouse interaction logic. Ported to event-driven architecture in <code>main.js</code>.</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Mouse interaction logic. Ported to event-driven architecture in <code>app/js/main.js</code>.</p>
                 </div>
             </div>
         </div>
@@ -1232,6 +1232,23 @@ room.<span class="function">requestPresenceUpdate</span>(clientId, {
                     <h3 class="text-xl font-bold">WebGPU Node Demo</h3>
                 </div>
                 <div id="webgpu-react-demo"></div>
+            </div>
+
+            <!-- Consolidated blueprint editor (app/js) -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 md:col-span-2">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-amber-500 text-2xl">edit_square</span>
+                    <h3 class="text-xl font-bold">Blueprint Studio <span class="text-sm font-normal text-gray-500">(app/js)</span></h3>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    The legacy editor, now living in <code>app/js/main.js</code> with its own
+                    <code>updateItemTransform</code> and a host page. Same plan canvas, 3D view, multi-story
+                    levels, walk mode and export as the original, wired to the current engine.
+                </p>
+                <a href="app.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors">
+                    <span class="material-symbols-outlined text-base">open_in_new</span>
+                    Open Blueprint Studio
+                </a>
             </div>
         </div>
     </section>

@@ -5,13 +5,13 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import nipplejs from 'nipplejs';
 import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
-import { FloorPlanProcessor } from './floorPlanProcessor.js';
-import { ConversionEngine3D } from './3dConversionEngine.js';
-import { Wall, ItemFactory } from './items.js';
-import { TEXTURES, GLOBAL_CONFIG } from './metadata.js';
-import { StorageManager } from './storage.js';
-import { StateManager } from './state-manager.js';
-import { MOCK_DATA as TEST_DATA } from './test-data.js';
+import { FloorPlanProcessor } from '../../floorPlanProcessor.js';
+import { ConversionEngine3D } from '../../3dConversionEngine.js';
+import { Wall, ItemFactory } from '../../items.js';
+import { TEXTURES, GLOBAL_CONFIG } from '../../metadata.js';
+import { StorageManager } from '../../storage.js';
+import { StateManager } from '../../state-manager.js';
+import { MOCK_DATA as TEST_DATA } from '../../test-data.js';
 
 // Core Application State
 const AppState = {
@@ -146,6 +146,7 @@ function init() {
     
     // Initial state save
     stateManager.saveState();
+    updateStorySelectUI();
     drawBlueprint();
     
     // Expose global API for UI
@@ -378,6 +379,29 @@ function updateStorySelectUI() {
     });
 }
 
+// Moved here from ConversionEngine3D: dragging only needs the mesh a rebuild
+// already produced, so the engine no longer carries a single-caller method.
+function updateItemTransform(item, canvasWidth, canvasHeight) {
+    if (!conversionEngine) return;
+    const mesh = conversionEngine.meshes.find(m => m.userData.id === item.id);
+    if (!mesh) return;
+
+    const x = (item.x - canvasWidth / 2) / SCALE;
+    const z = (item.y - canvasHeight / 2) / SCALE;
+    mesh.position.set(x, mesh.position.y, z);
+    mesh.rotation.y = -item.rotation;
+
+    const box = conversionEngine.meshes.find(m => m.type === 'BoxHelper');
+    if (box) box.update();
+}
+
+// WebGPURenderer renders async; WebGLRenderer does not. Both are drawn through
+// this so the animation loops work with either backend.
+function renderFrame(renderer, scene, camera) {
+    if (typeof renderer.renderAsync === 'function') return renderer.renderAsync(scene, camera);
+    return renderer.render(scene, camera);
+}
+
 function snapToGrid(x, y) {
     if (!AppState.snapToGrid) return { x, y };
     return {
@@ -452,8 +476,12 @@ function initFloorplan3D() {
     floorplanCamera.position.set(8, 6, 8);
     
     // Fallback for WebGPU
+    // WebGPU when the browser and this three build both offer it, WebGL
+    // otherwise. r160's WebGPURenderer no longer ships a static isAvailable(),
+    // so probe it before calling instead of relying on the throw below.
     try {
-        if (WebGPURenderer.isAvailable()) {
+        const webgpuReady = typeof WebGPURenderer.isAvailable === 'function' && WebGPURenderer.isAvailable();
+        if (webgpuReady) {
             floorplanRenderer = new WebGPURenderer({ antialias: true });
         } else {
             console.warn('WebGPU not available, falling back to WebGL');
@@ -597,7 +625,7 @@ function on3DPointerMove(event) {
         AppState.selectedFixture.y = s.y;
         
         // Use optimized update instead of full re-render
-        conversionEngine.updateItemTransform(AppState.selectedFixture, cvW, cvH);
+        updateItemTransform(AppState.selectedFixture, cvW, cvH);
     }
 }
 
@@ -1195,14 +1223,14 @@ function animatePanorama() {
         Math.cos(phi),
         Math.sin(phi) * Math.sin(theta)
     );
-    panoramaRenderer.renderAsync(panoramaScene, panoramaCamera);
+    renderFrame(panoramaRenderer, panoramaScene, panoramaCamera);
 }
 
 function animate3D() {
     requestAnimationFrame(animate3D);
     if(AppState.currentView === '3d' && floorplanRenderer && floorplanControls) {
         floorplanControls.update();
-        floorplanRenderer.renderAsync(floorplanScene, floorplanCamera);
+        renderFrame(floorplanRenderer, floorplanScene, floorplanCamera);
     }
 }
 
@@ -1380,4 +1408,11 @@ function loadTemplate(type) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// Module scripts are deferred and the three/nipple imports come from a CDN, so
+// this file can start after DOMContentLoaded has already fired. Boot directly
+// in that case instead of waiting for an event that will never come again.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}

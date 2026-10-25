@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Designer · React prototype</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { primary: '#13a4ec' },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        html, body { height: 100%; }
+        body { overflow: hidden; }
+        .tab { padding: 0.5rem 0.9rem; font-size: 0.8rem; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; }
+        .tab:hover { color: #111827; }
+        .tab.active { color: #0e7490; border-color: #13a4ec; }
+        .pane { position: absolute; inset: 0; display: none; overflow: auto; }
+        .pane.active { display: block; }
+        #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #f9fafb; z-index: 50; font-size: 0.85rem; color: #4b5563; }
+        #boot.error { color: #b91c1c; white-space: pre-wrap; padding: 2rem; text-align: left; }
+    </style>
+</head>
+<body class="h-screen flex flex-col bg-gray-50 font-sans text-gray-800">
+
+    <header class="flex items-center gap-1 px-4 py-2 bg-white border-b border-gray-200 flex-shrink-0 z-20">
+        <div class="flex items-center gap-2 pr-4 border-r border-gray-200">
+            <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600"></div>
+            <div class="leading-tight">
+                <p class="font-display text-sm font-bold">Kitchen Designer</p>
+                <p class="text-[9px] text-gray-500">React prototype · no build step</p>
+            </div>
+        </div>
+        <button class="tab active" data-pane="pane-app">Kitchen App</button>
+        <button class="tab" data-pane="pane-test">Floor Plan Test</button>
+        <button class="tab" data-pane="pane-upload">Upload</button>
+        <button class="tab" data-pane="pane-3d">FloorPlan3D</button>
+        <a href="labs.html" class="tab ml-auto">Labs</a>
+    </header>
+
+    <div class="relative flex-1 min-h-0">
+        <div id="pane-app" class="pane active"></div>
+        <div id="pane-test" class="pane"></div>
+        <div id="pane-upload" class="pane p-6"></div>
+        <div id="pane-3d" class="pane">
+            <div id="root-3d" style="position:absolute;inset:0"></div>
+        </div>
+    </div>
+
+    <div id="boot">Loading React modules…</div>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+        "react/jsx-dev-runtime": "https://esm.sh/react@18.2.0/jsx-dev-runtime",
+        "react-dom": "https://esm.sh/react-dom@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
+        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+        "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js",
+        "three-bvh-csg": "https://esm.sh/three-bvh-csg@0.0.16?external=three",
+        "three-pathfinding": "https://esm.sh/three-pathfinding@1.3.0",
+        "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.17.10?external=react,react-dom,three",
+        "@react-three/drei": "https://esm.sh/@react-three/drei@9.114.3?external=react,react-dom,three,@react-three/fiber",
+        "@react-spring/three": "https://esm.sh/@react-spring/three@9.7.5?external=react,three,@react-three/fiber",
+        "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.16.3?external=react,react-dom,three,@react-three/fiber",
+        "lucide-react": "https://esm.sh/lucide-react@0.462.0?external=react"
+      }
+    }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+
+    <!--
+        The prototype is plain .jsx/.tsx source, and Babel only rewrites the
+        script it is attached to - not the modules those scripts import. This
+        loader compiles each module on request, rewrites its relative imports to
+        blob URLs built the same way, and leaves bare specifiers (react, three,
+        drei…) to the import map above. So the page runs the files as they are:
+        no bundler, no generated copies.
+    -->
+    <script>
+        (function () {
+            const built = new Map();
+
+            async function exists(url) {
+                try {
+                    const res = await fetch(url, { method: 'HEAD' });
+                    return res.ok;
+                } catch {
+                    return false;
+                }
+            }
+
+            async function resolve(url) {
+                for (const candidate of [url, url + '.js', url + '.jsx', url + '.ts', url + '.tsx']) {
+                    if (await exists(candidate)) return candidate;
+                }
+                throw new Error('Cannot resolve module: ' + url);
+            }
+
+            function transform(source, url) {
+                const typescript = /\.tsx?$/i.test(url);
+                return Babel.transform(source, {
+                    filename: url,
+                    sourceType: 'module',
+                    presets: [
+                        ['react', { runtime: 'classic' }],
+                        ...(typescript ? ['typescript'] : [])
+                    ]
+                }).code;
+            }
+
+            async function build(url, stack) {
+                if (built.has(url)) return built.get(url);
+                if (stack.includes(url)) throw new Error('Circular import: ' + stack.concat(url).join(' -> '));
+
+                const promise = (async () => {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('Failed to load ' + url + ' (' + res.status + ')');
+                    const code = transform(await res.text(), url);
+
+                    const relative = [...new Set(
+                        [...code.matchAll(/(?:from\s*|import\s*\(\s*)["']([^"']+)["']/g)]
+                            .map((m) => m[1])
+                            .filter((spec) => spec.startsWith('.'))
+                    )];
+
+                    let out = code;
+                    for (const spec of relative) {
+                        const target = await resolve(new URL(spec, url).href);
+                        const blob = await build(target, stack.concat(url));
+                        out = out.split(`'${spec}'`).join(`'${blob}'`).split(`"${spec}"`).join(`"${blob}"`);
+                    }
+                    return URL.createObjectURL(new Blob([out], { type: 'text/javascript' }));
+                })();
+
+                built.set(url, promise);
+                return promise;
+            }
+
+            // Resolves to the module namespace, exactly like a static import.
+            window.loadModule = (path) =>
+                build(new URL(path, location.href).href, []).then((blobUrl) => import(blobUrl));
+        })();
+    </script>
+
+    <script type="module">
+        import React from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas } from '@react-three/fiber';
+
+        const boot = document.getElementById('boot');
+        const report = (message) => {
+            boot.className = 'error';
+            boot.textContent = message;
+        };
+        window.addEventListener('error', (e) => report(String(e.message)));
+        window.addEventListener('unhandledrejection', (e) => report(String(e.reason && (e.reason.stack || e.reason.message || e.reason))));
+
+        try {
+            const [app, testPage, upload, floorPlan3D, testData] = await Promise.all([
+                window.loadModule('./App.jsx'),
+                window.loadModule('./page.tsx'),
+                window.loadModule('./UploadFloorPlan.tsx'),
+                window.loadModule('./FloorPlan3D.tsx'),
+                window.loadModule('./testData.ts')
+            ]);
+
+            const plan = testData.default;
+            const roomColors = Object.fromEntries(plan.rooms.map((room, i) => [room.id, ['#bae6fd', '#fde68a', '#bbf7d0'][i % 3]]));
+
+            createRoot(document.getElementById('pane-app')).render(React.createElement(app.default));
+            createRoot(document.getElementById('pane-test')).render(React.createElement(testPage.default));
+            createRoot(document.getElementById('pane-upload')).render(React.createElement(upload.default));
+            createRoot(document.getElementById('root-3d')).render(
+                React.createElement(Canvas, { shadows: true, camera: { position: [12, 10, 14], fov: 50 } },
+                    React.createElement(floorPlan3D.default, { floorPlanData: plan, height: 2.6, roomColors })
+                )
+            );
+
+            document.querySelectorAll('.tab').forEach((tab) => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
+                    document.querySelectorAll('.pane').forEach((pane) => pane.classList.toggle('active', pane.id === tab.dataset.pane));
+                });
+            });
+
+            boot.remove();
+            window.__demoReady = true;
+        } catch (error) {
+            window.__demoError = String(error && (error.stack || error.message || error));
+            report(window.__demoError);
+        }
+    </script>
+</body>
+</html>

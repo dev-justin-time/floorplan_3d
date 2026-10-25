@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<body>
+<pre id="log">start</pre>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
+    "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+    "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js",
+    "nipplejs": "https://esm.sh/nipplejs@0.10.1?external=three"
+  }
+}
+</script>
+<script type="module">
+const log = document.getElementById('log');
+const out = [];
+const mods = [
+  'three',
+  'three/addons/controls/OrbitControls.js',
+  'three/addons/controls/PointerLockControls.js',
+  'three/addons/exporters/GLTFExporter.js',
+  'three/addons/exporters/OBJExporter.js',
+  'three/addons/renderers/webgpu/WebGPURenderer.js',
+  'nipplejs',
+  './floorPlanProcessor.js',
+  './3dConversionEngine.js',
+  './items.js',
+  './metadata.js',
+  './storage.js',
+  './state-manager.js',
+  './test-data.js'
+];
+for (const m of mods) {
+  try {
+    await import(m);
+    out.push('ok   ' + m);
+  } catch (e) {
+    out.push('FAIL ' + m + ' :: ' + (e && e.message));
+  }
+  log.textContent = out.join('\n');
+}
+log.textContent = out.join('\n');
+</script>
+</body>
+</html>

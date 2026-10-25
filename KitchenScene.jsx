@@ -1,15 +1,15 @@
 import React, { useMemo } from 'react';
-import { useThree } from '@react-three/fiber';
-import { 
+import { useThree } from '@react-three/fiber';import {
   OrbitControls, 
   Box, 
   Environment, 
   ContactShadows, 
   Grid,
-  PerspectiveCamera
+  PerspectiveCamera,
+  Text
 } from '@react-three/drei';
 import Cabinet from './Cabinet';
-import Wall from './Wall';
+import { Wall, wallBox } from './items.js';
 
 /**
  * KitchenScene Component
@@ -35,13 +35,14 @@ export default function KitchenScene({
   const rd = Math.max(4, room?.depth ?? 12);
   const rh = Math.max(4, room?.height ?? 6);
 
-  // Memoize walls to prevent unnecessary re-renders when cabinets update
+  // Walls are the same `Wall` model the editor uses; wallBox() turns each one
+  // into the box this scene draws, so there is one wall definition in the app.
   const walls = useMemo(() => [
-    { id: 'lw', position: [-rw / 2, rh / 2, 0], size: [0.2, rh, rd], name: 'Left Wall' },
-    { id: 'rw', position: [rw / 2, rh / 2, 0], size: [0.2, rh, rd], name: 'Right Wall' },
-    { id: 'bw', position: [0, rh / 2, -rd / 2], size: [rw, rh, 0.2], name: 'Back Wall' },
+    { id: 'lw', name: 'Left Wall', wall: new Wall(-rw / 2, -rd / 2, -rw / 2, rd / 2, 0.2) },
+    { id: 'rw', name: 'Right Wall', wall: new Wall(rw / 2, -rd / 2, rw / 2, rd / 2, 0.2) },
+    { id: 'bw', name: 'Back Wall', wall: new Wall(-rw / 2, -rd / 2, rw / 2, -rd / 2, 0.2) },
     // Optional: Add a front wall with a cutout, or leave open for camera viewing
-  ], [rw, rd, rh]);
+  ].map(({ id, name, wall }) => ({ id, name, ...wallBox(wall, { height: rh }) })), [rw, rd, rh]);
 
   return (
     <>
@@ -92,13 +93,23 @@ export default function KitchenScene({
 
       {/* 5. Walls */}
       {walls.map((wall) => (
-        <Wall 
-          key={wall.id}
-          position={wall.position}
-          size={wall.size}
-          name={wall.name}
-          showLabels={showLabels}
-        />
+        <group key={wall.id} position={wall.position} rotation={wall.rotation}>
+          <Box args={wall.size} castShadow receiveShadow>
+            <meshStandardMaterial color="#e0e0e0" roughness={0.8} />
+          </Box>
+          {showLabels && (
+            <Text
+              position={[0, wall.size[1] / 2 + 0.1, -wall.size[2] / 2 - 0.1]}
+              fontSize={0.4}
+              color="black"
+              anchorX="center"
+              anchorY="middle"
+              rotation={[0, 0, 0]}
+            >
+              {wall.name}
+            </Text>
+          )}
+        </group>
       ))}
 
       {/* 6. Cabinets */}
