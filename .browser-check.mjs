@@ -338,6 +338,45 @@ async function main() {
         check('item size follows the landed footprint', Math.abs(planBounds.sizeDepth - planBounds.depth) < 0.05,
             `${planBounds.sizeDepth?.toFixed(2)} m size vs ${planBounds.depth.toFixed(2)} m bounds`);
 
+        const picking = await cdp.evaluate(`(async () => {
+            const { stairPlanBounds } = await import('./features/stairs/index.js');
+            const { PIXELS_PER_METER } = await import('./world-space.js');
+            const canvas = document.getElementById('blueprint-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const click = (x, y) => {
+                const point = {
+                    clientX: rect.left + (x / canvas.width) * rect.width,
+                    clientY: rect.top + (y / canvas.height) * rect.height
+                };
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...point }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...point }));
+            };
+            // A stair straight from the palette, not the panel: no explicit size.
+            document.querySelector('[data-item="stair"]').click();
+            click(canvas.width / 2, canvas.height / 2);
+            const placed = window.featureKit.fixtures().slice(-1)[0];
+            const bounds = stairPlanBounds(placed, { storeyHeight: 2.7 });
+            const bottom = bounds.landings.find((landing) => landing.end === 'bottom');
+            document.querySelector('[data-tool="select"]')?.click();
+            click(canvas.width - 30, canvas.height - 30);
+            const cleared = !window.stairKit.selected();
+            const lx = placed.x + ((bottom.minX + bottom.maxX) / 2) * PIXELS_PER_METER;
+            const ly = placed.y + ((bottom.minZ + bottom.maxZ) / 2) * PIXELS_PER_METER;
+            click(lx, ly);
+            return {
+                width: placed.size?.width,
+                depth: placed.size?.depth,
+                bounds: { width: bounds.width, depth: bounds.depth },
+                cleared,
+                selectedLanding: window.stairKit.selected()?.id === placed.id
+            };
+        })()`);
+        check('palette-placed stair is sized with its landings',
+            Math.abs(picking.depth - picking.bounds.depth) < 0.05 && Math.abs(picking.width - picking.bounds.width) < 0.05,
+            `${picking.width?.toFixed(2)} × ${picking.depth?.toFixed(2)} m`);
+        check('clicking a landing selects the stair', picking.cleared && picking.selectedLanding === true,
+            picking.selectedLanding ? 'selected' : 'missed');
+
         console.log('\nPlan drawing');
         const plan = await cdp.evaluate(`(() => {
             const canvas = document.getElementById('blueprint-canvas');
@@ -348,6 +387,166 @@ async function main() {
             return { width: canvas.width, height: canvas.height, painted };
         })()`);
         check('plan canvas has the drawn stair', plan.painted > 500, `${plan.painted} painted pixels`);
+
+        console.log('\nStair designer');
+        await load(BASE + '/stair-designer.html');
+        check('designer page boots', await waitFor('Boolean(window.stairDesigner)'));
+        const designer = await cdp.evaluate(`(() => {
+            const result = window.stairDesigner.compute();
+            const canvas = document.getElementById('elevation');
+            const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+            let painted = 0;
+            for (let i = 3; i < data.length; i += 4) if (data[i] !== 0) painted += 1;
+            return {
+                risers: result.steps,
+                stepHeight: Math.round(result.stepHeight),
+                going: Math.round(result.going),
+                headroom: Math.round(result.headroom),
+                comfort: result.comfort,
+                checks: document.querySelectorAll('#checks li').length,
+                painted,
+                canvas3d: document.querySelectorAll('#stage canvas').length,
+                results: document.getElementById('results').textContent,
+                canvasSize: (() => {
+                    const canvas = document.querySelector('#stage canvas');
+                    const stage = document.getElementById('stage');
+                    const rect = canvas.getBoundingClientRect();
+                    return { width: Math.round(rect.width), stageWidth: Math.round(stage.clientWidth), height: Math.round(rect.height), stageHeight: Math.round(stage.clientHeight) };
+                })(),
+                overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+            };
+        })()`);
+        check('designer computes the flight', designer.risers >= 3 && designer.stepHeight > 100, `${designer.risers} × ${designer.stepHeight} mm`);
+        check('designer elevation is drawn', designer.painted > 5000, `${designer.painted} painted pixels`);
+        check('designer 3D canvas present', designer.canvas3d === 1, `${designer.canvas3d} canvas`);
+        check('designer result card filled', designer.results.includes('Step height') && designer.results.includes('Headroom'));
+        check('designer checks rendered', designer.checks >= 5, `${designer.checks} checks`);
+        check('3D canvas fills its pane', Math.abs(designer.canvasSize.width - designer.canvasSize.stageWidth) <= 2
+            && Math.abs(designer.canvasSize.height - designer.canvasSize.stageHeight) <= 2,
+            `${designer.canvasSize.width}×${designer.canvasSize.height} in ${designer.canvasSize.stageWidth}×${designer.canvasSize.stageHeight}`);
+        check('designer page does not scroll sideways', designer.overflow <= 1, `${designer.overflow}px`);
+
+        const designerFlow = await cdp.evaluate(`(() => {
+            const set = (id, value) => {
+                const el = document.getElementById(id);
+                el.value = value;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+            };
+            set('height', 3000);
+            const tall = window.stairDesigner.compute();
+            set('opening-length', 1500);
+            const shortOpening = window.stairDesigner.compute();
+            const errors = document.querySelectorAll('#checks .check-error').length;
+            document.getElementById('reset').click();
+            return {
+                tallSteps: tall.steps,
+                tallRise: Math.round(tall.stepHeight),
+                shortHeadroom: Math.round(shortOpening.headroom),
+                errors,
+                resetHeadroom: Math.round(window.stairDesigner.compute().headroom)
+            };
+        })()`);
+        check('height input resizes the flight', designerFlow.tallSteps !== designer.risers || designerFlow.tallRise !== designer.stepHeight,
+            `${designerFlow.tallSteps} × ${designerFlow.tallRise} mm`);
+        check('short opening fails headroom', designerFlow.shortHeadroom < 1900 && designerFlow.errors > 0, `${designerFlow.shortHeadroom} mm`);
+        check('reset restores the defaults', designerFlow.resetHeadroom >= 1900, `${designerFlow.resetHeadroom} mm`);
+
+        const draft = await cdp.evaluate(`(() => {
+            document.getElementById('add-to-plan').click();
+            return JSON.parse(localStorage.getItem('stair-designer-draft'));
+        })()`);
+        check('designer saves a draft for the editor', Boolean(draft?.stair), JSON.stringify(draft?.stair || {}));
+        await sleep(3000);
+        const placed = await cdp.evaluate(`({
+            path: location.pathname,
+            selected: Boolean(window.stairKit && window.stairKit.selected()),
+            risers: window.stairKit?.selected()?.stair?.risers,
+            tread: Math.round((window.stairKit?.selected()?.stair?.treadDepth || 0) * 1000),
+            draftCleared: localStorage.getItem('stair-designer-draft') === null
+        })`);
+        check('designer hands the stair to the editor', placed.path.endsWith('/Editor.html') && placed.selected === true, placed.path);
+        check('placed stair keeps the designed step count', placed.risers === 15, `${placed.risers} risers`);
+        check('placed stair keeps the designed going', Math.abs(placed.tread - Math.round(draft.stair.treadDepth * 1000)) <= 1, `${placed.tread} mm`);
+        check('designer draft is consumed once', placed.draftCleared === true);
+
+        console.log('\nSaved stair presets');
+        const savedPreset = await cdp.evaluate(`(() => {
+            window.setStairField('model', 'mono-straight');
+            const preset = window.saveStairPreset('Mono preset 42');
+            const buttons = document.querySelectorAll('#stair-preset-items button.item-button');
+            return {
+                id: preset?.id,
+                name: preset?.name,
+                model: preset?.stair?.model,
+                count: buttons.length,
+                buttonText: buttons[0]?.textContent.trim(),
+                badge: document.getElementById('stair-preset-count').textContent,
+                status: document.getElementById('stair-preset-status').textContent
+            };
+        })()`);
+        check('selected stair saved as a preset', savedPreset.model === 'mono-straight' && Boolean(savedPreset.id), savedPreset.name);
+        check('preset appears in the palette', savedPreset.count === 1 && savedPreset.buttonText.includes('Mono preset'), `${savedPreset.count} button(s)`);
+        check('palette shows the preset count', savedPreset.badge === '1', savedPreset.badge);
+        check('save status shown', savedPreset.status.includes('Mono preset'), savedPreset.status);
+
+        const armed = await cdp.evaluate(`(() => {
+            document.querySelector('#stair-preset-items button.item-button').click();
+            const design = window.stairKit.design();
+            return {
+                model: design.model?.key,
+                risers: design.risers,
+                status: document.getElementById('stair-preset-status').textContent
+            };
+        })()`);
+        check('palette preset arms the stair tool', armed.model === 'mono-straight', `${armed.model}, ${armed.risers} risers`);
+        check('palette shows a placement hint', armed.status.includes('Click the plan'), armed.status);
+
+        const placedPreset = await cdp.evaluate(`(() => {
+            const before = window.stairKit.stairs().length;
+            const canvas = document.getElementById('blueprint-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const click = (offsetX = 0) => canvas.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true, button: 0, buttons: 1,
+                clientX: rect.left + rect.width / 2 + offsetX,
+                clientY: rect.top + rect.height / 2
+            }));
+            click(0);
+            const stairs = window.stairKit.stairs();
+            const last = stairs[stairs.length - 1];
+            const first = {
+                count: stairs.length, before,
+                model: last?.stair?.model,
+                risers: last?.stair?.risers,
+                width: last?.size?.width,
+                depth: last?.size?.depth
+            };
+            // The preset is one-shot: the next stair uses the type defaults.
+            click(60);
+            const after = window.stairKit.stairs();
+            return { first, second: { count: after.length, model: after[after.length - 1]?.stair?.model || null } };
+        })()`);
+        check('preset places on the next plan click', placedPreset.first.count === placedPreset.first.before + 1, `${placedPreset.first.before} → ${placedPreset.first.count}`);
+        check('placed preset keeps the saved model', placedPreset.first.model === 'mono-straight', placedPreset.first.model);
+        check('placed preset keeps the pinned risers', placedPreset.first.risers === 15, `${placedPreset.first.risers} risers`);
+        check('placed preset is sized with its landings', placedPreset.first.width > 1 && placedPreset.first.depth > 2, `${placedPreset.first.width?.toFixed(2)} × ${placedPreset.first.depth?.toFixed(2)} m`);
+        check('preset is one-shot', placedPreset.second.count === placedPreset.first.count + 1 && placedPreset.second.model === null, placedPreset.second.model || 'type default');
+
+        await load(BASE + '/Editor.html');
+        const persisted = await cdp.evaluate(`(() => {
+            const buttons = document.querySelectorAll('#stair-preset-items button.item-button');
+            const stored = JSON.parse(localStorage.getItem('stair-presets') || '[]');
+            const before = buttons.length;
+            window.removeStairPreset(stored[0]?.id);
+            return {
+                before,
+                text: buttons[0]?.textContent.trim(),
+                after: document.querySelectorAll('#stair-preset-items button.item-button').length,
+                empty: document.getElementById('stair-preset-items').textContent,
+                stored: JSON.parse(localStorage.getItem('stair-presets') || '[]').length
+            };
+        })()`);
+        check('presets persist across reloads', persisted.before === 1, persisted.text);
+        check('preset removal clears the palette', persisted.after === 0 && persisted.stored === 0 && persisted.empty.includes('bookmark'), persisted.empty.slice(0, 50));
 
         const errors = cdp.errors().filter((error) => !error.includes('textures/') && !error.includes('favicon'));
         check('no uncaught runtime errors', errors.length === 0, errors.slice(0, 3).join(' | '));

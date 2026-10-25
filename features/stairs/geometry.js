@@ -625,6 +625,32 @@ function finalisePlanBounds(bounds) {
 }
 
 /**
+ * True when a stair-local metre point is inside the drawn plan footprint.
+ * Used for picking so the automatic landings can be clicked like the run.
+ */
+export function stairPlanContains(item, local, { storeyHeight, slack = 0, design = null } = {}) {
+    const bounds = stairPlanBounds(item, { storeyHeight, design });
+    return local.x >= bounds.minX - slack && local.x <= bounds.maxX + slack
+        && local.z >= bounds.minZ - slack && local.z <= bounds.maxZ + slack;
+}
+
+/**
+ * Set an item's size from the plan footprint it is drawn with, so the floor
+ * opening, takeoff and picking all agree with the 3D build (landings included).
+ */
+export function sizeStairItem(item, storeyHeight) {
+    if (!item) return null;
+    const design = stairDesignForItemOrModel(item, storeyHeight);
+    const bounds = stairPlanBounds(item, { storeyHeight, design });
+    item.size = {
+        width: Math.max(0.4, bounds.width),
+        depth: Math.max(0.4, bounds.depth),
+        height: Math.max(0.6, design.rise)
+    };
+    return bounds;
+}
+
+/**
  * Build the 3D stair/pole for an item. Returns a Group at local y = 0 (the lower
  * floor), footprint centred on the item origin.
  */

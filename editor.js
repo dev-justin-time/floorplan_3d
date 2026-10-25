@@ -109,11 +109,19 @@ import {
     getOutdoorSystem,
     OUTDOOR_SYSTEMS,
     STAIR_TYPE_LABELS,
-    stairDesignForItem,
     stairLocalToPlanPoint,
     isStairItem,
     drawStairPlan,
     stairPlanBounds,
+    sizeStairItem,
+    readDesignerDraft,
+    clearDesignerDraft,
+    loadStairPresets,
+    saveStairPreset,
+    removeStairPreset,
+    getStairPreset,
+    presetNameFor,
+    presetSummary,
     createStairWalker,
     findStairClashes,
     createStairPanel
@@ -224,6 +232,9 @@ const AppState = {
         barrier: true
     },
     walking: false,
+    // One-shot stair config armed from a saved preset: the next plan click
+    // places that stair, then the pending preset is cleared.
+    pendingStairPreset: null,
 
     lastConvert: null
 };
@@ -292,6 +303,7 @@ function init() {
     refreshProjectsPanel();
     refreshCommentsPanel();
     refreshStairPanel();
+    refreshStairPresetPalette();
     refreshLandscapePanel();
     
     // Load Autosave
@@ -308,6 +320,19 @@ function init() {
     syncShellToggles(document, AppState);
     draw2D();
     updateViewButtons();
+
+    // A stair designed in stair-designer.html arrives as a draft and is placed
+    // at the plan centre, selected, so the option bar opens on it.
+    const designerDraft = readDesignerDraft();
+    if (designerDraft?.stair) {
+        clearDesignerDraft();
+        try {
+            stairPanelApi().add(designerDraft.stair);
+            draw2D();
+        } catch (error) {
+            console.warn('Stair designer draft was not placed', error);
+        }
+    }
     
     // Expose Global API
     window.undo = () => { stateManager.undo(); updateUI(); };
@@ -455,6 +480,14 @@ function init() {
     window.walkStairs = () => toggleStairWalk();
     window.exportStairTakeoff = () => exportStairTakeoff();
     window.refreshStairPanel = refreshStairPanel;
+    window.saveStairPreset = (name) => saveSelectedStairPreset(name);
+    window.useStairPreset = (id) => useStairPreset(id);
+    window.removeStairPreset = (id) => {
+        const removed = removeStairPreset(id);
+        refreshStairPresetPalette();
+        return removed;
+    };
+    window.refreshStairPresets = refreshStairPresetPalette;
     window.stairKit = {
         systems: () => OUTDOOR_SYSTEMS,
         design: () => currentStairDesign(),
@@ -462,6 +495,7 @@ function init() {
         clashes: () => findStairClashes(currentStairAssembly(), { walls: AppState.walls, item: stairPanelApi().selected }),
         walker: () => stairPanelApi().walker(),
         selected: () => stairPanelApi().selected,
+        stairs: () => AppState.fixtures.filter(isStairItem),
         summary: () => assemblySummary(currentStairAssembly())
     };
 
@@ -621,7 +655,10 @@ function onPointerDown(e) {
             return;
         }
 
-        const fixture = fixtureAt(AppState.fixtures, pos, { slack: 10 / AppState.scale });
+        const fixture = fixtureAt(AppState.fixtures, pos, {
+            slack: 10 / AppState.scale,
+            storeyHeight: activeStoreyHeight()
+        });
         AppState.selectedFixture = fixture;
         AppState.selectedWallId = fixture ? null : wallAt(pos);
 
@@ -637,6 +674,18 @@ function onPointerDown(e) {
     } else if (AppState.currentTool) {
         // Place item
         const item = ItemFactory.create(AppState.currentTool, pos.x, pos.y);
+
+        // A stair armed from a saved preset carries that config; the preset is
+        // one-shot, so the next placement falls back to the type's own defaults.
+        if (isStairItem(item) && AppState.pendingStairPreset?.stair) {
+            const preset = AppState.pendingStairPreset;
+            applyStairConfig(item, preset.stair);
+            AppState.stairDraft = { ...preset.stair };
+            AppState.pendingStairPreset = null;
+            refreshStairPanel();
+            const status = document.getElementById('stair-preset-status');
+            if (status) status.textContent = `Placed “${preset.name}”`;
+        }
         
         // In-wall items ride the wall centreline; floor items sit flush on the
         // wall face, width along the wall. Both are ability-controlled.
@@ -654,6 +703,11 @@ function onPointerDown(e) {
                 material: 'gloss' 
             };
         }
+
+        // The drawn footprint is the run plus the automatic landings, which is
+        // larger than the palette's metadata size; store it on placement so the
+        // floor opening and every size-based read match the 3D build.
+        if (isStairItem(item) && !item.size) sizeStairItem(item, activeStoreyHeight());
 
         AppState.fixtures.push(item);
         
@@ -2989,6 +3043,11 @@ function wireUploadModal() {
 }
 
 function setTool(tool) {
+    // A saved stair preset only applies to the tool it was armed for; choosing
+    // any other item drops it.
+    if (AppState.pendingStairPreset && tool !== AppState.pendingStairPreset.itemType) {
+        AppState.pendingStairPreset = null;
+    }
     AppState.currentTool = tool;
     AppState.drag = null;
     AppState.groupDrag = null;
@@ -3261,6 +3320,91 @@ function applyStairField(key, value) {
 
 function addStairFromPanel() {
     return stairPanelApi().add();
+}
+
+// ------------------------------------------------------------------
+// Saved stair presets (features/stairs/presets.js)
+// ------------------------------------------------------------------
+
+/** Merge a stair config into an item and re-size it, landings included. */
+function applyStairConfig(item, config) {
+    if (!item || !config) return item;
+    item.stair = { ...(item.stair || {}), ...config };
+    sizeStairItem(item, activeStoreyHeight());
+    return item;
+}
+
+/** Render the "My stairs" palette section from localStorage. */
+function refreshStairPresetPalette() {
+    const container = document.getElementById('stair-preset-items');
+    if (!container) return [];
+    const presets = loadStairPresets();
+    const count = document.getElementById('stair-preset-count');
+    if (count) count.textContent = presets.length ? String(presets.length) : '';
+    // Re-rendering must not pop the section open after the user collapsed it.
+    const collapsed = container.classList.contains('hidden');
+
+    if (!presets.length) {
+        container.className = 'mt-1';
+        container.innerHTML = '<p class="text-[10px] text-gray-400 leading-snug">Select a stair, then use the bookmark in the Stair design panel to save it here.</p>';
+        if (collapsed) container.classList.add('hidden');
+        return presets;
+    }
+
+    container.className = 'grid grid-cols-3 gap-2 mt-1';
+    if (collapsed) {
+        container.classList.add('hidden');
+        container.classList.remove('grid');
+    }
+    container.innerHTML = presets.map((preset) => `
+        <div class="relative group">
+            <button class="item-button w-full flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onclick="window.useStairPreset('${escapeHtml(preset.id)}')" title="${escapeHtml(`${preset.name} — ${presetSummary(preset)}`)}">
+                <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">stairs</span>
+                <span class="text-[10px] mt-1 text-center leading-tight">${escapeHtml(preset.name)}</span>
+            </button>
+            <button class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-400 hover:text-red-500 hidden group-hover:flex group-focus-within:flex items-center justify-center" onclick="event.stopPropagation(); window.removeStairPreset('${escapeHtml(preset.id)}')" title="Remove preset">
+                <span class="material-symbols-outlined text-[10px]">close</span>
+            </button>
+        </div>`).join('');
+    return presets;
+}
+
+function saveSelectedStairPreset(name = null) {
+    const item = stairPanelApi().selected;
+    if (!item) {
+        alert('Select a stair in the plan first, then save it as a preset.');
+        return null;
+    }
+    const suggested = presetNameFor(item.stair || {});
+    const chosen = name || window.prompt('Save this stair as', suggested);
+    if (!chosen) return null;
+
+    const preset = saveStairPreset({
+        name: chosen,
+        stair: item.stair,
+        itemType: item.type,
+        label: item.metadata?.label || null,
+        color: AppState.fixtureStyles?.[item.id]?.color || null
+    });
+    if (!preset) return null;
+
+    refreshStairPresetPalette();
+    const status = document.getElementById('stair-preset-status');
+    if (status) status.textContent = `Saved “${preset.name}” to My stairs`;
+    return preset;
+}
+
+/** Arm the stair tool with a preset; the next plan click places it once. */
+function useStairPreset(id) {
+    const preset = getStairPreset(id);
+    if (!preset) return null;
+    setTool(preset.itemType || 'stair');
+    AppState.pendingStairPreset = preset;
+    AppState.stairDraft = { ...preset.stair };
+    refreshStairPanel();
+    const status = document.getElementById('stair-preset-status');
+    if (status) status.textContent = `Click the plan to place “${preset.name}”`;
+    return preset;
 }
 
 function exportStairTakeoff() {

@@ -1,6 +1,8 @@
 import { PIXELS_PER_METER } from './world-space.js';
 import { constrainToLocks } from './features/transforms.js';
 import { gridSnap, wallSnap } from './features/advanced/snapping.js';
+import { isStairItem } from './features/stairs/design.js';
+import { stairPlanContains } from './features/stairs/geometry.js';
 
 /**
  * Dragging for plan objects (fixtures, windows, doors).
@@ -11,7 +13,7 @@ import { gridSnap, wallSnap } from './features/advanced/snapping.js';
  */
 
 /** Topmost fixture under a plan-space point, or null. */
-export function fixtureAt(fixtures, point, { slack = 10 } = {}) {
+export function fixtureAt(fixtures, point, { slack = 10, storeyHeight } = {}) {
     for (let i = fixtures.length - 1; i >= 0; i--) {
         const fixture = fixtures[i];
         if (fixture.visible === false) continue;
@@ -28,6 +30,19 @@ export function fixtureAt(fixtures, point, { slack = 10 } = {}) {
         const dy = point.y - fixture.y;
         const localX = dx * cos - dy * sin;
         const localY = dx * sin + dy * cos;
+
+        // Stairs are picked on their drawn footprint (run plus automatic
+        // landings), not the run-only metadata rectangle, so the area the plan
+        // symbol and the selection box cover is the area that selects.
+        if (isStairItem(fixture)) {
+            if (stairPlanContains(fixture, {
+                x: localX / PIXELS_PER_METER,
+                z: localY / PIXELS_PER_METER
+            }, { storeyHeight, slack: slack / PIXELS_PER_METER })) {
+                return fixture;
+            }
+            continue;
+        }
 
         if (Math.abs(localX) <= widthPx / 2 + slack && Math.abs(localY) <= depthPx / 2 + slack) {
             return fixture;

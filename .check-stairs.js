@@ -3,8 +3,12 @@ import { computeStairDesign, stairDesignForItem, stairLocalToPlanPoint } from '.
 import { OUTDOOR_SYSTEMS, computeOutdoorStair, outdoorBomCsv } from './features/stairs/outdoor.js';
 import { buildStairAssembly, assemblySummary, findStairClashes, stairSectionProfile } from './features/stairs/assembly.js';
 import { PART_LIBRARY, partsByCategory, buildPartWireframe, partSize } from './features/stairs/parts.js';
-import { buildStairGeometry, stairPlanBounds, stairPlanOutline } from './features/stairs/geometry.js';
+import { buildStairGeometry, stairPlanBounds, stairPlanOutline, stairPlanContains, sizeStairItem } from './features/stairs/geometry.js';
+import { fixtureAt } from './scene-drag.js';
+import { PIXELS_PER_METER } from './world-space.js';
 import { STAIR_MODELS, computeStairModel, stairModelConfig, stairModelSummary, modelTakeoffCsv, applyModelToConfig, modelsByCategory } from './features/stairs/models.js';
+import { computeStraightDesigner, toStairConfig, designerTakeoffCsv, designerSummary, buildDesignerStair } from './features/stairs/designer.js';
+import { loadStairPresets, saveStairPreset, removeStairPreset, getStairPreset, clearStairPresets, presetNameFor, presetSummary, STAIR_PRESET_KEY, STAIR_PRESET_LIMIT } from './features/stairs/presets.js';
 import { createStairHeightField } from './features/stairs/walk.js';
 import { computeWaterFeature, waterDesignForItem, waterSummary, planOutline, surfaceArea } from './features/landscape/design.js';
 import { buildWaterFeature } from './features/landscape/geometry.js';
@@ -188,6 +192,61 @@ console.log('\n3D stair geometry');
         `${monoPlan.depth.toFixed(2)} m`);
 }
 
+console.log('\nPlan picking');
+{
+    // A stair straight from the palette has no `size`; picking has to use the
+    // footprint the plan and the 3D draw, landings included.
+    const item = {
+        type: 'stair_deck',
+        x: 300,
+        y: 300,
+        rotation: 0,
+        metadata: { width: 0.9144, depth: 4.4, height: 2.7 },
+        stair: { system: 'deck', type: 'straight', code: 'IRC2021', width: 0.9144, availableRun: 4.4, availableWidth: 1.2 }
+    };
+    const bounds = stairPlanBounds(item, { storeyHeight: 2.7 });
+    const bottom = bounds.landings.find((landing) => landing.end === 'bottom');
+    const top = bounds.landings.find((landing) => landing.end === 'top');
+    const centreOf = (rect) => ({ x: (rect.minX + rect.maxX) / 2, z: (rect.minZ + rect.maxZ) / 2 });
+
+    check('picking reaches the bottom landing',
+        fixtureAt([item], stairLocalToPlanPoint(item, centreOf(bottom)), { storeyHeight: 2.7 }) === item);
+    check('picking reaches the top landing',
+        fixtureAt([item], stairLocalToPlanPoint(item, centreOf(top)), { storeyHeight: 2.7 }) === item);
+    check('picking stops past the footprint',
+        fixtureAt([item], stairLocalToPlanPoint(item, { x: 0, z: bounds.maxZ + 0.3 }), { storeyHeight: 2.7, slack: 0 }) === null);
+
+    const turned = { ...item, rotation: Math.PI / 2 };
+    check('picking follows the stair rotation',
+        fixtureAt([turned], stairLocalToPlanPoint(turned, centreOf(bottom)), { storeyHeight: 2.7 }) === turned);
+
+    const bare = {
+        ...item,
+        stair: { ...item.stair, landings: { top: { enabled: false }, bottom: { enabled: false } } }
+    };
+    const bareBounds = stairPlanBounds(bare, { storeyHeight: 2.7 });
+    check('no landings means the run footprint only', bareBounds.landings.length === 0);
+    check('picking a disabled landing misses',
+        fixtureAt([bare], stairLocalToPlanPoint(bare, centreOf(bottom)), { storeyHeight: 2.7 }) === null);
+
+    const paletteItem = { ...item, size: null };
+    const sized = sizeStairItem(paletteItem, 2.7);
+    check('sizing stores the landing footprint',
+        near(paletteItem.size.depth, sized.depth) && paletteItem.size.depth > stairDesignForItem(item, 2.7).runUsed + 1.6,
+        `${paletteItem.size.width.toFixed(2)} × ${paletteItem.size.depth.toFixed(2)} m`);
+    check('sizing keeps the storey height', near(paletteItem.size.height, 2.7));
+    check('sizing matches the picking footprint',
+        near(paletteItem.size.width, bounds.width) && near(paletteItem.size.depth, bounds.depth));
+    check('a sized stair is still picked by its landings',
+        fixtureAt([paletteItem], stairLocalToPlanPoint(paletteItem, centreOf(top)), { storeyHeight: 2.7 }) === paletteItem);
+
+    // Rectangular non-stair items keep their metadata footprint.
+    const door = { type: 'door', x: 300, y: 300, rotation: 0, metadata: { width: 1, depth: 0.15 } };
+    check('non-stair picking is unchanged',
+        fixtureAt([door], { x: 300 + 10, y: 300 }) === door
+        && fixtureAt([door], { x: 300 + 0.9 * PIXELS_PER_METER, y: 300 }) === null);
+}
+
 console.log('\nModel catalogue');
 {
     check('model families catalogued', STAIR_MODELS.length === 12, `${STAIR_MODELS.length} models`);
@@ -291,6 +350,118 @@ console.log('\nModel catalogue');
     });
     const top = field.heightAt(stairLocalToPlanPoint(monoItem, monoDesign.exit));
     check('mono stringer is walkable to the upper storey', Math.abs(top - 2.7) < 0.05, `${top.toFixed(2)} m`);
+}
+
+console.log('\nStraight stair designer');
+{
+    const designer = computeStraightDesigner();
+    check('designer default is compliant', designer.compliant, designer.checks.filter((c) => c.severity === 'error').map((c) => c.id).join(', '));
+    check('auto steps follow the published method', designer.steps === 14 && designer.risers === 15, `${designer.steps} steps / ${designer.risers} risers`);
+    check('step height divides the height by the risers', Math.abs(designer.stepHeight - 180) < 1e-9, `${designer.stepHeight.toFixed(2)} mm`);
+    check('going from Blondel', Math.abs(designer.going - (630 - 2 * 180)) < 1e-9, `${designer.going.toFixed(1)} mm`);
+    check('designer Blondel in band', Math.abs(designer.blondel - 630) < 1e-9, `${designer.blondel.toFixed(1)} mm`);
+    check('angle from step height over going', Math.abs(designer.angle - (Math.atan2(designer.stepHeight, designer.going) * 180) / Math.PI) < 1e-9, `${designer.angle.toFixed(2)}°`);
+    check('total run is steps × going + landing step', Math.abs(designer.totalRun - (designer.steps * designer.going + designer.landingStep.size)) < 1e-9, `${designer.totalRun.toFixed(0)} mm`);
+
+    const expectedHeadroom = Math.tan((designer.angle * Math.PI) / 180) * (designer.opening.length - designer.landingStep.size) - designer.opening.floorThickness;
+    check('headroom from tan × opening', Math.abs(designer.headroom - expectedHeadroom) < 1e-6, `${designer.headroom.toFixed(0)} mm`);
+
+    const locked = computeStraightDesigner({ steps: 12 });
+    check('locked step count honoured', locked.steps === 12 && locked.risers === 13 && Math.abs(locked.stepHeight - 2700 / 13) < 1e-9, `${locked.stepHeight.toFixed(1)} mm riser`);
+    check('locked 208 mm riser rejected', locked.checks.some((c) => c.id === 'riser' && c.severity === 'error'));
+
+    const shortOpening = computeStraightDesigner({ openingLength: 1500 });
+    check('short opening fails headroom', shortOpening.headroom < 1900 && shortOpening.checks.some((c) => c.id === 'headroom' && c.severity === 'error'), `${shortOpening.headroom.toFixed(0)} mm`);
+
+    const byLength = computeStraightDesigner({ solve: 'length', length: 4200 });
+    check('solving by length pins the run', Math.abs(byLength.totalRun - 4200) < 1e-6, `${byLength.totalRun.toFixed(0)} mm`);
+    check('solving by length derives the going', Math.abs(byLength.going - (4200 - byLength.landingStep.size) / byLength.steps) < 1e-9, `${byLength.going.toFixed(1)} mm`);
+
+    const tight = computeStraightDesigner({ solve: 'length', length: 2400, height: 3600 });
+    check('tight run is not compliant', !tight.compliant, tight.checks.filter((c) => c.severity === 'error').map((c) => c.id).join(', '));
+
+    const noLanding = computeStraightDesigner({ landingStep: 0 });
+    check('landing step adds a tread', designer.elevation.treads.length === noLanding.elevation.treads.length + 1,
+        `${designer.elevation.treads.length} vs ${noLanding.elevation.treads.length}`);
+    check('elevation has a tread per step plus the landing', designer.elevation.treads.length === designer.steps + 1 && designer.elevation.risers.length === designer.risers);
+
+    check('designer summary lines', designerSummary(designer).length === 4);
+    check('designer takeoff rows', designerTakeoffCsv(designer).split('\n').length === 7);
+
+    const config = toStairConfig(designer);
+    const item = {
+        type: 'stair', x: 0, y: 0, rotation: 0,
+        metadata: { width: config.width, depth: config.availableRun, height: config.storeyHeight },
+        stair: config
+    };
+    const engine = stairDesignForItem(item, config.storeyHeight);
+    check('designer pins the engine riser count and going', engine.risers === designer.risers && Math.abs(engine.treadDepth - designer.metres.going) < 1e-9,
+        `${engine.risers} × ${(engine.treadDepth / IN).toFixed(2)} in`);
+    check('placed designer stair passes the code engine', engine.errors.length === 0, engine.errors.map((issue) => issue.code).join(', '));
+
+    const group = buildDesignerStair(designer);
+    const names = [];
+    let meshes = 0;
+    group.traverse((child) => { if (child.isMesh) meshes += 1; if (child.name) names.push(child.name); });
+    check('designer 3D builds the flight', meshes > 30, `${meshes} meshes`);
+    check('designer 3D has the landing step and upper floor', names.includes('designer-landing-step') && names.includes('designer-upper-floor'));
+    check('designer 3D has one tread per step', names.filter((name) => name.startsWith('designer-tread-')).length === designer.steps,
+        `${names.filter((name) => name.startsWith('designer-tread-')).length} treads`);
+}
+
+console.log('\nSaved stair presets');
+{
+    const memory = new Map();
+    const storage = {
+        getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+        setItem: (key, value) => memory.set(key, String(value)),
+        removeItem: (key) => memory.delete(key)
+    };
+
+    check('presets start empty', loadStairPresets(storage).length === 0);
+    check('preset names follow the model', presetNameFor({ model: 'mono-straight' }) === 'Mono stringer, straight run', presetNameFor({ model: 'mono-straight' }));
+    check('preset names follow the system', presetNameFor({ system: 'deck' }) === 'Deck stair', presetNameFor({ system: 'deck' }));
+
+    const saved = saveStairPreset({
+        name: 'Alt tread 900',
+        stair: { model: 'alt-tread', type: 'straight', code: 'IBC_ALT', width: 0.9, risers: 14, treadDepth: 0.21, junk: 'drop me' },
+        itemType: 'stair'
+    }, storage);
+    check('preset saved', Boolean(saved?.id) && saved.name === 'Alt tread 900');
+    check('preset drops unknown fields', saved.stair.junk === undefined, Object.keys(saved.stair).join(','));
+    check('preset stored once', loadStairPresets(storage).length === 1);
+    check('preset can be looked up by id', getStairPreset(saved.id, storage)?.stair.model === 'alt-tread');
+
+    const renamed = saveStairPreset({ name: 'Alt tread renamed', stair: saved.stair }, storage);
+    check('re-saving the same stair renames it', renamed.id === saved.id && loadStairPresets(storage).length === 1);
+    check('renamed preset wins', loadStairPresets(storage)[0].name === 'Alt tread renamed');
+
+    check('preset summary lists risers and width', presetSummary(renamed).includes('14 risers') && presetSummary(renamed).includes('900 mm'), presetSummary(renamed));
+
+    check('preset removed', removeStairPreset(saved.id, storage) === true && getStairPreset(saved.id, storage) === null);
+    check('removing an unknown preset is a no-op', removeStairPreset('missing', storage) === false);
+
+    for (let i = 0; i < 30; i++) {
+        saveStairPreset({ name: `Preset ${i}`, stair: { type: 'straight', width: 0.6 + i * 0.01 } }, storage);
+    }
+    check('preset list is capped', loadStairPresets(storage).length === STAIR_PRESET_LIMIT, `${loadStairPresets(storage).length} saved`);
+    check('newest preset first', loadStairPresets(storage)[0].name === 'Preset 29', loadStairPresets(storage)[0].name);
+
+    memory.set(STAIR_PRESET_KEY, '{not json');
+    check('malformed storage is ignored', loadStairPresets(storage).length === 0);
+    check('clearing presets empties the store', clearStairPresets(storage) === true && loadStairPresets(storage).length === 0);
+    check('empty config is rejected', saveStairPreset({ name: 'none', stair: null }, storage) === null);
+
+    // A saved model config sizes through the engine unchanged.
+    const modelPreset = saveStairPreset({
+        name: 'Mono preset',
+        stair: stairModelConfig('mono-straight', { storeyHeight: 2.7 }),
+        itemType: 'stair'
+    }, storage);
+    const presetItem = { type: 'stair', x: 0, y: 0, rotation: 0, metadata: { width: 1, depth: 1, height: 2.7 }, stair: modelPreset.stair };
+    const presetDesign = stairDesignForItem(presetItem, 2.7);
+    check('preset config sizes through the engine', presetDesign.risers > 3 && presetDesign.compliant, `${presetDesign.risers} risers`);
+    check('preset keeps the model family', presetItem.stair.model === 'mono-straight');
 }
 
 console.log('\nWalkable stairs');

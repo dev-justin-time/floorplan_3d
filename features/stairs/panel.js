@@ -4,7 +4,7 @@ import { modelsByCategory, applyModelToConfig, computeStairModel, stairModelSumm
 import { OUTDOOR_SYSTEMS, outdoorStairConfig, computeOutdoorStair, outdoorSummary, outdoorBomCsv } from './outdoor.js';
 import { buildStairAssembly, assemblySummary } from './assembly.js';
 import { createStairWalker } from './walk.js';
-import { stairPlanBounds } from './geometry.js';
+import { sizeStairItem } from './geometry.js';
 
 /**
  * Stair suite panel controller.
@@ -196,14 +196,8 @@ export function createStairPanel(context = {}) {
         }
 
         if (item) {
-            const sized = stairDesignForItem(item, getStoreyHeight());
             // Size follows the drawn stair, landings included.
-            const bounds = stairPlanBounds(item, { storeyHeight: getStoreyHeight(), design: sized });
-            item.size = {
-                width: Math.max(0.4, bounds.width),
-                depth: Math.max(0.4, bounds.depth),
-                height: Math.max(0.6, sized.rise)
-            };
+            sizeStairItem(item, getStoreyHeight());
             if (key === 'system' && value && item.type !== 'fire_pole') {
                 item.type = STAIR_TYPE_BY_SYSTEM[value] || item.type;
             }
@@ -212,20 +206,17 @@ export function createStairPanel(context = {}) {
         return refresh();
     }
 
-    function add() {
+    /** Place a stair from the current draft, or from a config handed in. */
+    function add(overrides = null) {
         const draft = { ...(state().stairDraft || { system: 'deck', type: 'straight', code: 'IRC2021' }) };
+        if (overrides) Object.assign(draft, overrides);
+        state().stairDraft = { ...draft };
         const type = draft.type === 'fire-pole' ? 'fire_pole' : (STAIR_TYPE_BY_SYSTEM[draft.system] || 'stair');
         const center = planCenter();
         const item = createItem(type, center.x, center.y, 0);
         if (!item) return null;
         item.stair = { ...(item.stair || {}), ...draft };
-        const sized = stairDesignForItem(item, getStoreyHeight());
-        const bounds = stairPlanBounds(item, { storeyHeight: getStoreyHeight(), design: sized });
-        item.size = {
-            width: Math.max(0.4, bounds.width),
-            depth: Math.max(0.4, bounds.depth),
-            height: Math.max(0.6, sized.rise)
-        };
+        sizeStairItem(item, getStoreyHeight());
         state().fixtures.push(item);
         state().selectedFixture = item;
         state().selectedWallId = null;

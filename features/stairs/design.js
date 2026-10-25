@@ -321,7 +321,10 @@ export function computeStairDesign(input = {}) {
 
     const spiral = type === 'spiral';
     const maxRiser = spiral ? code.spiral.maxRiser : code.maxRiser;
-    const risers = Math.max(3, Math.ceil(rise / maxRiser - 1e-9));
+    // A designer can pin the step count (locked steps); otherwise the flight is
+    // the shortest one that keeps the riser under the limit.
+    const requestedRisers = Math.round(number(input.risers, 0));
+    const risers = requestedRisers >= 2 ? requestedRisers : Math.max(3, Math.ceil(rise / maxRiser - 1e-9));
     const riserHeight = rise / risers;
     const treads = risers - 1;
 
@@ -358,9 +361,15 @@ export function computeStairDesign(input = {}) {
 
     if (type === 'straight') {
         const idealTread = clamp(COMFORT_TARGET - 2 * riserHeight, code.minTread, 0.36);
+        // A designer-supplied tread (the going worked out from the total length)
+        // wins over the comfort-derived one.
+        const forcedTread = number(input.treadDepth, 0);
         let tread = availableRun / treads;
         let runUsed = availableRun;
-        if (tread > idealTread) {
+        if (forcedTread > 0) {
+            tread = forcedTread;
+            runUsed = tread * treads;
+        } else if (tread > idealTread) {
             tread = idealTread;
             runUsed = tread * treads;
         }
@@ -382,6 +391,10 @@ export function computeStairDesign(input = {}) {
         }
         if (runUsed < availableRun - 0.05) {
             pushIssue(issues, 'info', 'surplus-run', `${round(availableRun - runUsed, 2)} m left for a landing`);
+        }
+        if (runUsed > availableRun + 0.005) {
+            pushIssue(issues, 'warning', 'run-exceeds-space',
+                `Run ${round(runUsed, 2)} m is longer than the ${round(availableRun, 2)} m available`);
         }
 
         design.path = straightPath({ run: runUsed, width, rise });

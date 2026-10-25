@@ -169,11 +169,14 @@ rectangle clip) and other fixtures, and flags headroom under the top landing.
 for a 3D section or a drawing, so the plan, section and model agree.
 
 `stairPlanBounds(item, { storeyHeight })` is the single plan footprint used by
-the 2D symbol, the selection box and `item.size`. It is the run rectangle plus
-the automatic top and bottom landings at the depth and offset the 3D build uses,
-so a selected stair is outlined over everything it occupies. Families whose
-geometry draws no landings (mono stringer, curve, spiral, crossover, folded)
-keep the run footprint, matching what is on screen.
+the 2D symbol, the selection box, `item.size` and picking. It is the run
+rectangle plus the automatic top and bottom landings at the depth and offset the
+3D build uses, so a selected stair is outlined over everything it occupies and a
+click anywhere in that outline selects it. `sizeStairItem()` stores the same
+footprint on the item, so the floor opening and every size-based read follow it,
+including stairs dropped straight from the palette. `stairPlanContains()` backs
+the hit test. Families whose geometry draws no landings (mono stringer, curve,
+spiral, crossover, folded) keep the run footprint, matching what is on screen.
 
 ### Parts and wireframe models
 
@@ -236,7 +239,81 @@ the takeoff stay on one set of numbers. The panel summary prints the family, the
 slope and the governing reference; the takeoff CSV gains model, tread, riser and
 guard rows.
 
-## 7. Sources
+## 7. Straight stair designer
+
+`stair-designer.html` is a straight-staircase configurator in the shape of the
+EasyStair straight-stair page, and `features/stairs/designer.js` holds its maths,
+elevation drawing and 3D preview.
+
+Inputs are metric: height, width, what to solve by (**Blondel's law** or **total
+length**), the Blondel value (590–650, default 630), steps (auto or locked),
+landing step size (0 = none), nosing overlap, step thickness, floor opening
+length, floor thickness and left/right offsets. The method follows EasyStair's
+published calculation:
+
+| Quantity      | Formula / rule                                                                                                       |
+|---------------|-----------------------------------------------------------------------------------------------------------------------|
+| Steps (auto)  | `round(height / 175) − 1` — the number of **treads**, ideal 175 mm riser                                              |
+| Risers        | `steps + 1`                                                                                                           |
+| Step height   | `height / risers`                                                                                                     |
+| Going         | `Blondel − 2 × step height`; or `(length − landing step) / steps` in length mode                                      |
+| Step depth    | `going + overlap` (the tread runs back under the next step)                                                           |
+| Total run     | `steps × going + landing step`                                                                                        |
+| Angle         | `atan(step height / going)`                                                                                            |
+| Blondel       | `going + 2 × step height`, comfort band **590–650 mm**, ideal 630                                                    |
+| Headroom      | `tan(angle) × (opening length − landing step) − floor thickness`                                                      |
+| Landing step  | An optional step in the extension of the floor; it overhangs the last tread by the overlap and closes the stringer     |
+| Comfort note  | 100 − |Blondel − 630| / 2 − max(0, |angle − 32.5°| − 2.5) × 1.5, clamped to 0–100                                     |
+
+Checks: width (700 min, 800 ideal), step height (150–200, ideal 175), going
+(230–330, ideal 280), angle (20–50°, ideal 30–35°), Blondel (590–650),
+headroom (1900 min, 2100 ideal), landing step vs overlap, opening length and
+whether the step count is locked. The panel lists each check as ok / warn /
+error, exactly as the result is computed.
+
+The elevation drawing shows the stepped profile with its overlap and thickness,
+the landing step, the upper floor and its opening, the nosing line, the headroom
+arrow at the ceiling edge, and the overall height and run. The 3D pane builds the
+same flight with stringers, guard rails, the landing step and the floor around
+the opening. In *Blondel* mode the total run is computed from the law and shown
+read-only; switching to *Total length* makes it an input and derives the going.
+
+**Handoff to the plan.** *Add to plan* writes the stair config to
+`localStorage['stair-designer-draft']` and opens `Editor.html`; the editor places
+it at the plan centre and clears the draft. `toStairConfig()` maps the designer
+onto the shared engine with the step count and going pinned, so the placed stair
+keeps the numbers shown here. `computeStairDesign()` accepts `risers` and
+`treadDepth` overrides for exactly this purpose.
+
+Not cloned: EasyStair's premium cost estimate, cutting-list spreadsheet, PDF /
+DXF / OBJ / STL export and saved cloud projects. The designer is a sizing aid;
+the editor's IRC/IBC checks run again on the placed stair, and the 3D in the
+editor does not draw the nosing overlap or the landing step.
+
+## 8. Saved stair presets
+
+Any placed stair can be stored as a preset and reused from the **My stairs**
+palette section (`features/stairs/presets.js`). The bookmark button in the
+Stair design option bar saves the selected stair; a name is asked for, defaulting
+to the model family or outdoor system.
+
+A preset keeps the config the design engine reads — model family, system, run
+type, code, width, run/depth, pinned risers and going, turn, support, material,
+nosings, landings, guard and pole settings. Unknown fields are dropped, numbers
+are checked for finiteness, strings are trimmed and the list is capped at 24
+entries, newest first. Saving a config that is already stored renames that entry
+instead of adding a duplicate. Presets live in
+`localStorage['stair-presets']`; a missing or malformed store reads as an empty
+list, and failed writes never break the editor.
+
+Clicking a preset arms the stair tool with that config and shows a placement
+hint. The next plan click places the stair once — carrying the same model,
+risers, going and landings — and the pending preset is cleared, so a second
+click places a default stair. Choosing another tool drops the armed preset.
+Hovering a palette tile reveals a remove button; the palette re-renders after
+every save and removal, and on editor load.
+
+## 9. Sources
 
 - IRC 2021 R311.7: https://up.codes/s/stairways-and-handrails
 - IRC 2021 R311.7.6 landings: https://up.codes/s/landings-for-stairways
