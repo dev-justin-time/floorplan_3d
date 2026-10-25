@@ -1,12 +1,28 @@
 import { ITEM_METADATA } from './metadata.js';
 import { WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
 
+/**
+ * Effective size of an item in metres. A per-item `size` override wins over the
+ * type default in ITEM_METADATA, which is how resizing a placed piece works.
+ */
+export function itemDimensions(item) {
+    const meta = item?.metadata || {};
+    const size = item?.size || {};
+    return {
+        width: size.width ?? meta.width ?? 0.5,
+        depth: size.depth ?? meta.depth ?? 0.5,
+        height: size.height ?? meta.height ?? 0.5
+    };
+}
+
 export class Item {
     constructor(type, x, y, rotation = 0, id = null) {
         this.type = type;
         this.x = x;
         this.y = y;
         this.rotation = rotation;
+        // Per-item dimension override ({ width, depth, height } in metres).
+        this.size = null;
         this.id = id || 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         this.metadata = ITEM_METADATA[type] || { color: 0x999999 };
         this.selected = false;
@@ -41,7 +57,8 @@ export class Item {
             modelUrl: this.modelUrl, // Include in serialization
             elevation: this.elevation || 0,
             visible: this.visible !== false,
-            locked: !!this.locked
+            locked: !!this.locked,
+            size: this.size || null
         };
     }
 }
@@ -207,6 +224,7 @@ export class ItemFactory {
         if (typeof json.elevation === 'number') item.elevation = json.elevation;
         if (typeof json.visible === 'boolean') item.visible = json.visible;
         if (typeof json.locked === 'boolean') item.locked = json.locked;
+        if (json.size && typeof json.size === 'object') item.size = { ...json.size };
         return item;
     }
 }

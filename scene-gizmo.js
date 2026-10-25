@@ -64,10 +64,12 @@ export function createItemGizmo({ scene, camera, renderer, orbit, onPreview, onC
     const setMode = (mode) => {
         gizmo.setMode(mode);
         const translate = mode === 'translate';
-        // Floor axes only when moving; vertical ring only when rotating.
+        // Floor axes when moving, plus the vertical axis: a Y drag is turned
+        // into the item's elevation, so pieces can be lifted in the orbit view
+        // as well as in an elevation.
         gizmo.showX = translate;
         gizmo.showZ = translate;
-        gizmo.showY = !translate;
+        gizmo.showY = true;
     };
     setMode('translate');
 

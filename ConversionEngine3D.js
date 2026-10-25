@@ -274,7 +274,12 @@ export class ConversionEngine3D {
             // they are not built into the scene.
             if (fixture.visible === false) return;
             const style = (fixtureStyles && fixtureStyles[fixture.id]) || {};
-            const mesh = this.createItemMesh(fixture, style);
+            // A resized item overrides the type's dimensions, so every builder
+            // (and the GLB path) sees the effective size.
+            const sized = fixture.size
+                ? { ...fixture, metadata: { ...fixture.metadata, ...fixture.size } }
+                : fixture;
+            const mesh = this.createItemMesh(sized, style);
             if (mesh) {
                 const x = (fixture.x - canvasWidth / 2) / SCALE;
                 const z = (fixture.y - canvasHeight / 2) / SCALE;

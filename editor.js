@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import { ConversionEngine3D } from './3dConversionEngine.js';
-import { Wall, ItemFactory } from './items.js';
+import { Wall, ItemFactory, itemDimensions } from './items.js';
 import { StateManager } from './state-manager.js';
 import { StorageManager } from './storage.js';
 import { FloorPlanProcessor } from './floorPlanProcessor.js';
@@ -15,6 +15,8 @@ import { fixtureAt, beginDrag, dragTo } from './scene-drag.js';
 import { snapToWalls } from './wall-snap.js';
 import { createItemGizmo, planFromObject, pickItemId } from './scene-gizmo.js';
 import { createElevationDrag, frameElevation, applyElevationVisibility, ELEVATION_SIDES } from './scene-elevation.js';
+import { createSceneAbilities, apply3DAbilities } from './scene-abilities.js';
+import { drawPlanOverlays, drawScreenOverlays } from './plan-overlays.js';
 
 // Application State
 const AppState = {
@@ -28,6 +30,14 @@ const AppState = {
     // Selected wall id; drives the wall highlight in 2D/3D and the inspector.
     selectedWallId: null,
     drag: null,
+    // Ruler points ({ start, end }) and the last pointer position in plan space.
+    ruler: { start: null, end: null },
+    cursor: null,
+    // Wall endpoint being dragged in the plan ({ id, end: 'start' | 'end' }).
+    wallNodeDrag: null,
+    // Mesh height and item lift captured when the 3D gizmo attaches, so a Y
+    // drag can be expressed as a change in the item's elevation.
+    gizmoBase: null,
     
     // Settings
     showDimensions: true,
@@ -59,6 +69,8 @@ let blueprintCanvas, blueprintCtx;
 let scene3D, camera3D, renderer3D, controls3D;
 let orthoCamera3D, orthoControls3D; // side elevation views
 let elevationBounds = null, elevationDrag = null;
+let abilities = null;
+let gridHelper3D = null, axesHelper3D = null;
 let conversionEngine;
 let itemGizmo;
 let gizmoMode = 'translate';
@@ -83,6 +95,7 @@ function init() {
     init3D();
     setupEventListeners();
     wireUploadModal(); // Initialize modal handlers
+    initAbilities(); // 49 scene abilities + their panel
     
     // Load Autosave
     const saved = StorageManager.loadProject('autosave');
@@ -94,13 +107,19 @@ function init() {
     // Initial Draw
     onResize();
     draw2D();
+    updateViewButtons();
     
     // Expose Global API
     window.undo = () => { stateManager.undo(); updateUI(); };
     window.redo = () => { stateManager.redo(); updateUI(); };
     window.toggleView = toggleView;
+    window.setViewMode = (mode) => setViewMode(mode);
     window.setElevationView = setElevationView;
-    window.toggleDimensions = () => { AppState.showDimensions = !AppState.showDimensions; draw2D(); };
+    // Dimensions are an ability toggle, so the header switch flips the same flag.
+    window.toggleDimensions = () => {
+        if (abilities) abilities.toggle('dimensions');
+        else { AppState.showDimensions = !AppState.showDimensions; draw2D(); }
+    };
     window.toggleCeiling = () => { AppState.showCeiling = !AppState.showCeiling; update3D(); };
     window.toggleRoof = () => { AppState.showRoof = !AppState.showRoof; update3D(); };
     window.setWallHeight = (value) => {
@@ -108,6 +127,21 @@ function init() {
         const height = parseFloat(value);
         if (!wall || !Number.isFinite(height) || height <= 0) return;
         wall.height = height;
+        saveAndSync();
+    };
+    window.setItemSize = (key, value) => {
+        const fixture = AppState.selectedFixture;
+        const metres = parseFloat(value) / 100;
+        if (!fixture || !Number.isFinite(metres) || metres <= 0) return;
+        if (!fixture.size) fixture.size = {};
+        fixture.size[key] = metres;
+        saveAndSync();
+    };
+    window.setItemRotation = (value) => {
+        const fixture = AppState.selectedFixture;
+        const radians = (parseFloat(value) * Math.PI) / 180;
+        if (!fixture || !Number.isFinite(radians)) return;
+        fixture.rotation = radians;
         saveAndSync();
     };
     window.deleteSelectedWall = deleteSelectedWall;
@@ -181,10 +215,17 @@ function init2D() {
     blueprintCtx = blueprintCanvas.getContext('2d');
 }
 
-function getCanvasCoordinates(event) {
+/** Exact plan position of a pointer event, without grid snapping. */
+function getPlanCoordinates(event) {
     const rect = blueprintCanvas.getBoundingClientRect();
-    let x = (event.clientX - rect.left - AppState.offset.x) / AppState.scale;
-    let y = (event.clientY - rect.top - AppState.offset.y) / AppState.scale;
+    return {
+        x: (event.clientX - rect.left - AppState.offset.x) / AppState.scale,
+        y: (event.clientY - rect.top - AppState.offset.y) / AppState.scale
+    };
+}
+
+function getCanvasCoordinates(event) {
+    let { x, y } = getPlanCoordinates(event);
     
     // Snap to grid
     if (AppState.gridSize > 0 && !event.shiftKey) {
@@ -204,7 +245,18 @@ function onPointerDown(e) {
     }
 
     const pos = getCanvasCoordinates(e);
-    
+    AppState.cursor = pos;
+
+    // Ruler takes clicks ahead of the current tool: first click sets the start,
+    // second the end, a third click begins a new measurement.
+    if (abilitiesState().ruler) {
+        const ruler = AppState.ruler || {};
+        if (!ruler.start || ruler.end) AppState.ruler = { start: pos, end: null };
+        else AppState.ruler = { start: ruler.start, end: pos };
+        draw2D(pos);
+        return;
+    }
+
     // Handle Tool Interaction
     if (AppState.currentTool === 'wall') {
         AppState.isDrawing = true;
@@ -212,6 +264,20 @@ function onPointerDown(e) {
     } else if (AppState.currentTool === 'delete') {
         deleteObjectAt(pos.x, pos.y);
     } else if (AppState.currentTool === 'select') {
+        // Wall endpoints first: they sit on top of the wall line so reshaping a
+        // corner wins over selecting the whole wall.
+        const node = wallNodeAt(pos);
+        if (node) {
+            AppState.wallNodeDrag = node;
+            AppState.selectedWallId = node.id;
+            AppState.selectedFixture = null;
+            AppState.drag = null;
+            draw2D(pos);
+            refreshGizmo();
+            syncSelectionPanels();
+            return;
+        }
+
         const fixture = fixtureAt(AppState.fixtures, pos, { slack: 10 / AppState.scale });
         AppState.selectedFixture = fixture;
         AppState.selectedWallId = fixture ? null : wallAt(pos);
@@ -228,10 +294,11 @@ function onPointerDown(e) {
         const item = ItemFactory.create(AppState.currentTool, pos.x, pos.y);
         
         // In-wall items ride the wall centreline; floor items sit flush on the
-        // wall face, width along the wall.
+        // wall face, width along the wall. Both are ability-controlled.
+        const abilityState = abilitiesState();
         if (item.metadata?.type === 'in_wall' || item.metadata?.type === 'in_wall_floor') {
-            if (item.snapToWall) item.snapToWall(AppState.walls);
-        } else {
+            if (abilityState.wallSnap !== false && item.snapToWall) item.snapToWall(AppState.walls);
+        } else if (abilityState.wallSnap !== false) {
             snapToWalls(item, AppState.walls, { threshold: 24 / AppState.scale });
         }
         
@@ -264,11 +331,21 @@ function onPointerMove(e) {
         return;
     }
 
+    if (AppState.wallNodeDrag) {
+        const nodePos = getCanvasCoordinates(e);
+        moveWallNode(nodePos, e.shiftKey);
+        draw2D(nodePos);
+        scheduleDragUpdate();
+        return;
+    }
+
     if (AppState.drag) {
         const dragPos = getCanvasCoordinates(e);
+        const abilityState = abilitiesState();
         dragTo(AppState.drag, dragPos, AppState.walls, {
-            gridSize: AppState.gridSize,
-            snapThreshold: 20 / AppState.scale
+            gridSize: abilityState.gridSnap === false ? 0 : AppState.gridSize,
+            snapThreshold: 20 / AppState.scale,
+            wallSnap: abilityState.wallSnap !== false
         });
         draw2D(dragPos);
         scheduleDragUpdate();
@@ -288,16 +365,34 @@ function onPointerUp(e) {
         return;
     }
 
+    if (AppState.wallNodeDrag) {
+        AppState.wallNodeDrag = null;
+        saveAndSync();
+        draw2D();
+        return;
+    }
+
     if (AppState.drag) {
+        const dragged = AppState.drag.fixture;
+        const snappedWall = AppState.drag.snappedWall;
         AppState.drag = null;
+
+        // "Turn to wall": align the piece with the wall it landed on.
+        if (dragged && abilitiesState().autoRotateToWall) {
+            const wall = snappedWall || nearestWall(dragged);
+            if (wall) dragged.rotation = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
+        }
+
         saveAndSync();
         draw2D();
         return;
     }
 
     if (AppState.isDrawing && AppState.currentTool === 'wall') {
-        const end = getCanvasCoordinates(e);
+        const rawEnd = getCanvasCoordinates(e);
         const start = AppState.wallStart;
+        // Shift constrains the angle to 15° steps while drawing.
+        const end = e.shiftKey ? snapAngle(start, rawEnd) : rawEnd;
         
         // Min length check (approx 30cm)
         if (Math.hypot(end.x - start.x, end.y - start.y) > 10) {
@@ -327,6 +422,33 @@ function onWheel(e) {
     AppState.scale *= zoom;
     
     draw2D();
+}
+
+/** Double-clicking a wall splits it at the clicked point (inheriting its height). */
+function onDoubleClick(e) {
+    if (AppState.viewMode !== '2d') return;
+    // Hit-test the exact point: grid snapping here would miss walls that do not
+    // sit on the grid.
+    const pos = getPlanCoordinates(e);
+    const id = wallAt(pos);
+    if (!id) return;
+
+    const wall = AppState.walls.find((item) => item.id === id);
+    if (!wall) return;
+
+    const t = projectionOnSegment(pos, wall.start, wall.end);
+    if (t <= 0.05 || t >= 0.95) return;
+
+    const point = {
+        x: wall.start.x + (wall.end.x - wall.start.x) * t,
+        y: wall.start.y + (wall.end.y - wall.start.y) * t
+    };
+
+    const tail = new Wall(point.x, point.y, wall.end.x, wall.end.y, wall.thickness, null, wall.height);
+    wall.end = { ...point };
+    AppState.walls.push(tail);
+    AppState.selectedWallId = tail.id;
+    saveAndSync();
 }
 
 function deleteObjectAt(x, y) {
@@ -360,6 +482,25 @@ function deleteObjectAt(x, y) {
 // Selection: walls and item actions
 // ------------------------------------------------------------------
 
+/** Snaps a point to 15° steps around an anchor, keeping its distance. */
+function snapAngle(anchor, point, stepDegrees = 15) {
+    const dx = point.x - anchor.x;
+    const dy = point.y - anchor.y;
+    const length = Math.hypot(dx, dy);
+    const step = (stepDegrees * Math.PI) / 180;
+    const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+    return { x: anchor.x + Math.cos(angle) * length, y: anchor.y + Math.sin(angle) * length };
+}
+
+/** 0..1 position of the closest point on a segment. */
+function projectionOnSegment(point, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const lengthSq = dx * dx + dy * dy;
+    if (lengthSq === 0) return 0;
+    return Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq));
+}
+
 function distanceToSegment(point, start, end) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
@@ -391,6 +532,71 @@ function selectedWall() {
     return AppState.walls.find((wall) => wall.id === AppState.selectedWallId) || null;
 }
 
+/** Closest wall to a fixture centre (turn-to-wall ability). */
+function nearestWall(fixture) {
+    let closest = null;
+    let closestDistance = Infinity;
+
+    AppState.walls.forEach((wall) => {
+        const distance = distanceToSegment(fixture, wall.start, wall.end);
+        if (distance < closestDistance) {
+            closest = wall;
+            closestDistance = distance;
+        }
+    });
+
+    return closest;
+}
+
+/** Wall endpoint within a few screen pixels of a plan point. */
+function wallNodeAt(pos) {
+    const threshold = 10 / AppState.scale;
+    for (let i = 0; i < AppState.walls.length; i++) {
+        const wall = AppState.walls[i];
+        if (Math.hypot(wall.start.x - pos.x, wall.start.y - pos.y) < threshold) return { id: wall.id, end: 'start' };
+        if (Math.hypot(wall.end.x - pos.x, wall.end.y - pos.y) < threshold) return { id: wall.id, end: 'end' };
+    }
+    return null;
+}
+
+/** Move the dragged endpoint, snapping to the grid and to other endpoints. */
+function moveWallNode(pos, constrainAngle = false) {
+    const drag = AppState.wallNodeDrag;
+    if (!drag) return;
+    const wall = AppState.walls.find((item) => item.id === drag.id);
+    if (!wall) return;
+
+    // Shift locks the runaway angle to 15° steps from the opposite end.
+    if (constrainAngle) {
+        pos = snapAngle(drag.end === 'start' ? wall.end : wall.start, pos);
+    }
+
+    const abilityState = abilitiesState();
+    const step = AppState.gridSize;
+    let x = abilityState.gridSnap === false ? pos.x : Math.round(pos.x / step) * step;
+    let y = abilityState.gridSnap === false ? pos.y : Math.round(pos.y / step) * step;
+
+    if (abilityState.joinSnap === false) {
+        if (drag.end === 'start') wall.start = { x, y };
+        else wall.end = { x, y };
+        return;
+    }
+
+    const joinThreshold = 12 / AppState.scale;
+    AppState.walls.forEach((other) => {
+        if (other.id === wall.id) return;
+        [other.start, other.end].forEach((point) => {
+            if (Math.hypot(point.x - x, point.y - y) < joinThreshold) {
+                x = point.x;
+                y = point.y;
+            }
+        });
+    });
+
+    if (drag.end === 'start') wall.start = { x, y };
+    else wall.end = { x, y };
+}
+
 function setPanelText(id, text) {
     const node = document.getElementById(id);
     if (node) node.textContent = text;
@@ -416,6 +622,15 @@ function syncSelectionPanels() {
         setPanelText('sel-item-elev', `${(fixture.elevation || 0).toFixed(2)} m`);
         setPanelText('sel-item-visible', fixture.visible === false ? 'Show' : 'Hide');
         setPanelText('sel-item-lock', fixture.locked ? 'Unlock' : 'Lock');
+
+        const dims = itemDimensions(fixture);
+        const sizeFields = { 'sel-item-width': dims.width, 'sel-item-depth': dims.depth, 'sel-item-height': dims.height };
+        Object.entries(sizeFields).forEach(([id, metres]) => {
+            const input = document.getElementById(id);
+            if (input && document.activeElement !== input) input.value = Math.round(metres * 100);
+        });
+        const rotation = document.getElementById('sel-item-rotation');
+        if (rotation && document.activeElement !== rotation) rotation.value = Math.round((fixture.rotation * 180) / Math.PI);
     }
 
     if (wall) {
@@ -470,6 +685,354 @@ function deleteSelectedWall() {
     saveAndSync();
 }
 
+// ------------------------------------------------------------------
+// Scene abilities (49)
+// ------------------------------------------------------------------
+
+function abilitiesState() {
+    return abilities ? abilities.state : {};
+}
+
+/** Keeps the plan/3D in step with the ability flags. */
+function refreshAbilities() {
+    const state = abilitiesState();
+    AppState.showDimensions = Boolean(state.dimensions);
+
+    if (scene3D) {
+        apply3DAbilities(
+            { scene: scene3D, renderer: renderer3D, controls: AppState.elevationSide ? orthoControls3D : controls3D },
+            state,
+            { grid: gridHelper3D, axes: axesHelper3D }
+        );
+    }
+
+    applyAbilityPanel();
+    draw2D();
+}
+
+/** Re-reads toggle state into the rendered panel (actions do not need it). */
+function applyAbilityPanel() {
+    const container = document.getElementById('abilities-list');
+    if (!container || !abilities) return;
+
+    container.querySelectorAll('[data-ability]').forEach((node) => {
+        const ability = abilities.list.find((entry) => entry.id === node.dataset.ability);
+        if (!ability || ability.kind !== 'toggle') return;
+        const checkbox = node.querySelector('input');
+        if (checkbox) checkbox.checked = Boolean(abilities.state[ability.key]);
+    });
+}
+
+function renderAbilityPanel() {
+    const container = document.getElementById('abilities-list');
+    if (!container || !abilities) return;
+
+    container.innerHTML = '';
+    let currentGroup = null;
+    let groupWrap = null;
+
+    abilities.list.forEach((ability) => {
+        if (ability.group !== currentGroup) {
+            currentGroup = ability.group;
+            groupWrap = document.createElement('div');
+            groupWrap.className = 'mt-2';
+            const heading = document.createElement('p');
+            heading.className = 'text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1';
+            heading.textContent = ability.group;
+            groupWrap.appendChild(heading);
+            container.appendChild(groupWrap);
+        }
+
+        if (ability.kind === 'toggle') {
+            const row = document.createElement('label');
+            row.dataset.ability = ability.id;
+            row.className = 'flex items-center justify-between gap-2 px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer';
+
+            const text = document.createElement('span');
+            text.className = 'text-xs text-gray-700 dark:text-gray-200';
+            text.textContent = ability.label;
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'rounded border-gray-300 text-primary focus:ring-primary';
+            input.checked = Boolean(abilities.state[ability.key]);
+            input.addEventListener('change', () => abilities.toggle(ability.id));
+
+            row.append(text, input);
+            groupWrap.appendChild(row);
+        } else {
+            const button = document.createElement('button');
+            button.dataset.ability = ability.id;
+            button.className = 'w-full text-left px-2 py-1 rounded-lg text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800';
+            button.textContent = ability.label;
+            button.addEventListener('click', () => abilities.toggle(ability.id));
+            groupWrap.appendChild(button);
+        }
+    });
+
+    const count = document.querySelector('[data-ability-count]');
+    if (count) count.textContent = `${abilities.list.length} abilities`;
+}
+
+function initAbilities() {
+    abilities = createSceneAbilities({
+        refresh: refreshAbilities,
+        rotateSelection,
+        mirrorSelection,
+        nudgeSelection,
+        duplicateSelection: duplicateSelected,
+        alignSelection,
+        distributeSelection,
+        toggleLockAll,
+        toggleHideAll,
+        deleteHidden,
+        resetElevations,
+        snapWallsToGrid,
+        centerPlan,
+        resetWallHeights,
+        cycleWallThickness,
+        removeShortWalls,
+        exportCutList,
+        arrayDuplicateSelection,
+        copySelection,
+        pasteSelection,
+        savePreset: saveAbilityPreset,
+        loadPreset: loadAbilityPreset
+    });
+
+    renderAbilityPanel();
+    refreshAbilities();
+}
+
+// --- Ability actions -------------------------------------------------
+
+function rotateSelection(delta) {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+    fixture.rotation += delta;
+    saveAndSync();
+}
+
+function mirrorSelection() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+    fixture.rotation = -fixture.rotation;
+    saveAndSync();
+}
+
+function nudgeSelection(dxMetres, dyMetres) {
+    const fixture = AppState.selectedFixture;
+    if (!fixture || fixture.locked) return;
+    fixture.x += dxMetres * SCALE;
+    fixture.y += dyMetres * SCALE;
+    saveAndSync();
+}
+
+const footprintWidth = (fixture) => (fixture.metadata?.width || 0.5) * SCALE;
+
+function alignSelection() {
+    const items = AppState.fixtures.filter((fixture) => fixture.visible !== false);
+    if (items.length < 2) return;
+
+    // Align the left edges of the footprints, not the centres, so mixed-size
+    // cabinets line up the way a run would.
+    const leftEdge = (fixture) => fixture.x - footprintWidth(fixture) / 2;
+    const leftmost = Math.min(...items.map(leftEdge));
+    items.forEach((fixture) => { fixture.x = leftmost + footprintWidth(fixture) / 2; });
+    saveAndSync();
+}
+
+function distributeSelection() {
+    const items = [...AppState.fixtures].sort((a, b) => a.x - b.x);
+    if (items.length < 3) return;
+
+    const first = items[0].x;
+    const last = items[items.length - 1].x;
+
+    if (Math.abs(last - first) < 1) {
+        // Already on one line: spread from the centre in 0.75 m steps instead of
+        // collapsing them again.
+        const step = 0.75 * SCALE;
+        const start = (first + last) / 2 - (step * (items.length - 1)) / 2;
+        items.forEach((fixture, index) => { fixture.x = start + step * index; });
+    } else {
+        const step = (last - first) / (items.length - 1);
+        items.forEach((fixture, index) => { fixture.x = first + step * index; });
+    }
+
+    saveAndSync();
+}
+
+function toggleLockAll() {
+    const anyUnlocked = AppState.fixtures.some((fixture) => !fixture.locked);
+    AppState.fixtures.forEach((fixture) => { fixture.locked = anyUnlocked; });
+    saveAndSync();
+}
+
+function toggleHideAll() {
+    const anyVisible = AppState.fixtures.some((fixture) => fixture.visible !== false);
+    AppState.fixtures.forEach((fixture) => { fixture.visible = !anyVisible; });
+    saveAndSync();
+}
+
+function deleteHidden() {
+    AppState.fixtures = AppState.fixtures.filter((fixture) => fixture.visible !== false);
+    saveAndSync();
+}
+
+function resetElevations() {
+    AppState.fixtures.forEach((fixture) => { fixture.elevation = 0; });
+    saveAndSync();
+}
+
+function snapWallsToGrid() {
+    const step = AppState.gridSize;
+    const snap = (value) => Math.round(value / step) * step;
+    AppState.walls.forEach((wall) => {
+        wall.start = { x: snap(wall.start.x), y: snap(wall.start.y) };
+        wall.end = { x: snap(wall.end.x), y: snap(wall.end.y) };
+    });
+    saveAndSync();
+}
+
+function centerPlan() {
+    if (AppState.walls.length === 0) return;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    AppState.walls.forEach((wall) => {
+        minX = Math.min(minX, wall.start.x, wall.end.x);
+        maxX = Math.max(maxX, wall.start.x, wall.end.x);
+        minY = Math.min(minY, wall.start.y, wall.end.y);
+        maxY = Math.max(maxY, wall.start.y, wall.end.y);
+    });
+
+    const dx = (minX + maxX) / 2;
+    const dy = (minY + maxY) / 2;
+    AppState.walls.forEach((wall) => {
+        wall.start = { x: wall.start.x - dx, y: wall.start.y - dy };
+        wall.end = { x: wall.end.x - dx, y: wall.end.y - dy };
+    });
+    AppState.fixtures.forEach((fixture) => {
+        fixture.x -= dx;
+        fixture.y -= dy;
+    });
+    saveAndSync();
+}
+
+function resetWallHeights() {
+    AppState.walls.forEach((wall) => { wall.height = null; });
+    saveAndSync();
+}
+
+function cycleWallThickness() {
+    const options = [10, 15, 20];
+    const current = AppState.walls[0]?.thickness ?? options[0];
+    const next = options[(options.indexOf(current) + 1) % options.length] || options[0];
+    AppState.walls.forEach((wall) => { wall.thickness = next; });
+    saveAndSync();
+}
+
+function removeShortWalls() {
+    const minimum = 0.2 * SCALE;
+    const keep = AppState.walls.filter((wall) => wall.length >= minimum);
+    if (keep.length === AppState.walls.length) return;
+
+    const removed = new Set(AppState.walls.filter((wall) => wall.length < minimum).map((wall) => wall.id));
+    AppState.walls = keep;
+    AppState.fixtures.forEach((fixture) => {
+        if (removed.has(fixture.boundToWallId)) fixture.boundToWallId = null;
+    });
+    saveAndSync();
+}
+
+function exportCutList() {
+    const rows = [['type', 'label', 'width_m', 'depth_m', 'height_m', 'x_m', 'y_m', 'elevation_m']];
+    AppState.fixtures.forEach((fixture) => {
+        const meta = fixture.metadata || {};
+        rows.push([
+            fixture.type,
+            meta.label || fixture.type,
+            (meta.width || 0).toFixed(3),
+            (meta.depth || 0).toFixed(3),
+            (meta.height || 0).toFixed(3),
+            (fixture.x / SCALE).toFixed(2),
+            (fixture.y / SCALE).toFixed(2),
+            (fixture.elevation || 0).toFixed(2)
+        ]);
+    });
+
+    const blob = new Blob([rows.map((row) => row.join(',')).join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'cut-list.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+// --- More item/plan abilities ---------------------------------------
+
+let itemClipboard = null;
+
+function arrayDuplicateSelection(count = 3, spacing = 0.65) {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+
+    for (let index = 1; index <= count; index++) {
+        const data = fixture.toJSON();
+        delete data.id;
+        data.x = fixture.x + spacing * SCALE * index;
+        data.y = fixture.y;
+        const copy = ItemFactory.fromJSON(data);
+        AppState.fixtures.push(copy);
+        if (AppState.fixtureStyles[fixture.id]) {
+            AppState.fixtureStyles[copy.id] = { ...AppState.fixtureStyles[fixture.id] };
+        }
+    }
+
+    saveAndSync();
+}
+
+function copySelection() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+    itemClipboard = fixture.toJSON();
+}
+
+function pasteSelection() {
+    if (!itemClipboard) return;
+
+    const data = {
+        ...itemClipboard,
+        x: itemClipboard.x + 0.4 * SCALE,
+        y: itemClipboard.y + 0.4 * SCALE
+    };
+    delete data.id;
+
+    const copy = ItemFactory.fromJSON(data);
+    AppState.fixtures.push(copy);
+    AppState.selectedFixture = copy;
+    AppState.selectedWallId = null;
+    saveAndSync();
+}
+
+function saveAbilityPreset() {
+    if (!abilities) return;
+    StorageManager.saveProject('ability-preset', { version: 1, state: { ...abilities.state } });
+}
+
+function loadAbilityPreset() {
+    if (!abilities) return;
+    const preset = StorageManager.loadProject('ability-preset');
+    if (!preset || !preset.state) return;
+
+    Object.keys(abilities.state).forEach((key) => {
+        if (typeof preset.state[key] === 'boolean') abilities.state[key] = preset.state[key];
+    });
+
+    refreshAbilities();
+}
+
 function draw2D(cursorPos = null) {
     const ctx = blueprintCtx;
     if (!ctx) return;
@@ -482,8 +1045,11 @@ function draw2D(cursorPos = null) {
     ctx.translate(AppState.offset.x, AppState.offset.y);
     ctx.scale(AppState.scale, AppState.scale);
     
+    const abilityState = abilitiesState();
+    if (cursorPos) AppState.cursor = cursorPos;
+
     // Grid
-    drawGrid(ctx, w, h);
+    drawGrid(ctx, w, h, abilityState);
     
     // Background Image
     if (AppState.backgroundImage) {
@@ -509,44 +1075,69 @@ function draw2D(cursorPos = null) {
     }
     
     // Fixtures
-    AppState.fixtures.forEach(f => drawFixture(ctx, f));
+    AppState.fixtures.forEach(f => {
+        if (f.visible === false && !abilityState.showHidden) return;
+        drawFixture(ctx, f);
+    });
 
     // Ghost Item Preview
-    if (cursorPos && !AppState.drag && AppState.currentTool && !['wall', 'delete', 'select'].includes(AppState.currentTool)) {
+    if (abilityState.ghostPreview !== false && cursorPos && !AppState.drag && AppState.currentTool && !['wall', 'delete', 'select'].includes(AppState.currentTool)) {
         ctx.globalAlpha = 0.5;
         // Mock fixture for drawing
         const ghost = { x: cursorPos.x, y: cursorPos.y, rotation: 0, type: AppState.currentTool, metadata: ItemFactory.create(AppState.currentTool,0,0).metadata };
         drawFixture(ctx, ghost);
         ctx.globalAlpha = 1.0;
     }
-    
+
+    // Ability overlays that belong to the plan plane.
+    drawPlanOverlays(ctx, {
+        walls: AppState.walls,
+        fixtures: AppState.fixtures,
+        selected: AppState.selectedFixture,
+        selectedWallId: AppState.selectedWallId,
+        state: abilityState,
+        ruler: { ...(AppState.ruler || {}), cursor: AppState.cursor }
+    });
+
     ctx.restore();
+
+    // Viewport-fixed overlays (north, scale bar, HUD, legend, border).
+    drawScreenOverlays(ctx, {
+        walls: AppState.walls,
+        fixtures: AppState.fixtures,
+        selectedWallId: AppState.selectedWallId,
+        state: abilityState,
+        cursor: AppState.cursor,
+        view: { width: w, height: h }
+    });
 }
 
-function drawGrid(ctx, w, h) {
-    const g = AppState.gridSize;
-    // Calculate visible area to optimize drawing? 
-    // For simplicity, just draw a large enough grid centered
-    const large = 5000;
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = -large; x <= large; x += g) {
-        ctx.moveTo(x, -large);
-        ctx.lineTo(x, large);
+function drawGrid(ctx, w, h, abilityState = {}) {
+    if (abilityState.grid !== false) {
+        const g = AppState.gridSize;
+        // Large enough to cover the panned view at any zoom.
+        const large = 5000;
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = -large; x <= large; x += g) {
+            ctx.moveTo(x, -large);
+            ctx.lineTo(x, large);
+        }
+        for (let y = -large; y <= large; y += g) {
+            ctx.moveTo(-large, y);
+            ctx.lineTo(large, y);
+        }
+        ctx.stroke();
     }
-    for (let y = -large; y <= large; y += g) {
-        ctx.moveTo(-large, y);
-        ctx.lineTo(large, y);
+
+    if (abilityState.axes !== false) {
+        ctx.strokeStyle = '#9ca3af';
+        ctx.beginPath();
+        ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
+        ctx.moveTo(0, -20); ctx.lineTo(0, 20);
+        ctx.stroke();
     }
-    ctx.stroke();
-    
-    // Origin
-    ctx.strokeStyle = '#9ca3af';
-    ctx.beginPath();
-    ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
-    ctx.moveTo(0, -20); ctx.lineTo(0, 20);
-    ctx.stroke();
 }
 
 function drawWall(ctx, start, end, isPreview = false, isSelected = false) {
@@ -591,8 +1182,9 @@ function drawFixture(ctx, f) {
     ctx.translate(f.x, f.y);
     ctx.rotate(f.rotation);
     
-    const w = (f.metadata.width || 0.5) * SCALE;
-    const d = (f.metadata.depth || 0.5) * SCALE;
+    const { width, depth } = itemDimensions(f);
+    const w = width * SCALE;
+    const d = depth * SCALE;
     
     const isSelected = AppState.selectedFixture && AppState.selectedFixture.id === f.id;
     const isHidden = f.visible === false;
@@ -714,6 +1306,15 @@ function init3D() {
         selectItemAtPointer(e);
     });
     
+    // Ability helpers: the 3D grid and axes are ability toggles themselves.
+    gridHelper3D = new THREE.GridHelper(20, 20, 0x888888, 0xcccccc);
+    gridHelper3D.visible = Boolean(abilitiesState().grid3D);
+    scene3D.add(gridHelper3D);
+
+    axesHelper3D = new THREE.AxesHelper(5);
+    axesHelper3D.visible = Boolean(abilitiesState().axes3D);
+    scene3D.add(axesHelper3D);
+
     animate3D();
 }
 
@@ -733,6 +1334,14 @@ function initGizmo() {
             fixture.x = plan.x;
             fixture.y = plan.y;
             fixture.rotation = plan.rotation;
+
+            // A Y drag becomes the item's lift, measured from the height the
+            // mesh had when the gizmo attached (its builder default).
+            if (AppState.gizmoBase) {
+                const delta = object.position.y - AppState.gizmoBase.y;
+                fixture.elevation = Math.max(-0.9, AppState.gizmoBase.elevation + delta);
+            }
+
             draw2D();
         },
         onCommit: () => {
@@ -759,11 +1368,18 @@ function refreshGizmo() {
     const fixture = AppState.selectedFixture;
     if (!fixture || fixture.locked || fixture.visible === false || AppState.viewMode !== '3d' || AppState.elevationSide) {
         itemGizmo.detach();
+        AppState.gizmoBase = null;
         return;
     }
     const object = findItemObject(fixture.id);
-    if (object) itemGizmo.attach(object);
-    else itemGizmo.detach();
+    if (object) {
+        itemGizmo.attach(object);
+        // Remember the mesh's builder height so Y movement maps to elevation.
+        AppState.gizmoBase = { y: object.position.y, elevation: fixture.elevation || 0 };
+    } else {
+        itemGizmo.detach();
+        AppState.gizmoBase = null;
+    }
 }
 
 function selectItemAtPointer(event) {
@@ -833,24 +1449,71 @@ function updateElevationCamera() {
  * elevations (front/back/left/right). Passing null goes back to the orbit.
  */
 function setElevationView(side) {
-    AppState.elevationSide = side && ELEVATION_SIDES.includes(side) ? side : null;
+    const nextSide = side && ELEVATION_SIDES.includes(side) ? side : null;
+    AppState.elevationSide = nextSide;
+    setViewMode(nextSide ? 'elevation' : '3d');
+    if (nextSide) updateElevationCamera();
+    updateElevationButtons();
+}
 
-    if (AppState.elevationSide && AppState.viewMode !== '3d') {
-        const toggle = document.getElementById('view-toggle');
-        if (toggle) toggle.checked = true;
-        toggleView();
+/**
+ * The single view switch: 2D plan, 3D orbit, or a head-on elevation.
+ * Elevation is the 3D canvas with a side camera, so all three modes share the
+ * same scene, the same selection state and their own drag handler.
+ */
+function setViewMode(mode) {
+    const next = ['2d', '3d', 'elevation'].includes(mode) ? mode : '2d';
+    const v2d = document.getElementById('view-2d');
+    const v3d = document.getElementById('view-3d');
+    const r3d = document.getElementById('render-3d-view');
+    if (!v2d || !v3d) return;
+
+    AppState.viewMode = next === '2d' ? '2d' : '3d';
+    if (next === 'elevation') {
+        AppState.elevationSide = AppState.elevationSide || 'front';
+    } else {
+        AppState.elevationSide = null;
     }
 
+    const show3d = next !== '2d';
+    v2d.style.opacity = show3d ? '0' : '1';
+    v2d.style.pointerEvents = show3d ? 'none' : 'auto';
+    v3d.style.opacity = show3d ? '1' : '0';
+    v3d.style.pointerEvents = show3d ? 'auto' : 'none';
+    if (r3d) r3d.style.display = show3d ? 'block' : 'none';
+
     if (itemGizmo) itemGizmo.detach();
+    if (!show3d && elevationDrag) elevationDrag.end();
+
+    if (show3d) update3D();
+    if (AppState.elevationSide) updateElevationCamera();
+    else if (scene3D) applyElevationVisibility(scene3D, null);
+
     if (controls3D) controls3D.enabled = !AppState.elevationSide;
     if (orthoControls3D) {
         orthoControls3D.enabled = Boolean(AppState.elevationSide) && !(elevationDrag && elevationDrag.dragging);
     }
 
-    if (AppState.elevationSide) updateElevationCamera();
-    else if (scene3D) applyElevationVisibility(scene3D, null);
-
     refreshGizmo();
+    updateViewButtons();
+}
+
+function updateViewButtons() {
+    document.querySelectorAll('[data-view-mode]').forEach((btn) => {
+        const mode = btn.dataset.viewMode;
+        const active = mode === 'elevation'
+            ? Boolean(AppState.elevationSide)
+            : mode === '3d'
+                ? AppState.viewMode === '3d' && !AppState.elevationSide
+                : AppState.viewMode === '2d';
+        btn.classList.toggle('bg-primary', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('font-bold', active);
+    });
+
+    const bar = document.getElementById('elevation-bar');
+    if (bar) bar.classList.toggle('hidden', !AppState.elevationSide);
+
     updateElevationButtons();
 }
 
@@ -908,6 +1571,14 @@ function update3D() {
     }
     if (graph.edges.length === 0) AppState.hasFramed3D = false;
 
+    // Ability flags (wireframe, hidden walls, grid/axes, shadows) survive the
+    // rebuild, so they are re-applied to the new meshes here.
+    apply3DAbilities(
+        { scene: scene3D, renderer: renderer3D, controls: AppState.elevationSide ? orthoControls3D : controls3D },
+        abilitiesState(),
+        { grid: gridHelper3D, axes: axesHelper3D }
+    );
+
     // The rebuild replaces every wall mesh, so the elevation cut has to be
     // re-applied to the new ones.
     if (AppState.elevationSide) {
@@ -939,6 +1610,7 @@ function setupEventListeners() {
     blueprintCanvas.addEventListener('pointermove', onPointerMove);
     blueprintCanvas.addEventListener('pointerup', onPointerUp);
     blueprintCanvas.addEventListener('wheel', onWheel);
+    blueprintCanvas.addEventListener('dblclick', onDoubleClick);
     
     // Context menu disable
     blueprintCanvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -966,6 +1638,9 @@ function setupEventListeners() {
             case 'r': setGizmoMode('rotate'); break;
             case 'l': window.toggleSelectedLock(); break;
             case 'h': window.toggleSelectedVisibility(); break;
+            case '1': setViewMode('2d'); break;
+            case '2': setViewMode('3d'); break;
+            case '3': setViewMode('elevation'); break;
             case 'z':
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
@@ -1167,31 +1842,9 @@ function onResize() {
     }
 }
 
+/** Backwards-compatible flip between the plan and the 3D orbit view. */
 function toggleView() {
-    const toggle = document.getElementById('view-toggle');
-    const v2d = document.getElementById('view-2d');
-    const v3d = document.getElementById('view-3d');
-    const r3d = document.getElementById('render-3d-view');
-    
-    if (toggle.checked) {
-        AppState.viewMode = '3d';
-        v2d.style.opacity = '0';
-        v2d.style.pointerEvents = 'none';
-        v3d.style.opacity = '1';
-        v3d.style.pointerEvents = 'auto';
-        r3d.style.display = 'block';
-        update3D();
-        if (AppState.elevationSide) updateElevationCamera();
-    } else {
-        AppState.viewMode = '2d';
-        if (itemGizmo) itemGizmo.detach();
-        if (elevationDrag) elevationDrag.end();
-        v2d.style.opacity = '1';
-        v2d.style.pointerEvents = 'auto';
-        v3d.style.opacity = '0';
-        v3d.style.pointerEvents = 'none';
-        r3d.style.display = 'none';
-    }
+    setViewMode(AppState.viewMode === '2d' ? '3d' : '2d');
 }
 
 function restoreState(data) {

@@ -1,4 +1,5 @@
 import { PIXELS_PER_METER, WALL_THICKNESS } from './world-space.js';
+import { itemDimensions } from './items.js';
 
 /**
  * Flush-to-wall snapping for plan objects.
@@ -39,10 +40,10 @@ function closestPoint(wall, point) {
  * direction (the support function of a rotated rectangle).
  */
 export function footprint(fixture, rotation = fixture.rotation || 0) {
-    const meta = fixture.metadata || {};
+    const { width, depth } = itemDimensions(fixture);
     return {
-        width: (meta.width || 0.5) * PIXELS_PER_METER,
-        depth: (meta.depth || 0.5) * PIXELS_PER_METER,
+        width: width * PIXELS_PER_METER,
+        depth: depth * PIXELS_PER_METER,
         rotation
     };
 }

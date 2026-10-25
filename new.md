@@ -92,6 +92,14 @@ class, full CSG rebuild on every edit, and `editor.js` being a global-function b
 
 Already merged and live, so the numbers above exclude them:
 
+- One view control for three editing modes: **2D plan · 3D orbit · Elevation** (elevation sides
+  appear with the mode; keys 1/2/3 switch).
+- Editing in every mode: item drag in 2D, translate/rotate plus a **vertical (Y) handle** in 3D
+  that writes `Item.elevation`, and up/down + along-run drag in elevation.
+- Wall editing in the plan: click a wall to select/highlight it, drag its endpoints to reshape,
+  with the per-wall height in the inspector.
+- Wall selection highlight, per-wall height, roof toggle, and item **hide / lock / duplicate**
+  (all persisted in the item JSON, honoured by 2D, 3D, gizmo and elevation drag).
 - Post-processing (Bloom / DoF / Vignette) on the **main** kitchen canvas.
 - Spring-animated selection.
 - GPU-instanced prop field sized to the room.
