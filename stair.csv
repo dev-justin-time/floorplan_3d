@@ -71,3 +71,17 @@ OUT-CONCRETE-RISER,IBC 2021,1011.5.2,concrete,"Concrete stair riser height",4,7,
 OUT-CONCRETE-COVER,ACI 318,20.5.1.3,concrete,"Concrete cover over reinforcement in exterior stairs",24,,610,,in,Concrete walkway,error,https://www.concrete.org/
 OUT-STRINGER-SPAN,NDS / IRC,Table R502.5,structure,"2x12 stringer span with both ends supported",,,156,,in,Deck stair,error,https://up.codes/s/floor-joist-span-tables
 OUT-WALKWAY-SLOPE,IRC 2021,R401.3,concrete,"Walkway and landing slope away from buildings",,,,,,ratio,Concrete walkway,error,https://up.codes/s/site-grading
+MODEL-ALT-WIDTH,IBC 2021,1011.14,steep access,"Alternating tread device clear width",20,,508,,in,Alternating tread device,error,https://up.codes/s/alternating-tread-devices
+MODEL-ALT-TREAD,IBC 2021,1011.14,steep access,"Alternating tread depth, nosing to nosing",8.5,,216,,in,Alternating tread device,error,https://up.codes/s/alternating-tread-devices
+MODEL-ALT-RISER,IBC 2021,1011.14,steep access,"Alternating tread maximum riser height",,9.5,,241,in,Alternating tread device,error,https://up.codes/s/alternating-tread-devices
+MODEL-ALT-RAIL,IBC 2021,1011.14,steep access,"Handrails on both sides of an alternating tread device",,,,,,,,Alternating tread device,error,https://up.codes/s/alternating-tread-devices
+MODEL-SHIP-WIDTH,IBC 2021,1011.16,steep access,"Ships ladder clear width",20,,508,,in,Ships ladder,error,https://up.codes/s/ships-ladders
+MODEL-SHIP-TREAD,IBC 2021,1011.16,steep access,"Ships ladder tread depth",5,,127,,in,Ships ladder,error,https://up.codes/s/ships-ladders
+MODEL-SHIP-RISER,IBC 2021,1011.16,steep access,"Ships ladder maximum riser height",,10,,254,in,Ships ladder,error,https://up.codes/s/ships-ladders
+MODEL-SHIP-SLOPE,IBC 2021,1011.16,steep access,"Ships ladder maximum slope; grab rails continue above the landing",,70,,70,deg,Ships ladder,error,https://up.codes/s/ships-ladders
+MODEL-SPIRAL-EGRESS,IBC 2021,1011.10,spiral,"Spiral stairways are limited as a means of egress and need an approved enclosure or occupancy limit",,,,,,,,Spiral stair,warning,https://up.codes/s/spiral-stairways
+MODEL-MONO-OPEN,IBC 2021,1011.5.5,mono stringer,"Open risers must not allow a 4 in sphere to pass between treads",4,,102,,in,Open riser stair,error,https://up.codes/s/stairway-open-risers
+OSHA-STAIR-WIDTH,OSHA 1910.25,1910.25(c)(3),industrial,"Fixed industrial stair minimum clear width",22,,559,,in,Industrial stair,error,https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.25
+OSHA-STAIR-SLOPE,OSHA 1910.25,1910.25(b)(3),industrial,"Fixed industrial stair slope band",30,50,762,1270,deg,Industrial stair,error,https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.25
+OSHA-STAIR-RISE,OSHA 1910.25,1910.25(d)(2),industrial,"Maximum riser height and minimum tread depth on an industrial stair",9.5,9.5,241,241,in,Industrial stair,error,https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.25
+OSHA-STAIR-UNIFORM,OSHA 1910.25,1910.25(d)(2),industrial,"Riser and tread dimensions uniform within 0.25 in over the flight",,0.25,,6.4,in,Industrial stair,error,https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.25

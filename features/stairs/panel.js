@@ -1,8 +1,10 @@
 import { WALL_HEIGHT } from '../../world-space.js';
-import { STAIR_TYPE_LABELS, stairDesignForItem, stairLocalToPlanPoint, computeStairDesign, isStairItem } from './design.js';
+import { STAIR_TYPE_LABELS, STAIR_CODES, stairDesignForItem, stairLocalToPlanPoint, computeStairDesign, isStairItem } from './design.js';
+import { modelsByCategory, applyModelToConfig, computeStairModel, stairModelSummary, modelTakeoffCsv } from './models.js';
 import { OUTDOOR_SYSTEMS, outdoorStairConfig, computeOutdoorStair, outdoorSummary, outdoorBomCsv } from './outdoor.js';
 import { buildStairAssembly, assemblySummary } from './assembly.js';
 import { createStairWalker } from './walk.js';
+import { stairPlanBounds } from './geometry.js';
 
 /**
  * Stair suite panel controller.
@@ -59,7 +61,9 @@ export function createStairPanel(context = {}) {
     const config = () => ({ ...(selectedStair()?.stair || state().stairDraft || {}), storeyHeight: getStoreyHeight() });
     const design = () => {
         const current = config();
-        return current.system ? computeOutdoorStair(current) : computeStairDesign(current);
+        if (current.system) return computeOutdoorStair(current);
+        if (current.model) return computeStairModel(current.model, current);
+        return computeStairDesign(current);
     };
     const assembly = () => buildStairAssembly({ ...config(), design: design(), baseElevation: 0 });
 
@@ -76,21 +80,33 @@ export function createStairPanel(context = {}) {
         const topOn = current.landings?.top?.enabled !== false;
         const bottomOn = current.landings?.bottom?.enabled !== false;
         const systemOptions = [['', 'Interior / none'], ...OUTDOOR_SYSTEMS.map((system) => [system.key, system.label])];
+        const modelOptions = [
+            '<option value="">Custom run</option>',
+            ...modelsByCategory().map((group) => `<optgroup label="${escape(group.category)}">${group.models.map((model) => {
+                const selected = model.key === current.model ? 'selected' : '';
+                return `<option value="${escape(model.key)}" ${selected}>${escape(model.label)}</option>`;
+            }).join('')}</optgroup>`)
+        ].join('');
 
         node.innerHTML = `
+            <label class="block text-[10px] uppercase text-gray-400">Model
+                <select onchange="window.setStairField('model', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100">
+                    ${modelOptions}
+                </select>
+            </label>
             <label class="block text-[10px] uppercase text-gray-400">System
                 <select onchange="window.setStairField('system', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100">
                     ${optionList(systemOptions, current.system || '')}
                 </select>
             </label>
             <label class="block text-[10px] uppercase text-gray-400">Run type
-                <select onchange="window.setStairField('type', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100">
+                <select onchange="window.setStairField('type', this.value)" ${current.model ? 'disabled title="The model family sets the run type"' : ''} class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100 disabled:opacity-50">
                     ${optionList(Object.entries(STAIR_TYPE_LABELS), resolved.type)}
                 </select>
             </label>
             <label class="block text-[10px] uppercase text-gray-400">Code
                 <select onchange="window.setStairField('code', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100">
-                    ${optionList([['IRC2021', 'IRC 2021 · residential'], ['IBC2021', 'IBC 2021 · commercial']], current.code || 'IRC2021')}
+                    ${optionList(Object.entries(STAIR_CODES).map(([key, entry]) => [key, entry.label]), current.code || 'IRC2021')}
                 </select>
             </label>
             <div class="grid grid-cols-2 gap-1">
@@ -117,6 +133,11 @@ export function createStairPanel(context = {}) {
         `;
 
         const lines = assemblySummary(built);
+        if (resolved.model) {
+            lines.push('', ...stairModelSummary(resolved));
+            const ref = resolved.model.refs?.[0];
+            if (ref) lines.push(`${ref.code} ${ref.ref}`);
+        }
         if (resolved.system) lines.push('', ...outdoorSummary(resolved));
         else {
             resolved.issues.forEach((issue) => {
@@ -134,9 +155,19 @@ export function createStairPanel(context = {}) {
         const item = selectedStair();
         const target = item ? (item.stair = { ...(item.stair || {}) }) : (state().stairDraft = { ...(state().stairDraft || {}) });
 
-        if (key === 'system') {
+        if (key === 'model') {
+            if (!value) {
+                delete target.model;
+            } else {
+                Object.assign(target, applyModelToConfig(target, value, { storeyHeight: getStoreyHeight() }));
+                target.system = null;
+            }
+        } else if (key === 'system') {
             if (!value) target.system = null;
             else {
+                // A system and a model family are alternatives: the system's
+                // footings and guards replace the model's steel frame.
+                delete target.model;
                 const preset = outdoorStairConfig(value, { storeyHeight: getStoreyHeight() });
                 Object.assign(target, {
                     system: value,
@@ -155,6 +186,9 @@ export function createStairPanel(context = {}) {
             };
         } else if (key === 'width' || key === 'availableRun' || key === 'availableWidth') {
             target[key] = Math.max(0.4, Number(value) / 100);
+            // A spiral's width is its drum diameter, which the design reads
+            // from availableWidth; keep the two in step.
+            if (key === 'width' && target.type === 'spiral') target.availableWidth = target.width;
         } else if (key === 'turnDegrees') {
             target.turnDegrees = Number(value);
         } else {
@@ -163,10 +197,11 @@ export function createStairPanel(context = {}) {
 
         if (item) {
             const sized = stairDesignForItem(item, getStoreyHeight());
-            const footprint = sized.footprint || { width: sized.width, depth: sized.runUsed || 0.6 };
+            // Size follows the drawn stair, landings included.
+            const bounds = stairPlanBounds(item, { storeyHeight: getStoreyHeight(), design: sized });
             item.size = {
-                width: Math.max(0.4, footprint.width),
-                depth: Math.max(0.4, footprint.depth),
+                width: Math.max(0.4, bounds.width),
+                depth: Math.max(0.4, bounds.depth),
                 height: Math.max(0.6, sized.rise)
             };
             if (key === 'system' && value && item.type !== 'fire_pole') {
@@ -185,9 +220,10 @@ export function createStairPanel(context = {}) {
         if (!item) return null;
         item.stair = { ...(item.stair || {}), ...draft };
         const sized = stairDesignForItem(item, getStoreyHeight());
+        const bounds = stairPlanBounds(item, { storeyHeight: getStoreyHeight(), design: sized });
         item.size = {
-            width: Math.max(0.4, sized.footprint.width),
-            depth: Math.max(0.4, sized.footprint.depth),
+            width: Math.max(0.4, bounds.width),
+            depth: Math.max(0.4, bounds.depth),
             height: Math.max(0.6, sized.rise)
         };
         state().fixtures.push(item);
@@ -210,7 +246,8 @@ export function createStairPanel(context = {}) {
                 `"bottom-landing",${built.subTypes.landing.bottom.enabled ? 1 : 0},"platform"`
             ].join('\n');
         })();
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const modelCsv = resolved.model ? `${modelTakeoffCsv(resolved)}\n` : '';
+        const blob = new Blob([modelCsv + csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;

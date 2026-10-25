@@ -195,6 +195,54 @@ async function main() {
         check('automatic landings on the placed stair', stairFlow.landings === true);
         check('3D rebuilt with the stair', stairFlow.convert && stairFlow.convert.stories >= 1, JSON.stringify(stairFlow.convert?.walls || {}));
 
+        console.log('\nStair models');
+        const modelFlow = await cdp.evaluate(`(async () => {
+            window.setStairField('model', 'alt-tread');
+            const design = window.stairKit.design();
+            const item = window.stairKit.selected();
+            const { buildStairGeometry } = await import('./features/stairs/geometry.js');
+            const group = buildStairGeometry(item, { storeyHeight: 2.7 });
+            let altTreads = 0;
+            group.traverse((child) => { if (child.name && child.name.startsWith('alt-tread-')) altTreads += 1; });
+            const modelSelect = document.querySelector('#stair-controls select');
+            const summary = document.getElementById('stair-summary').textContent;
+            const first = {
+                key: design.model?.key,
+                width: design.width / 0.0254,
+                slope: design.model?.slopeDegrees,
+                altTreads,
+                itemModel: item?.stair?.model,
+                options: modelSelect ? modelSelect.querySelectorAll('option').length : 0,
+                groups: modelSelect ? modelSelect.querySelectorAll('optgroup').length : 0,
+                summary
+            };
+
+            window.setStairField('model', 'mono-straight');
+            const monoDesign = window.stairKit.design();
+            const monoGroup = buildStairGeometry(window.stairKit.selected(), { storeyHeight: 2.7 });
+            let monoStringers = 0;
+            monoGroup.traverse((child) => { if (child.name === 'mono-stringer') monoStringers += 1; });
+
+            window.setStairField('model', 'ships-ladder');
+            const ladderDesign = window.stairKit.design();
+
+            const convert = window.studioKit.convert();
+            return {
+                first,
+                mono: { key: monoDesign.model?.key, stringers: monoStringers, width: monoDesign.width / 0.0254 },
+                ladder: { key: ladderDesign.model?.key, slope: ladderDesign.model?.slopeDegrees },
+                convert: Boolean(convert)
+            };
+        })()`);
+        check('model selector lists every family', modelFlow.first.options === 13, `${modelFlow.first.options} options in ${modelFlow.first.groups} groups`);
+        check('model applies to the selected stair', modelFlow.first.key === 'alt-tread' && modelFlow.first.itemModel === 'alt-tread');
+        check('alternating tread sized at 24 in', Math.round(modelFlow.first.width) === 24, `${modelFlow.first.width.toFixed(1)} in`);
+        check('alternating tread model geometry in the scene graph', modelFlow.first.altTreads > 6, `${modelFlow.first.altTreads} half treads`);
+        check('panel summary names the model', modelFlow.first.summary.includes('Alternating tread device'), modelFlow.first.summary.slice(-160));
+        check('switching models rebuilds the run', modelFlow.mono.key === 'mono-straight' && modelFlow.mono.stringers === 1, `${modelFlow.mono.key}, ${modelFlow.mono.stringers} stringer`);
+        check('ships ladder switches to the steep profile', modelFlow.ladder.key === 'ships-ladder' && modelFlow.ladder.slope > 55, `${modelFlow.ladder.slope}°`);
+        check('3D rebuilt after model changes', modelFlow.convert === true);
+
         const geometry = await cdp.evaluate(`(async () => {
             const { buildStairGeometry, buildStairAssembly, computeOutdoorStair } = await import('./features/stairs/index.js');
             const item = { type: 'stair_deck', x: 300, y: 300, rotation: 0,
@@ -262,6 +310,33 @@ async function main() {
         })()`);
         check('walk mode starts', walk.started === true, walk.status);
         check('walker exposes a height sample', Boolean(walk.sample), walk.sample ? `${walk.sample.height.toFixed(2)} m at storey ${walk.sample.storeyIndex}` : 'none');
+
+        console.log('\nPlan footprint');
+        const planBounds = await cdp.evaluate(`(async () => {
+            const { stairPlanBounds, buildStairGeometry } = await import('./features/stairs/index.js');
+            const THREE = await import('three');
+            const item = { type: 'stair_deck', x: 300, y: 300, rotation: 0,
+                metadata: { width: 0.9144, depth: 4.6, height: 2.7 },
+                stair: { system: 'deck', type: 'straight', code: 'IRC2021', width: 0.9144, availableRun: 4.4, availableWidth: 1.2 } };
+            const bounds = stairPlanBounds(item, { storeyHeight: 2.7 });
+            const group = buildStairGeometry(item, { storeyHeight: 2.7 });
+            const box = new THREE.Box3().setFromObject(group);
+            window.setStairField('system', 'deck');
+            window.addStairFromPanel();
+            const itemSize = window.stairKit.selected()?.size;
+            return {
+                depth: bounds.depth,
+                landings: bounds.landings.length,
+                threeD: box.max.z - box.min.z,
+                sizeDepth: itemSize?.depth,
+                sizeWidth: itemSize?.width
+            };
+        })()`);
+        check('plan footprint carries both landings', planBounds.landings === 2, `${planBounds.landings} landings`);
+        check('plan footprint depth matches the 3D build', Math.abs(planBounds.depth - planBounds.threeD) < 0.05,
+            `${planBounds.depth.toFixed(2)} m plan vs ${planBounds.threeD.toFixed(2)} m 3D`);
+        check('item size follows the landed footprint', Math.abs(planBounds.sizeDepth - planBounds.depth) < 0.05,
+            `${planBounds.sizeDepth?.toFixed(2)} m size vs ${planBounds.depth.toFixed(2)} m bounds`);
 
         console.log('\nPlan drawing');
         const plan = await cdp.evaluate(`(() => {

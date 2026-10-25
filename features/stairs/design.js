@@ -73,6 +73,89 @@ export const STAIR_CODES = {
             maxRiser: 9.5 * IN,
             headroom: 78 * IN
         }
+    },
+    // Industrial access stairs. OSHA 1910.25 sets uniformity, a 30–50° slope,
+    // 22 in clear width and 9.5 in riser/tread limits rather than a single
+    // dwelling-style profile.
+    OSHA_STAIR: {
+        key: 'OSHA_STAIR',
+        label: 'OSHA 1910.25 · industrial',
+        maxRiser: 9.5 * IN,
+        minRiser: 0,
+        minTread: 9.5 * IN,
+        winderTread: 9.5 * IN,
+        winderClear: 6 * IN,
+        walklineOffset: 12 * IN,
+        minWidth: 22 * IN,
+        headroom: 80 * IN,
+        maxFlightRise: 30 * FT,
+        handrailMin: 30 * IN,
+        handrailMax: 42 * IN,
+        uniformity: 0.25 * IN,
+        nosingMin: 0,
+        nosingMax: 1.25 * IN,
+        curvedRadiusRule: false,
+        spiral: {
+            minWidth: 26 * IN,
+            minTread: 7.5 * IN,
+            walklineOffset: 12 * IN,
+            maxRiser: 9.5 * IN,
+            headroom: 78 * IN
+        }
+    },
+    // Steep access devices. The width/tread/riser limits are the IBC clauses
+    // for alternating tread devices (1011.14) and ships ladders (1011.16).
+    IBC_ALT: {
+        key: 'IBC_ALT',
+        label: 'IBC 1011.14 · alternating tread',
+        maxRiser: 9.5 * IN,
+        minRiser: 0,
+        minTread: 8.5 * IN,
+        winderTread: 8.5 * IN,
+        winderClear: 4 * IN,
+        walklineOffset: 12 * IN,
+        minWidth: 20 * IN,
+        headroom: 80 * IN,
+        maxFlightRise: 30 * FT,
+        handrailMin: 30 * IN,
+        handrailMax: 38 * IN,
+        uniformity: 0.375 * IN,
+        nosingMin: 0,
+        nosingMax: 1 * IN,
+        curvedRadiusRule: false,
+        spiral: {
+            minWidth: 26 * IN,
+            minTread: 7.5 * IN,
+            walklineOffset: 12 * IN,
+            maxRiser: 9.5 * IN,
+            headroom: 78 * IN
+        }
+    },
+    IBC_SHIP: {
+        key: 'IBC_SHIP',
+        label: 'IBC 1011.16 · ships ladder',
+        maxRiser: 10 * IN,
+        minRiser: 0,
+        minTread: 5 * IN,
+        winderTread: 5 * IN,
+        winderClear: 3 * IN,
+        walklineOffset: 12 * IN,
+        minWidth: 20 * IN,
+        headroom: 80 * IN,
+        maxFlightRise: 30 * FT,
+        handrailMin: 30 * IN,
+        handrailMax: 38 * IN,
+        uniformity: 0.375 * IN,
+        nosingMin: 0,
+        nosingMax: 1 * IN,
+        curvedRadiusRule: false,
+        spiral: {
+            minWidth: 26 * IN,
+            minTread: 7.5 * IN,
+            walklineOffset: 12 * IN,
+            maxRiser: 9.5 * IN,
+            headroom: 78 * IN
+        }
     }
 };
 

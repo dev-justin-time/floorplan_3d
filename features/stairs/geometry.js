@@ -3,6 +3,7 @@ import { PIXELS_PER_METER } from '../../world-space.js';
 import { stairDesignForItem } from './design.js';
 import { buildStairAssembly } from './assembly.js';
 import { getOutdoorSystem } from './outdoor.js';
+import { getStairModel, stairModelDesignForItem } from './models.js';
 
 /**
  * Stair geometry.
@@ -19,9 +20,21 @@ const RISER_THICKNESS = 0.028;
 const RAIL_HEIGHT = 0.9;
 const POST_RADIUS = 0.018;
 
-function materials(color = 0x8b5a2b) {
+// Tread finishes a model can ask for. The colour is the model's material, not
+// the item tint, so a steel spiral never reads as oak.
+const TREAD_FINISHES = {
+    wood: { color: 0x8b5a2b, roughness: 0.65, metalness: 0.05 },
+    steel: { color: 0x64748b, roughness: 0.4, metalness: 0.75 },
+    aluminium: { color: 0xb6bfc9, roughness: 0.35, metalness: 0.9 },
+    grate: { color: 0x4b5563, roughness: 0.55, metalness: 0.7 },
+    concrete: { color: 0xcbd5e1, roughness: 0.95, metalness: 0 },
+    composite: { color: 0x6b7280, roughness: 0.8, metalness: 0 }
+};
+
+function materials(color = 0x8b5a2b, model = null) {
+    const finish = TREAD_FINISHES[model?.treadMaterial] || { color, roughness: 0.65, metalness: 0.05 };
     return {
-        tread: new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.05 }),
+        tread: new THREE.MeshStandardMaterial({ ...finish }),
         riser: new THREE.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.8 }),
         stringer: new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.4 }),
         rail: new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.35, metalness: 0.75 }),
@@ -70,21 +83,27 @@ function sectorTread(inner, outer, a0, a1, top, clockwise, treadMaterial) {
     return tread;
 }
 
-function straightStair(design, mats) {
+function straightStair(design, mats, options = {}) {
     const group = new THREE.Group();
     const { width, rise, risers, treadDepth, runUsed } = design;
+    // `rise` is the whole storey; each step climbs one riser.
+    const stepRise = design.riserHeight;
     const run = runUsed;
+    const railHeight = options.railHeight ?? RAIL_HEIGHT;
+    const openRisers = Boolean(options.openRisers);
 
     for (let i = 0; i < risers - 1; i++) {
-        const top = (i + 1) * rise;
+        const top = (i + 1) * stepRise;
         const z = -run / 2 + (i + 0.5) * treadDepth;
         const tread = mesh(new THREE.BoxGeometry(width, TREAD_THICKNESS, treadDepth + 0.02), mats.tread);
         tread.position.set(0, top - TREAD_THICKNESS / 2, z);
         group.add(tread);
 
-        const riser = mesh(new THREE.BoxGeometry(width, rise, RISER_THICKNESS), mats.riser);
-        riser.position.set(0, top - rise / 2, z - treadDepth / 2 + 0.01);
-        group.add(riser);
+        if (!openRisers) {
+            const riser = mesh(new THREE.BoxGeometry(width, stepRise, RISER_THICKNESS), mats.riser);
+            riser.position.set(0, top - stepRise / 2, z - treadDepth / 2 + 0.01);
+            group.add(riser);
+        }
     }
 
     // Sloped stringers on both sides.
@@ -98,12 +117,12 @@ function straightStair(design, mats) {
         const railPoints = [];
         for (let i = 0; i < risers - 1; i += 2) {
             const z = -run / 2 + (i + 0.5) * treadDepth;
-            const top = (i + 1) * rise;
-            addPost(group, side * (width / 2 - 0.04), top, z, mats.rail);
+            const top = (i + 1) * stepRise;
+            addPost(group, side * (width / 2 - 0.04), top, z, mats.rail, railHeight);
         }
         for (let i = 0; i < risers - 1; i++) {
             const z = -run / 2 + (i + 0.5) * treadDepth;
-            railPoints.push(new THREE.Vector3(side * (width / 2 - 0.04), (i + 1) * rise + RAIL_HEIGHT, z));
+            railPoints.push(new THREE.Vector3(side * (width / 2 - 0.04), (i + 1) * stepRise + railHeight, z));
         }
         addRail(group, railPoints, mats.rail);
     });
@@ -111,14 +130,232 @@ function straightStair(design, mats) {
     return group;
 }
 
+/**
+ * Floating mono stringer: one plate on edge, treads cantilevered both sides.
+ */
+function monoStringerStair(design, mats, options = {}) {
+    const group = new THREE.Group();
+    const { width, rise, risers, treadDepth, runUsed: run } = design;
+    const stepRise = design.riserHeight;
+    const railHeight = options.railHeight ?? RAIL_HEIGHT;
+    const length = Math.hypot(run, rise);
+
+    const spine = mesh(new THREE.BoxGeometry(0.012, 0.3, length), mats.stringer);
+    spine.position.set(0, rise / 2 + 0.01, 0);
+    spine.rotation.x = -Math.atan2(rise, run);
+    spine.name = 'mono-stringer';
+    group.add(spine);
+
+    for (let i = 0; i < risers - 1; i++) {
+        const top = (i + 1) * stepRise;
+        const z = -run / 2 + (i + 0.5) * treadDepth;
+        const tread = mesh(new THREE.BoxGeometry(width, TREAD_THICKNESS, treadDepth + 0.02), mats.tread);
+        tread.position.set(0, top - TREAD_THICKNESS / 2, z);
+        group.add(tread);
+    }
+
+    [-1, 1].forEach((side) => {
+        const railPoints = [];
+        for (let i = 0; i < risers - 1; i++) {
+            const z = -run / 2 + (i + 0.5) * treadDepth;
+            const top = (i + 1) * stepRise;
+            if (i % 2 === 0) addPost(group, side * (width / 2 - 0.04), top, z, mats.rail, railHeight);
+            railPoints.push(new THREE.Vector3(side * (width / 2 - 0.04), top + railHeight, z));
+        }
+        addRail(group, railPoints, mats.rail);
+        // Hairline cables between the posts.
+        if (options.cable) {
+            for (let level = 1; level <= 3; level++) {
+                const cable = railPoints.map((point) => new THREE.Vector3(point.x, point.y - level * 0.22, point.z));
+                addRail(group, cable, mats.stringer);
+            }
+        }
+    });
+
+    return group;
+}
+
+/**
+ * Alternating tread device: a half tread either side of a centre stringer on
+ * every riser, handrails both sides.
+ */
+function alternatingTreadStair(design, mats, options = {}) {
+    const group = new THREE.Group();
+    const { width, rise, risers, treadDepth, runUsed: run } = design;
+    const stepRise = design.riserHeight;
+    const railHeight = options.railHeight ?? RAIL_HEIGHT;
+    const length = Math.hypot(run, rise);
+
+    const spine = mesh(new THREE.BoxGeometry(0.05, 0.26, length), mats.stringer);
+    spine.position.set(0, rise / 2, 0);
+    spine.rotation.x = -Math.atan2(rise, run);
+    group.add(spine);
+
+    const half = width / 2 - 0.03;
+    for (let i = 0; i < risers - 1; i++) {
+        const top = (i + 1) * stepRise;
+        const z = -run / 2 + (i + 0.5) * treadDepth;
+        const side = i % 2 === 0 ? -1 : 1;
+        const tread = mesh(new THREE.BoxGeometry(half, TREAD_THICKNESS, treadDepth + 0.02), mats.tread);
+        tread.position.set(side * (width / 4), top - TREAD_THICKNESS / 2, z);
+        tread.name = `alt-tread-${i + 1}`;
+        group.add(tread);
+    }
+
+    [-1, 1].forEach((side) => {
+        const railPoints = [];
+        for (let i = 0; i < risers - 1; i++) {
+            const z = -run / 2 + (i + 0.5) * treadDepth;
+            const top = (i + 1) * stepRise;
+            if (i % 2 === 0) addPost(group, side * (width / 2 - 0.03), top, z, mats.rail, railHeight);
+            railPoints.push(new THREE.Vector3(side * (width / 2 - 0.03), top + railHeight, z));
+        }
+        addRail(group, railPoints, mats.rail);
+    });
+
+    return group;
+}
+
+/** Ships ladder: two channels, 5 in treads and grab rails above the landing. */
+function shipsLadder(design, mats, options = {}) {
+    const group = new THREE.Group();
+    const { width, rise, risers, treadDepth, runUsed: run } = design;
+    const stepRise = design.riserHeight;
+    const railHeight = options.railHeight ?? 42 * 0.0254;
+    const length = Math.hypot(run, rise);
+    const pitch = -Math.atan2(rise, run);
+
+    [-1, 1].forEach((side) => {
+        const stringer = mesh(new THREE.BoxGeometry(0.075, 0.2, length), mats.stringer);
+        stringer.position.set(side * (width / 2 + 0.04), rise / 2, 0);
+        stringer.rotation.x = pitch;
+        group.add(stringer);
+
+        // Grab rail carried above the top landing, hand over hand.
+        const grab = mesh(new THREE.CylinderGeometry(0.02, 0.02, railHeight, 8), mats.rail);
+        grab.position.set(side * (width / 2 - 0.04), rise + 0.35, run / 2 - 0.1);
+        group.add(grab);
+    });
+
+    for (let i = 0; i < risers - 1; i++) {
+        const top = (i + 1) * stepRise;
+        const z = -run / 2 + (i + 0.5) * treadDepth;
+        const tread = mesh(new THREE.BoxGeometry(width, TREAD_THICKNESS, treadDepth), mats.tread);
+        tread.position.set(0, top - TREAD_THICKNESS / 2, z);
+        tread.name = `ladder-tread-${i + 1}`;
+        group.add(tread);
+    }
+
+    return group;
+}
+
+/**
+ * In-line crossover: up flight, mid platform, second flight. The platform is
+ * where the conveyor or pipe run passes between the two flights.
+ */
+function crossoverStair(design, mats, options = {}) {
+    const group = new THREE.Group();
+    const { width, rise, risers, treadDepth } = design;
+    const stepRise = design.riserHeight;
+    const railHeight = options.railHeight ?? 42 * 0.0254;
+    const mid = Math.max(2, Math.round(risers / 2));
+    const platformDepth = Math.max(0.9, width);
+    const upTreads = mid - 1;
+    const downTreads = risers - mid - 1;
+    const runUp = upTreads * treadDepth;
+    const runDown = downTreads * treadDepth;
+    const total = runUp + platformDepth + runDown;
+    const startZ = -total / 2;
+
+    const treadAt = (z, top) => {
+        const tread = mesh(new THREE.BoxGeometry(width, TREAD_THICKNESS, treadDepth + 0.02), mats.tread);
+        tread.position.set(0, top - TREAD_THICKNESS / 2, z);
+        group.add(tread);
+    };
+
+    for (let i = 0; i < upTreads; i++) {
+        treadAt(startZ + (i + 0.5) * treadDepth, (i + 1) * stepRise);
+    }
+    const platformZ = startZ + runUp + platformDepth / 2;
+    const platform = mesh(new THREE.BoxGeometry(width + 0.08, TREAD_THICKNESS, platformDepth), mats.tread);
+    platform.position.set(0, mid * stepRise - TREAD_THICKNESS / 2, platformZ);
+    platform.name = 'crossover-platform';
+    group.add(platform);
+
+    const guardZ = [platformZ - platformDepth / 2, platformZ + platformDepth / 2];
+    [-1, 1].forEach((side) => {
+        guardZ.forEach((z) => addPost(group, side * (width / 2), mid * stepRise, z, mats.rail, railHeight));
+        addRail(group, guardZ.map((z) => new THREE.Vector3(side * (width / 2), mid * stepRise + railHeight, z)), mats.rail);
+    });
+
+    for (let i = 0; i < downTreads; i++) {
+        treadAt(startZ + runUp + platformDepth + (i + 0.5) * treadDepth, (mid + i + 1) * stepRise);
+    }
+
+    const length = Math.hypot(total, rise);
+    [-1, 1].forEach((side) => {
+        const stringer = mesh(new THREE.BoxGeometry(0.07, 0.24, length), mats.stringer);
+        stringer.position.set(side * (width / 2 + 0.03), rise / 2, 0);
+        stringer.rotation.x = -Math.atan2(rise, total);
+        group.add(stringer);
+    });
+
+    return group;
+}
+
+/**
+ * Disappearing stair, drawn stowed: ceiling opening, folded flight on the
+ * panel and the pull rod hanging into the room below.
+ */
+function foldingStair(design, mats) {
+    const group = new THREE.Group();
+    const { width, rise, risers, treadDepth } = design;
+    const stepRise = design.riserHeight;
+    const depth = Math.max(1.2, treadDepth * Math.min(risers, 6));
+    const y = rise - 0.06;
+
+    const frameMaterial = mats.stringer;
+    [[-width / 2, 0], [width / 2, 0]].forEach(([x]) => {
+        const bar = mesh(new THREE.BoxGeometry(0.05, 0.12, depth + 0.12), frameMaterial);
+        bar.position.set(x, y, 0);
+        group.add(bar);
+    });
+    [-(depth + 0.12) / 2, (depth + 0.12) / 2].forEach((z) => {
+        const bar = mesh(new THREE.BoxGeometry(width + 0.1, 0.12, 0.05), frameMaterial);
+        bar.position.set(0, y, z);
+        group.add(bar);
+    });
+
+    // Folded panel and tread stack, stowed against the ceiling.
+    const panel = mesh(new THREE.BoxGeometry(width - 0.06, 0.04, depth), mats.tread);
+    panel.position.set(0, y - 0.1, 0);
+    panel.name = 'disappearing-panel';
+    group.add(panel);
+
+    const folded = Math.min(risers - 1, 7);
+    for (let i = 0; i < folded; i++) {
+        const tread = mesh(new THREE.BoxGeometry(width - 0.1, 0.025, 0.09), mats.tread);
+        tread.position.set(0, y - 0.14 - i * 0.035, -depth / 2 + 0.1 + i * 0.055);
+        tread.name = `folded-tread-${i + 1}`;
+        group.add(tread);
+    }
+
+    const rod = mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.1, 8), mats.rail);
+    rod.position.set(0, y - 0.72, depth / 2 - 0.1);
+    group.add(rod);
+
+    return group;
+}
+
 function curvedStair(design, mats) {
     const group = new THREE.Group();
     const { innerRadius, outerRadius, walklineRadius, startAngle, sweep, direction, treads, rise } = design;
+    const stepRise = design.riserHeight;
 
     for (let i = 0; i < treads; i++) {
         const a0 = startAngle + direction * sweep * (i / treads);
         const a1 = startAngle + direction * sweep * ((i + 1) / treads);
-        const top = (i + 1) * rise;
+        const top = (i + 1) * stepRise;
         group.add(sectorTread(innerRadius, outerRadius, a0, a1, top, direction < 0, mats.tread));
 
         // Landing edge is the top of the flight; the floor above closes it.
@@ -133,7 +370,7 @@ function curvedStair(design, mats) {
         const angle = startAngle + direction * sweep * (i / treads);
         railPoints.push(new THREE.Vector3(
             (outerRadius - 0.03) * Math.cos(angle),
-            Math.min(i + 1, treads) * rise + RAIL_HEIGHT,
+            Math.min(i + 1, treads) * stepRise + RAIL_HEIGHT,
             (outerRadius - 0.03) * Math.sin(angle)
         ));
     }
@@ -147,6 +384,7 @@ function curvedStair(design, mats) {
 function spiralStair(design, mats) {
     const group = new THREE.Group();
     const { columnRadius, outerRadius, startAngle, sweep, treads, rise } = design;
+    const stepRise = design.riserHeight;
 
     const column = mesh(new THREE.CylinderGeometry(columnRadius, columnRadius, rise, 16), mats.column);
     column.position.y = rise / 2;
@@ -155,7 +393,7 @@ function spiralStair(design, mats) {
     for (let i = 0; i < treads; i++) {
         const a0 = startAngle + sweep * (i / treads);
         const a1 = startAngle + sweep * ((i + 1) / treads);
-        const top = (i + 1) * rise;
+        const top = (i + 1) * stepRise;
         group.add(sectorTread(columnRadius, outerRadius, a0, a1, top, false, mats.tread));
         if (i % 2 === 0) {
             const angle = (a0 + a1) / 2;
@@ -289,14 +527,25 @@ function addOutdoorStructure(group, design, assembly, mats) {
     });
 }
 
-/**
- * Build the 3D stair/pole for an item. Returns a Group at local y = 0 (the lower
- * floor), footprint centred on the item origin.
- */
-export function buildStairGeometry(item, { storeyHeight, color = 0x8b5a2b, design = null } = {}) {
-    const resolved = design || stairDesignForItem(item, storeyHeight);
-    const assembly = buildStairAssembly({
-        design: resolved,
+/** Resolve the design an item is drawn from (model checks included). */
+export function stairDesignForItemOrModel(item, storeyHeight) {
+    return stairModelDesignForItem(item, storeyHeight) || stairDesignForItem(item, storeyHeight);
+}
+
+/** Which builder a design/model pair uses. */
+function stairGeometryKey(design, model) {
+    return model?.geometry || (
+        design.type === 'spiral' ? 'spiral'
+            : design.type === 'fire-pole' ? 'fire-pole'
+                : design.type === 'curve-right' || design.type === 'curve-left' ? 'curve'
+                    : 'straight'
+    );
+}
+
+/** The four-part assembly (run, landings, levels, support) for an item. */
+export function stairAssemblyForItem(item, design) {
+    return buildStairAssembly({
+        design,
         system: item?.stair?.system || null,
         structure: item?.stair?.structure,
         support: item?.stair?.support,
@@ -306,31 +555,155 @@ export function buildStairGeometry(item, { storeyHeight, color = 0x8b5a2b, desig
         landings: item?.stair?.landings,
         nosingEnabled: item?.stair?.nosingEnabled
     });
-    const mats = materials(color);
+}
+
+/**
+ * Plan extents (stair-local metres) the stair actually occupies.
+ *
+ * The run footprint is symmetrical about the item origin, but the automatic top
+ * and bottom landings extend past its ends by different depths, so the drawn
+ * plan symbol, the selection box and the 3D have to agree on one rectangle.
+ * Only the builders that draw landings (the straight and pan families) add
+ * them; mono, curve, spiral, crossover and folded stairs keep the run footprint.
+ */
+export function stairPlanBounds(item, { storeyHeight, design = null } = {}) {
+    const resolved = design || stairDesignForItemOrModel(item, storeyHeight);
+    const model = getStairModel(item?.stair?.model) || getStairModel(item?.metadata?.stair?.model);
+    const geometryKey = stairGeometryKey(resolved, model);
+    const halfWidth = resolved.footprint.width / 2;
+    const bounds = {
+        minX: -halfWidth,
+        maxX: halfWidth,
+        minZ: -resolved.footprint.depth / 2,
+        maxZ: resolved.footprint.depth / 2,
+        landings: [],
+        design: resolved
+    };
+
+    if (geometryKey !== 'straight' && geometryKey !== 'pan') {
+        return finalisePlanBounds(bounds);
+    }
+
+    const assembly = stairAssemblyForItem(item, resolved);
+    const ends = [['top', 1], ['bottom', -1]];
+    ends.forEach(([end, sign]) => {
+        const landing = end === 'top' ? assembly.subTypes.landing.top : assembly.subTypes.landing.bottom;
+        if (!landing?.enabled || !(landing.depth > 0)) return;
+        const s = sign === 1 ? 1 : 0;
+        const point = resolved.path.pointAt(s);
+        const tangent = resolved.path.tangentAt(s);
+        const reach = landing.depth / 2 + landing.offset;
+        const cx = point.x + tangent.x * sign * reach;
+        const cz = point.z + tangent.z * sign * reach;
+        const halfDepth = landing.depth / 2;
+        const halfLanding = landing.width / 2;
+        const rect = {
+            end,
+            minX: cx - halfLanding,
+            maxX: cx + halfLanding,
+            minZ: cz - halfDepth,
+            maxZ: cz + halfDepth,
+            width: landing.width,
+            depth: landing.depth
+        };
+        bounds.landings.push(rect);
+        bounds.minX = Math.min(bounds.minX, rect.minX);
+        bounds.maxX = Math.max(bounds.maxX, rect.maxX);
+        bounds.minZ = Math.min(bounds.minZ, rect.minZ);
+        bounds.maxZ = Math.max(bounds.maxZ, rect.maxZ);
+    });
+
+    return finalisePlanBounds(bounds);
+}
+
+function finalisePlanBounds(bounds) {
+    bounds.width = bounds.maxX - bounds.minX;
+    bounds.depth = bounds.maxZ - bounds.minZ;
+    bounds.centreX = (bounds.minX + bounds.maxX) / 2;
+    bounds.centreZ = (bounds.minZ + bounds.maxZ) / 2;
+    return bounds;
+}
+
+/**
+ * Build the 3D stair/pole for an item. Returns a Group at local y = 0 (the lower
+ * floor), footprint centred on the item origin.
+ */
+export function buildStairGeometry(item, { storeyHeight, color = 0x8b5a2b, design = null } = {}) {
+    // Model items carry the family checks (slope, family width, egress limits)
+    // on the same design object the geometry is drawn from.
+    const resolved = design || stairDesignForItemOrModel(item, storeyHeight);
+    const assembly = stairAssemblyForItem(item, resolved);
+    const model = getStairModel(item?.stair?.model) || getStairModel(item?.metadata?.stair?.model);
+    const mats = materials(color, model);
+    const options = {
+        railHeight: model?.guardHeight || RAIL_HEIGHT,
+        openRisers: model ? model.openRisers : false,
+        cable: model?.geometry === 'mono'
+    };
+    const geometryKey = stairGeometryKey(resolved, model);
     let inner;
 
-    if (resolved.type === 'fire-pole') {
-        inner = firePole(resolved, mats);
-    } else if (resolved.type === 'spiral') {
-        inner = spiralStair(resolved, mats);
-    } else if (resolved.type === 'curve-right' || resolved.type === 'curve-left') {
-        inner = curvedStair(resolved, mats);
-    } else {
-        inner = straightStair(resolved, mats);
-        addLanding(inner, resolved, assembly, 1, mats);
-        addLanding(inner, resolved, assembly, 0, mats);
-        addOutdoorStructure(inner, resolved, assembly, mats);
+    switch (geometryKey) {
+        case 'fire-pole':
+            inner = firePole(resolved, mats);
+            break;
+        case 'spiral':
+            inner = spiralStair(resolved, mats);
+            break;
+        case 'mono-arc': {
+            inner = curvedStair(resolved, mats);
+            // Curved spine under the walkline: the mono stringer that carries
+            // the winders instead of the usual two side channels.
+            const spine = [];
+            for (let i = 0; i <= 12; i++) {
+                const s = i / 12;
+                const angle = resolved.startAngle + resolved.direction * resolved.sweep * s;
+                spine.push(new THREE.Vector3(
+                    resolved.walklineRadius * Math.cos(angle),
+                    s * resolved.rise - 0.12,
+                    resolved.walklineRadius * Math.sin(angle)
+                ));
+            }
+            addRail(inner, spine, mats.stringer);
+            break;
+        }
+        case 'curve':
+            inner = curvedStair(resolved, mats);
+            break;
+        case 'mono':
+            inner = monoStringerStair(resolved, mats, options);
+            break;
+        case 'alternating':
+            inner = alternatingTreadStair(resolved, mats, options);
+            break;
+        case 'ladder':
+            inner = shipsLadder(resolved, mats, options);
+            break;
+        case 'crossover':
+            inner = crossoverStair(resolved, mats, options);
+            break;
+        case 'fold':
+            inner = foldingStair(resolved, mats, options);
+            break;
+        default:
+            inner = straightStair(resolved, mats, options);
+            addLanding(inner, resolved, assembly, 1, mats);
+            addLanding(inner, resolved, assembly, 0, mats);
+            addOutdoorStructure(inner, resolved, assembly, mats);
+            break;
     }
 
     inner.position.set(-resolved.offset.x, 0, -resolved.offset.z);
     inner.userData = {
         type: 'stair',
         stairType: resolved.type,
+        model: model?.key || null,
+        geometryKey,
         design: resolved,
         assembly,
-        walkable: resolved.type !== 'fire-pole'
+        walkable: resolved.type !== 'fire-pole' && geometryKey !== 'fold'
     };
-    inner.name = `stair-${resolved.type}`;
+    inner.name = model ? `stair-${model.key}` : `stair-${resolved.type}`;
 
     // The root group is free for the engine to position at the item centre.
     const root = new THREE.Group();
@@ -345,6 +718,7 @@ export function buildStairGeometry(item, { storeyHeight, color = 0x8b5a2b, desig
  */
 export function drawStairPlan(ctx, item, { storeyHeight, scale = PIXELS_PER_METER, color = '#475569' } = {}) {
     const design = stairDesignForItem(item, storeyHeight);
+    const bounds = stairPlanBounds(item, { storeyHeight, design });
     const px = (metres) => metres * scale;
     ctx.save();
     ctx.translate(item.x, item.y);
@@ -388,24 +762,56 @@ export function drawStairPlan(ctx, item, { storeyHeight, scale = PIXELS_PER_METE
     } else {
         const w = px(design.width);
         const run = px(design.runUsed || 0);
+        const model = getStairModel(item?.stair?.model);
         ctx.beginPath();
         ctx.rect(-w / 2, -run / 2, w, run);
         ctx.fill();
         ctx.stroke();
         const tread = px(design.treadDepth || 0);
         ctx.beginPath();
-        for (let i = 1; i < (design.treads || 0); i++) {
-            const z = -run / 2 + i * tread;
-            ctx.moveTo(-w / 2, z);
-            ctx.lineTo(w / 2, z);
+        if (model?.geometry === 'alternating') {
+            // Half treads alternate either side of the centre stringer.
+            for (let i = 0; i <= (design.treads || 0); i++) {
+                const z = -run / 2 + i * tread;
+                if (i % 2 === 0) {
+                    ctx.moveTo(-w / 2, z);
+                    ctx.lineTo(0, z);
+                } else {
+                    ctx.moveTo(0, z);
+                    ctx.lineTo(w / 2, z);
+                }
+            }
+            ctx.moveTo(0, -run / 2);
+            ctx.lineTo(0, run / 2);
+        } else {
+            for (let i = 1; i < (design.treads || 0); i++) {
+                const z = -run / 2 + i * tread;
+                ctx.moveTo(-w / 2, z);
+                ctx.lineTo(w / 2, z);
+            }
         }
         ctx.stroke();
 
-        if (design.landingDepth > 0) {
-            ctx.setLineDash([4, 3]);
-            ctx.strokeRect(-w / 2, run / 2, w, px(design.landingDepth));
+        if (model?.geometry === 'fold') {
+            ctx.setLineDash([5, 4]);
+            ctx.strokeRect(-w / 2 + px(0.05), -run / 2 + px(0.05), w - px(0.1), run - px(0.1));
             ctx.setLineDash([]);
         }
+
+        // Automatic top and bottom landings, at the depth and offset the 3D
+        // build uses, so the plan symbol and the selection box match the model.
+        bounds.landings.forEach((landing) => {
+            const lw = px(landing.maxX - landing.minX);
+            const ld = px(landing.maxZ - landing.minZ);
+            ctx.beginPath();
+            ctx.rect(px(landing.minX), px(landing.minZ), lw, ld);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(px(landing.minX), px(landing.maxZ));
+            ctx.lineTo(px(landing.maxX), px(landing.maxZ));
+            ctx.stroke();
+        });
     }
 
     // Up arrow along the walkline.
@@ -433,10 +839,12 @@ export function drawStairPlan(ctx, item, { storeyHeight, scale = PIXELS_PER_METE
 /** Flat plan footprint used by callers that only need size and shape. */
 export function stairPlanOutline(item, storeyHeight) {
     const design = stairDesignForItem(item, storeyHeight);
+    const bounds = stairPlanBounds(item, { storeyHeight, design });
     return {
         design,
-        width: design.footprint.width,
-        depth: design.footprint.depth,
+        bounds,
+        width: bounds.width,
+        depth: bounds.depth,
         shape: design.footprint.shape
     };
 }

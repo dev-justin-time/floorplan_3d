@@ -168,6 +168,13 @@ rectangle clip) and other fixtures, and flags headroom under the top landing.
 `stairSectionProfile()` returns the side section (nosing line, soffit, landings)
 for a 3D section or a drawing, so the plan, section and model agree.
 
+`stairPlanBounds(item, { storeyHeight })` is the single plan footprint used by
+the 2D symbol, the selection box and `item.size`. It is the run rectangle plus
+the automatic top and bottom landings at the depth and offset the 3D build uses,
+so a selected stair is outlined over everything it occupies. Families whose
+geometry draws no landings (mono stringer, curve, spiral, crossover, folded)
+keep the run footprint, matching what is on screen.
+
 ### Parts and wireframe models
 
 Every component is catalogued in `features/stairs/parts.js` at its **dressed US
@@ -179,7 +186,57 @@ pole shaft, flange, guard and mat. Open `stair-parts.html` for the 3D catalogue
 (every part at real size, framed on click) or call
 `buildPartWireframe(THREE, key, options)` from the kit.
 
-## 6. Sources
+## 6. Manufacturer model families
+
+The product types on the BIMobject *Construction → Stairs* category are a good
+shortlist of what actually gets specified: steel and aluminium spirals, mono
+stringer floating runs and L-turns, alternating tread devices, ships ladders,
+OSHA fixed industrial stairs, crossovers, loading dock steps, disappearing
+stairs and concrete-filled pan stairs.
+
+`features/stairs/models.js` carries that catalogue as **parametric families**
+rather than downloaded files. Every family sizes through the same design engine,
+so it still gets riser/tread maths, code checks, walkable geometry, a plan
+symbol and a parts takeoff. The proprietary BIM content from the manufacturers
+is licensed per project; nothing here is copied from it.
+
+| Model                        | Key                | Type            | Width  | Riser × going   | Slope | Guard | Code basis              |
+|------------------------------|--------------------|-----------------|--------|-----------------|-------|-------|-------------------------|
+| Classic steel spiral         | `spiral-steel`     | Spiral          | 60 in  | 8.86 × 8.7 in   | 46°   | 36 in | IRC R311.7.5.2          |
+| Aluminium spiral, exterior   | `spiral-aluminium` | Spiral          | 72 in  | 8.86 × 8.7 in   | 46°   | 36 in | IRC R311.7.5.2          |
+| Mono stringer, straight run  | `mono-straight`    | Straight        | 42 in  | 7.59 × 10.0 in  | 37°   | 36 in | IRC R311.7.1/R311.7.5.1 |
+| Mono stringer, 90° turn       | `mono-turn`        | Quarter turn    | 42 in  | 7.59 × 11.6 in  | 33°   | 36 in | IRC R311.7.5 / R311.7.6 |
+| Alternating tread device     | `alt-tread`        | Alternating     | 24 in  | 8.86 × 8.5 in   | 46°   | 42 in | IBC 1011.14             |
+| Ships ladder                 | `ships-ladder`     | Steep ladder    | 24 in  | 9.66 × 5.7 in   | 60°   | 42 in | IBC 1011.16             |
+| Disappearing (pull-down)     | `disappearing`     | Folded          | 24 in  | 9.66 × 5.7 in   | 60°   | —     | IBC 1011.16 (access)    |
+| Fixed industrial stair       | `industrial-osha`  | Straight        | 30 in  | 8.86 × 9.5 in   | 43°   | 42 in | OSHA 1910.25            |
+| Bar grating industrial stair | `grating`          | Straight        | 36 in  | 8.86 × 9.5 in   | 43°   | 42 in | OSHA 1910.25            |
+| Industrial crossover         | `crossover`        | Two-flight      | 36 in  | 8.86 × 9.5 in   | 43°   | 42 in | OSHA 1910.25            |
+| Loading dock steps           | `dock-steps`       | Straight        | 48 in  | 6.64 × 11.0 in  | 31°   | 42 in | IBC 1011.2 / 1015       |
+| Concrete-filled pan stair    | `pan-stair`        | Pan / concrete  | 44 in  | 6.64 × 11.7 in  | 30°   | 42 in | IBC 1011.2 / 1011.5.2   |
+
+Sizes are the 2.7 m storey default; `computeStairModel(key, { storeyHeight })`
+resizes the family and re-checks it. Model-specific checks on top of the base
+design:
+
+1. Clear width against the family minimum (26 in for a spiral drum, 20–22 in for
+   steep access, 44 in for a pan stair).
+2. Slope against the family band — 30–50° for OSHA industrial stairs, ≤ 50° for
+   alternating tread, ≤ 70° for ships ladders.
+3. Open risers against the 4 in sphere rule, and handrails on both sides for an
+   alternating tread device.
+4. Egress limits: spirals are restricted as a means of egress, and a
+   disappearing stair is occasional access only.
+
+Geometry keys (`model.geometry`) map to builders in `geometry.js`: `spiral`,
+`mono`, `mono-arc`, `alternating`, `ladder`, `crossover`, `fold`, `pan` and the
+plain `straight`. The editor's **Model** selector writes the family preset into
+the selected stair and clears any outdoor system, so the plan, the 3D model and
+the takeoff stay on one set of numbers. The panel summary prints the family, the
+slope and the governing reference; the takeoff CSV gains model, tread, riser and
+guard rows.
+
+## 7. Sources
 
 - IRC 2021 R311.7: https://up.codes/s/stairways-and-handrails
 - IRC 2021 R311.7.6 landings: https://up.codes/s/landings-for-stairways

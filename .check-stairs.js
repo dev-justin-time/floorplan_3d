@@ -3,7 +3,8 @@ import { computeStairDesign, stairDesignForItem, stairLocalToPlanPoint } from '.
 import { OUTDOOR_SYSTEMS, computeOutdoorStair, outdoorBomCsv } from './features/stairs/outdoor.js';
 import { buildStairAssembly, assemblySummary, findStairClashes, stairSectionProfile } from './features/stairs/assembly.js';
 import { PART_LIBRARY, partsByCategory, buildPartWireframe, partSize } from './features/stairs/parts.js';
-import { buildStairGeometry } from './features/stairs/geometry.js';
+import { buildStairGeometry, stairPlanBounds, stairPlanOutline } from './features/stairs/geometry.js';
+import { STAIR_MODELS, computeStairModel, stairModelConfig, stairModelSummary, modelTakeoffCsv, applyModelToConfig, modelsByCategory } from './features/stairs/models.js';
 import { createStairHeightField } from './features/stairs/walk.js';
 import { computeWaterFeature, waterDesignForItem, waterSummary, planOutline, surfaceArea } from './features/landscape/design.js';
 import { buildWaterFeature } from './features/landscape/geometry.js';
@@ -156,8 +157,140 @@ console.log('\n3D stair geometry');
     check('automatic bottom landing is built', names.includes('bottom-landing'));
     check('pier footings are built', names.filter((name) => name === 'pier-footing').length === 4);
 
+    const bounds = new THREE.Box3().setFromObject(group);
+    const size = new THREE.Vector3();
+    bounds.getSize(size);
+    check('stair top is one storey plus the rail', Math.abs(bounds.max.y - (2.7 + 0.9144)) < 0.2, `${bounds.max.y.toFixed(2)} m top`);
+    check('steps climb risers, not the whole storey', bounds.max.y < 4, `${bounds.max.y.toFixed(2)} m`);
+    check('footings sit below grade', bounds.min.y < -0.9, `${bounds.min.y.toFixed(2)} m`);
+
     const design = stairDesignForItem(item, 2.7);
     check('item design reads the stair config', near(design.width, 0.9144), `${design.width} m`);
+
+    // The plan footprint the selection box and symbol use has to cover the run
+    // plus the automatic landings the 3D build draws.
+    const planBounds = stairPlanBounds(item, { storeyHeight: 2.7 });
+    check('plan footprint includes both landings', planBounds.landings.length === 2, planBounds.landings.map((landing) => landing.end).join(' + '));
+    check('plan footprint is deeper than the run', planBounds.depth > design.runUsed + 1.6, `${planBounds.depth.toFixed(2)} m vs ${design.runUsed.toFixed(2)} m run`);
+    const topLanding = planBounds.landings.find((landing) => landing.end === 'top');
+    check('top landing abuts the top nosing', Math.abs(topLanding.minZ - design.runUsed / 2) < 1e-6);
+    check('plan footprint matches the 3D depth', Math.abs((bounds.max.z - bounds.min.z) - planBounds.depth) < 0.02,
+        `${(bounds.max.z - bounds.min.z).toFixed(2)} m in 3D vs ${planBounds.depth.toFixed(2)} m in plan`);
+    const outline = stairPlanOutline(item, 2.7);
+    check('plan outline uses the landing footprint', near(outline.depth, planBounds.depth));
+
+    const monoPlan = stairPlanBounds({
+        type: 'stair', x: 0, y: 0, rotation: 0,
+        metadata: { width: 1.07, depth: 3.4, height: 2.7 },
+        stair: stairModelConfig('mono-straight', { storeyHeight: 2.7 })
+    }, { storeyHeight: 2.7 });
+    check('models drawn without landings keep the run footprint', monoPlan.landings.length === 0 && near(monoPlan.depth, computeStairModel('mono-straight', { storeyHeight: 2.7 }).footprint.depth, 1e-9),
+        `${monoPlan.depth.toFixed(2)} m`);
+}
+
+console.log('\nModel catalogue');
+{
+    check('model families catalogued', STAIR_MODELS.length === 12, `${STAIR_MODELS.length} models`);
+    check('models grouped into categories', modelsByCategory().length === 5, modelsByCategory().map((group) => group.category).join(', '));
+
+    let compliant = 0;
+    let built = 0;
+    for (const model of STAIR_MODELS) {
+        const design = computeStairModel(model.key, { storeyHeight: 2.7 });
+        if (design.compliant) compliant += 1;
+        const config = stairModelConfig(model.key, { storeyHeight: 2.7 });
+        const item = {
+            type: 'stair',
+            x: 300,
+            y: 300,
+            rotation: 0,
+            metadata: { width: design.width, depth: design.footprint.depth, height: 2.7 },
+            stair: config
+        };
+        const group = buildStairGeometry(item, { storeyHeight: 2.7 });
+        const names = [];
+        group.traverse((child) => { if (child.name) names.push(child.name); });
+        if (names.length > 0 && group.userData.model === model.key) built += 1;
+        check(`${model.key}: model geometry`, group.userData.geometryKey === model.geometry, `${group.userData.geometryKey}, ${names.length} named parts`);
+    }
+    check('every model is code compliant at 2.7 m', compliant === STAIR_MODELS.length, `${compliant}/${STAIR_MODELS.length}`);
+    check('every model builds geometry', built === STAIR_MODELS.length, `${built}/${STAIR_MODELS.length}`);
+
+    const mono = buildStairGeometry({
+        type: 'stair', x: 0, y: 0, rotation: 0,
+        metadata: { width: 1.07, depth: 3, height: 2.7 },
+        stair: stairModelConfig('mono-straight')
+    }, { storeyHeight: 2.7 });
+    const monoNames = [];
+    mono.traverse((child) => { if (child.name) monoNames.push(child.name); });
+    check('mono stringer has one centre plate', monoNames.filter((name) => name === 'mono-stringer').length === 1);
+
+    const alt = buildStairGeometry({
+        type: 'stair', x: 0, y: 0, rotation: 0,
+        metadata: { width: 0.61, depth: 2.4, height: 2.7 },
+        stair: stairModelConfig('alt-tread')
+    }, { storeyHeight: 2.7 });
+    const altTreads = [];
+    alt.traverse((child) => { if (child.name?.startsWith('alt-tread-')) altTreads.push(child); });
+    const halfWidth = altTreads.every((tread) => Math.abs(tread.geometry.parameters.width - (alt.userData.design.width / 2 - 0.03)) < 1e-6);
+    check('alternating treads are half width', altTreads.length > 6 && halfWidth, `${altTreads.length} half treads`);
+    const alternateSides = altTreads.map((tread) => Math.sign(tread.position.x));
+    check('alternating treads swap sides', alternateSides.some((side, i) => i > 0 && side !== alternateSides[i - 1]));
+
+    const ladder = buildStairGeometry({
+        type: 'stair', x: 0, y: 0, rotation: 0,
+        metadata: { width: 0.61, depth: 2, height: 2.7 },
+        stair: stairModelConfig('ships-ladder')
+    }, { storeyHeight: 2.7 });
+    const ladderNames = [];
+    ladder.traverse((child) => { if (child.name) ladderNames.push(child.name); });
+    check('ships ladder treads built', ladderNames.filter((name) => name.startsWith('ladder-tread-')).length > 6);
+    check('ships ladder is steep', ladder.userData.design.model.slopeDegrees > 55, `${ladder.userData.design.model.slopeDegrees}°`);
+
+    const crossover = buildStairGeometry({
+        type: 'stair', x: 0, y: 0, rotation: 0,
+        metadata: { width: 0.91, depth: 5, height: 2.7 },
+        stair: stairModelConfig('crossover')
+    }, { storeyHeight: 2.7 });
+    const crossoverNames = [];
+    crossover.traverse((child) => { if (child.name) crossoverNames.push(child.name); });
+    check('crossover has a mid platform', crossoverNames.includes('crossover-platform'));
+
+    const folding = buildStairGeometry({
+        type: 'stair', x: 0, y: 0, rotation: 0,
+        metadata: { width: 0.61, depth: 2, height: 2.7 },
+        stair: stairModelConfig('disappearing')
+    }, { storeyHeight: 2.7 });
+    const foldingNames = [];
+    folding.traverse((child) => { if (child.name) foldingNames.push(child.name); });
+    check('disappearing stair is drawn folded', foldingNames.includes('disappearing-panel') && foldingNames.some((name) => name.startsWith('folded-tread-')));
+    check('disappearing stair is not walkable', folding.userData.walkable === false);
+
+    const narrow = computeStairModel('pan-stair', { storeyHeight: 2.7, width: 0.9 });
+    check('narrow pan stair is rejected', narrow.errors.some((issue) => issue.code === 'model-width'), narrow.errors.map((issue) => issue.code).join(', '));
+    const egress = computeStairModel('disappearing', { storeyHeight: 2.7 });
+    check('disappearing stair is not egress', egress.warnings.some((issue) => issue.code === 'model-not-egress'));
+
+    check('model summary lines', stairModelSummary(computeStairModel('pan-stair')).length >= 4);
+    check('model takeoff rows', modelTakeoffCsv(computeStairModel('mono-straight')).split('\n').length === 5);
+
+    const merged = applyModelToConfig({ system: 'deck', width: 0.9 }, 'alt-tread', { storeyHeight: 2.7 });
+    check('model preset overrides width and code', near(merged.width, 24 * IN, 1e-9) && merged.code === 'IBC_ALT' && merged.model === 'alt-tread');
+
+    const monoItem = {
+        type: 'stair', id: 'mono-1', x: 300, y: 300, rotation: 0, visible: true,
+        metadata: { width: 1.07, depth: 3.4, height: 2.7 },
+        stair: stairModelConfig('mono-straight', { storeyHeight: 2.7 })
+    };
+    const monoDesign = stairDesignForItem(monoItem, 2.7);
+    const field = createStairHeightField({
+        stories: [{ id: 's0', height: 2.7, visible: true, walls: [], fixtures: [monoItem] }],
+        currentStoryIndex: 0,
+        walls: [],
+        fixtures: [monoItem]
+    });
+    const top = field.heightAt(stairLocalToPlanPoint(monoItem, monoDesign.exit));
+    check('mono stringer is walkable to the upper storey', Math.abs(top - 2.7) < 0.05, `${top.toFixed(2)} m`);
 }
 
 console.log('\nWalkable stairs');

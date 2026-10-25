@@ -113,6 +113,7 @@ import {
     stairLocalToPlanPoint,
     isStairItem,
     drawStairPlan,
+    stairPlanBounds,
     createStairWalker,
     findStairClashes,
     createStairPanel
@@ -2281,15 +2282,17 @@ function drawFixture(ctx, f) {
     if (isStairItem(f)) {
         drawStairPlan(ctx, f, { storeyHeight, scale: SCALE });
         if (AppState.selectedFixture?.id === f.id) {
-            const design = stairDesignForItem(f, storeyHeight);
-            const w = design.footprint.width * SCALE;
-            const d = design.footprint.depth * SCALE;
+            // Selection covers the whole stair: the run plus the automatic
+            // landings the 3D build draws, not just the tread rectangle.
+            const bounds = stairPlanBounds(f, { storeyHeight });
+            const w = bounds.width * SCALE;
+            const d = bounds.depth * SCALE;
             ctx.save();
             ctx.translate(f.x, f.y);
             ctx.rotate(f.rotation || 0);
             ctx.strokeStyle = '#f59e0b';
             ctx.setLineDash([5, 3]);
-            ctx.strokeRect(-w / 2, -d / 2, w, d);
+            ctx.strokeRect(bounds.centreX * SCALE - w / 2, bounds.centreZ * SCALE - d / 2, w, d);
             ctx.restore();
         }
         return;
