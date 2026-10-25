@@ -74,6 +74,10 @@ export default function LabApp() {
 
   // NEW: Initialize WebsimSocket for multiplayer
   useEffect(() => {
+    // Multiplayer is optional: the socket SDK is only present on hosting that
+    // provides it, so skip cleanly when it is not on the page.
+    if (typeof WebsimSocket === 'undefined') return;
+
     const initMultiplayer = async () => {
       const websimRoom = new WebsimSocket();
       await websimRoom.initialize();
@@ -96,7 +100,7 @@ export default function LabApp() {
       updateState({ room: websimRoom });
     };
     
-    initMultiplayer();
+    initMultiplayer().catch((error) => console.warn('Multiplayer unavailable:', error));
   }, []);
 
   // NEW: Sync local changes to multiplayer room
@@ -201,6 +205,32 @@ export default function LabApp() {
     }});
   };
 
+  // NEW: Smart placement constraint checking
+  const checkPlacementConstraints = useCallback((item, position) => {
+    // Check collision with walls
+    const wallCollision = floorPlanData?.rooms?.some(room => 
+      room.walls?.some(wall => {
+        // Simple distance check - in production would use proper line-point distance
+        const dist = Math.hypot(
+          position[0] - (wall.start.x + wall.end.x) / 2,
+          position[2] - (wall.start.y + wall.end.y) / 2
+        );
+        return dist < 0.5; // Too close to wall
+      })
+    );
+
+    // Check collision with other fixtures
+    const fixtureCollision = fixtures?.some(f => 
+      f.id !== item.id && 
+      Math.hypot(
+        position[0] - f.position[0],
+        position[2] - f.position[2]
+      ) < 1.0 // Minimum distance between objects
+    );
+
+    return !wallCollision && !fixtureCollision;
+  }, [floorPlanData, fixtures]);
+
   const handleAddItem = (type) => {
     const newItem = {
       id: `item_${Date.now()}`,
@@ -259,32 +289,6 @@ export default function LabApp() {
     link.click();
     URL.revokeObjectURL(url);
   };
-
-  // NEW: Smart placement constraint checking
-  const checkPlacementConstraints = useCallback((item, position) => {
-    // Check collision with walls
-    const wallCollision = floorPlanData?.rooms?.some(room => 
-      room.walls?.some(wall => {
-        // Simple distance check - in production would use proper line-point distance
-        const dist = Math.hypot(
-          position[0] - (wall.start.x + wall.end.x) / 2,
-          position[2] - (wall.start.y + wall.end.y) / 2
-        );
-        return dist < 0.5; // Too close to wall
-      })
-    );
-
-    // Check collision with other fixtures
-    const fixtureCollision = fixtures?.some(f => 
-      f.id !== item.id && 
-      Math.hypot(
-        position[0] - f.position[0],
-        position[2] - f.position[2]
-      ) < 1.0 // Minimum distance between objects
-    );
-
-    return !wallCollision && !fixtureCollision;
-  }, [floorPlanData, fixtures]);
 
   return React.createElement('main', { 
       className: 'min-h-screen p-4 md:p-6 bg-gray-50 dark:bg-black font-sans text-gray-900 dark:text-gray-100',

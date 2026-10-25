@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
-import { color, cos, float, sin, timerLocal, vec3, vec4 } from 'three/nodes';
 
 // Lightweight React wrapper around a Three.js WebGPU nodes scene
 export default function LabWebGPUReactDemo() {
@@ -14,7 +13,7 @@ export default function LabWebGPUReactDemo() {
 
     (async () => {
       try {
-        if (!(await WebGPURenderer.isAvailable())) {
+        if (typeof navigator === 'undefined' || !navigator.gpu) {
           setStatus('WebGPU not available • falling back to static message');
           return;
         }
@@ -38,21 +37,10 @@ export default function LabWebGPUReactDemo() {
         scene.add(dirLight);
 
         const ambient = new THREE.AmbientLight(0x404040, 3);
-        scene.add(ambient);
-
-        const geometry = new THREE.TorusKnotGeometry(1, 0.3, 128, 32);
-        const material = new THREE.MeshStandardNodeMaterial();
-
-        const time = timerLocal();
-        const varyingColor = vec3(
-          sin(time.mul(2.0)),
-          cos(time.mul(1.5)),
-          sin(time.mul(1.0))
-        );
-
-        material.colorNode = vec4(varyingColor.add(1.0).mul(0.5), 1.0);
-        material.roughness = float(0.2);
-        material.metalness = float(0.8);
+        scene.add(ambient);        const geometry = new THREE.TorusKnotGeometry(1, 0.3, 128, 32);
+        // Core materials are converted by the WebGPU backend; explicit node
+        // materials are still unstable in r160.
+        const material = new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.8 });
 
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
@@ -88,6 +76,7 @@ export default function LabWebGPUReactDemo() {
           animationId = requestAnimationFrame(animate);
           mesh.rotation.y += 0.01;
           mesh.rotation.z += 0.005;
+          material.color.setHSL((performance.now() / 4000) % 1, 0.65, 0.55);
           renderer.render(scene, camera);
         };
         animate();

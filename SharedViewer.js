@@ -1,13 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
-import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from 'three/nodes';
 
 class SharedViewer {
     constructor() {
         this.currentView = 'panorama';
         this.isWebGPU = false;
         
+        // WebGPU is loaded lazily: its module graph is heavy and the pages
+        // must still work on WebGL-only browsers.
+        this.WebGPURendererClass = null;
+        this.nodeMaterials = null;
+
         // Panorama State
         this.panoramaCamera = null;
         this.panoramaScene = null;
@@ -44,7 +47,7 @@ class SharedViewer {
         const height = container.clientHeight;
 
         // 1. Determine Renderer Capability (WebGPU with WebGL fallback)
-        this.isWebGPU = await WebGPURenderer.isAvailable();
+        this.isWebGPU = await this.detectWebGPU();
         console.log(`Initializing SharedViewer with ${this.isWebGPU ? 'WebGPU' : 'WebGL'} renderer`);
 
         // 2. Panorama Setup
@@ -55,9 +58,7 @@ class SharedViewer {
         this.panoramaCamera.position.set(0.001, 0, 0);
         this.panoramaScene = new THREE.Scene();
 
-        this.panoramaRenderer = this.isWebGPU 
-            ? new WebGPURenderer({ canvas: panoramaCanvas, antialias: true })
-            : new THREE.WebGLRenderer({ canvas: panoramaCanvas, antialias: true });
+        this.panoramaRenderer = this.createRenderer({ canvas: panoramaCanvas, antialias: true });
             
         this.panoramaRenderer.setPixelRatio(window.devicePixelRatio);
         this.panoramaRenderer.setSize(width, height);
@@ -74,9 +75,7 @@ class SharedViewer {
         this.floorplanCamera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
         this.floorplanCamera.position.set(8, 6, 8);
 
-        this.floorplanRenderer = this.isWebGPU
-            ? new WebGPURenderer({ antialias: true })
-            : new THREE.WebGLRenderer({ antialias: true });
+        this.floorplanRenderer = this.createRenderer({ antialias: true });
             
         this.floorplanRenderer.setSize(width, height);
         this.floorplanRenderer.shadowMap.enabled = true;
@@ -98,13 +97,55 @@ class SharedViewer {
     }
 
     /**
+     * Feature-detect WebGPU. Older three builds expose WebGPURenderer.isAvailable();
+     * newer ones rely on navigator.gpu + a working adapter.
+     */
+    async detectWebGPU() {
+        if (typeof navigator === 'undefined' || !navigator.gpu) return false;
+
+        try {
+            // Some browsers/environments never settle the adapter request;
+            // don't let that block the WebGL fallback.
+            const adapter = await Promise.race([
+                navigator.gpu.requestAdapter().catch(() => null),
+                new Promise((resolve) => setTimeout(() => resolve(null), 1500))
+            ]);
+            if (!adapter) return false;
+
+            // Load the WebGPU renderer + node materials only when usable.
+            const loaded = await Promise.race([
+                Promise.all([
+                    import('three/addons/renderers/webgpu/WebGPURenderer.js'),
+                    import('three/nodes')
+                ]),
+                new Promise((resolve) => setTimeout(() => resolve(null), 5000))
+            ]);
+
+            if (!loaded) return false;
+
+            this.WebGPURendererClass = loaded[0].default;
+            this.nodeMaterials = loaded[1];
+            return Boolean(this.WebGPURendererClass);
+        } catch (error) {
+            console.warn('WebGPU detection failed, using WebGL:', error);
+            return false;
+        }
+    }
+
+    createRenderer(options) {
+        if (this.isWebGPU && this.WebGPURendererClass) {
+            return new this.WebGPURendererClass(options);
+        }
+        return new THREE.WebGLRenderer(options);
+    }
+
+    /**
      * Material Factory: Returns the correct material type based on active renderer.
      * This prevents duplicating scene setup logic for WebGPU vs WebGL.
      */
     createMaterial(type, params) {
-        if (this.isWebGPU) {
-            return type === 'basic' ? new MeshBasicNodeMaterial(params) : new MeshStandardNodeMaterial(params);
-        }
+        // Keep the shared scene on core materials: the WebGPU backend converts
+        // them internally, and node materials are still experimental in r160.
         return type === 'basic' ? new THREE.MeshBasicMaterial(params) : new THREE.MeshStandardMaterial(params);
     }
 

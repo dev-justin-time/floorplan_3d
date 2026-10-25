@@ -1,8 +1,8 @@
 "use client";
 import { jsxDEV } from "react/jsx-dev-runtime";
 import { useState, useEffect } from "react";
-import { mockFloorPlanData } from "./testData.ts";
-import Scene from "./Scene.tsx";
+import { mockFloorPlanData } from "./testData";
+import Scene from "./Scene.jsx";
 import CustomizationPanel from "./CustomizationPanel.tsx";
 function TestPage() {
   const [floorPlanData, setFloorPlanData] = useState(null);

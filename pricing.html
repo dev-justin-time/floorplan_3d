@@ -117,14 +117,14 @@
   <script type="importmap">
 {
   "imports": {
-    "three": "https://esm.sh/three@0.160.0",
+    "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
     "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
     "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js"
   }
 }
 </script>
 <script type="module">
-import { SharedViewer } from './shared-viewer.js';
+import { SharedViewer } from './SharedViewer.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const viewer = new SharedViewer();

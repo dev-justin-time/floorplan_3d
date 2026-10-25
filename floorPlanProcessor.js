@@ -48,8 +48,16 @@ export class FloorPlanProcessor {
             img.crossOrigin = 'Anonymous';
             img.onload = () => resolve(img);
             img.onerror = reject;
+
+            // Uploads arrive as File objects, but previews are data URLs.
+            if (typeof file === 'string') {
+                img.src = file;
+                return;
+            }
+
             const reader = new FileReader();
-            reader.onload = e => img.src = e.target.result;
+            reader.onload = e => { img.src = e.target.result; };
+            reader.onerror = reject;
             reader.readAsDataURL(file);
         });
     }
@@ -336,4 +344,28 @@ export class FloorPlanProcessor {
         }
         return debugCanvas.toDataURL();
     }
+}
+
+/**
+ * Convenience wrapper used by the upload UI. Accepts a File, Blob or data URL
+ * and returns a serialisable floor plan payload for the 3D scene.
+ */
+export async function processFloorPlan(source) {
+    const processor = new FloorPlanProcessor();
+    const result = await processor.processImage(source);
+
+    return {
+        id: 'floorplan_' + Date.now(),
+        version: '1.0',
+        width: result.width,
+        height: result.height,
+        dimensions: { width: result.width, height: result.height },
+        walls: (result.walls || []).map((wall, index) => ({
+            ...wall,
+            id: wall.id || `wall_${index}`
+        })),
+        rooms: [],
+        fixtures: [],
+        debugImage: result.debugImage
+    };
 }

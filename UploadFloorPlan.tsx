@@ -1,7 +1,7 @@
 "use client";
 import { jsxDEV } from "react/jsx-dev-runtime";
 import { useState, useRef } from "react";
-import { processFloorPlan } from "./floorPlanProcessor.ts";
+import { processFloorPlan } from "./floorPlanProcessor.js";
 function Upload({ onUpload }) {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState(null);

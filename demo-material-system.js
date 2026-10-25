@@ -71,8 +71,14 @@ export class MaterialSystemDemo {
     
     // Floor sample
     const floorGeo = new THREE.BoxGeometry(2, 0.1, 2);
-    this.floorMat = new THREE.MeshStandardMaterial(this.materials[this.currentMaterial]);
+    const initial = this.materials[this.currentMaterial];
+    this.floorMat = new THREE.MeshStandardMaterial({
+      color: initial.color,
+      roughness: initial.roughness,
+      metalness: initial.metalness
+    });
     this.floor = new THREE.Mesh(floorGeo, this.floorMat);
+    this.updateMaterial();
     this.floor.castShadow = true;
     this.floor.receiveShadow = true;
     this.scene.add(this.floor);

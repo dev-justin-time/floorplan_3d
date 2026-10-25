@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, useGLTF, EffectComposer, Bloom, DepthOfField, Vignette } from '@react-three/drei';
+import { OrbitControls, useGLTF } from '@react-three/drei';
+import { EffectComposer, Bloom, DepthOfField, Vignette } from '@react-three/postprocessing';
 
 function RotatingShaker() {
   const { scene } = useGLTF('/shaker.glb');

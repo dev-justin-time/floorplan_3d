@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 // Import the refactored factory pattern
-import { FurnitureFactory, buildDefaultBox } from './builders/furnitureBuilders.js';
+import { FurnitureFactory, buildDefaultBox } from './furnitureBuilders.js';
 
 const SCALE = GLOBAL_CONFIG.pixelsPerMeter;
 const ROOM_HEIGHT = GLOBAL_CONFIG.wallHeight;
@@ -229,6 +229,29 @@ export class ConversionEngine3D {
                 group.add(mesh);
             }
         });
+    }
+
+    // --- Legacy single-story adapters -------------------------------------
+    // Kept so older callers that used the pre story-group API keep working.
+    addFloor(textureId) {
+        const group = new THREE.Group();
+        this.scene.add(group);
+        this.meshes.push(group);
+        this.addFloorToGroup(group, textureId);
+    }
+
+    addCeiling(height = ROOM_HEIGHT) {
+        const group = new THREE.Group();
+        this.scene.add(group);
+        this.meshes.push(group);
+        this.addCeilingToGroup(group, height);
+    }
+
+    addWalls(walls, textureId, canvasWidth, canvasHeight, fixtures = []) {
+        const group = new THREE.Group();
+        this.scene.add(group);
+        this.meshes.push(group);
+        this.addWallsToGroup(group, walls, textureId, canvasWidth, canvasHeight, fixtures, ROOM_HEIGHT, null);
     }
 
     addWallsToGroup(group, walls, textureId, canvasWidth, canvasHeight, fixtures, wallHeight, selectedWallId) {

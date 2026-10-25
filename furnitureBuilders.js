@@ -309,6 +309,292 @@ export const buildPainting = (width, height, depth, material, fixture) => {
     return group;
 };
 
+// --- Bathroom ---
+
+export const buildSink = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0xffffff, 0.1, 0.2);
+
+    // Vanity body
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat), 0, height / 2, 0);
+
+    // Basin lip
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, 0.06, depth * 0.85), createMat(0xdddddd, 0.4, 0.1)), 0, height + 0.03, 0);
+
+    // Tap
+    addChild(group, new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8), createMat(0xaaaaaa, 0.9, 0.1)), 0, height + 0.12, -depth * 0.35);
+    return group;
+};
+
+export const buildShower = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+
+    // Tray
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, 0.08, depth), createMat(0xffffff, 0.1, 0.3)), 0, 0.04, 0);
+
+    // Glass enclosure (kept out of the shadow pass so it stays transparent)
+    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x88ccff, transparent: true, opacity: 0.25, roughness: 0.05, transmission: 0.9, side: THREE.DoubleSide });
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), glassMat);
+    glass.position.set(0, height / 2 + 0.08, 0);
+    group.add(glass);
+
+    // Shower head
+    addChild(group, new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.02, 16), createMat(0xcccccc, 0.9, 0.1)), 0, height, -depth / 2 + 0.08);
+    return group;
+};
+
+// --- Kitchen ---
+
+export const buildFridge = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const bodyMat = material || createMat(0xdddddd, 0.2, 0.4);
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), bodyMat), 0, height / 2, 0);
+
+    // Door seam between freezer and fridge
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width + 0.005, 0.01, depth + 0.005), createMat(0x999999, 0.4, 0.5)), 0, height * 0.65, 0);
+
+    // Vertical handles on the front
+    const handleGeo = new THREE.CylinderGeometry(0.015, 0.015, height * 0.22, 8);
+    const handleMat = createMat(0x888888, 0.9, 0.1);
+    addChild(group, new THREE.Mesh(handleGeo, handleMat), -0.06, height * 0.8, depth / 2 + 0.03);
+    addChild(group, new THREE.Mesh(handleGeo, handleMat), 0.06, height * 0.45, depth / 2 + 0.03);
+    return group;
+};
+
+export const buildKitchenSink = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0xffffff, 0.1, 0.5);
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat), 0, height / 2, 0);
+
+    // Countertop with basin cutout illusion
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, 0.05, depth), createMat(0x333333, 0.1, 0.3)), 0, height + 0.025, 0);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width * 0.75, 0.02, depth * 0.7), createMat(0xbbbbbb, 0.7, 0.2)), 0, height + 0.055, 0);
+
+    // Tap
+    addChild(group, new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.25, 8), createMat(0xaaaaaa, 0.9, 0.1)), 0, height + 0.17, -depth * 0.35);
+    return group;
+};
+
+export const buildKitchenIsland = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0xf5f5dc, 0.0, 0.8);
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat), 0, height / 2, 0);
+
+    // Countertop overhang on all sides
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, 0.05, depth + 0.1), createMat(0x333333, 0.1, 0.3)), 0, height, 0);
+
+    // Door lines
+    const gapMat = createMat(0x333333, 0.1, 0.6);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(0.01, height * 0.9, 0.01), gapMat), 0, height / 2, depth / 2 + 0.005);
+    return group;
+};
+
+// --- Living Room ---
+
+export const buildArmchair = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x555555, 0.0, 0.9);
+    const seatH = height * 0.55;
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, seatH, depth), mat), 0, seatH / 2, 0);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height - seatH, 0.2), mat), 0, seatH + (height - seatH) / 2, -depth / 2 + 0.1);
+
+    const armGeo = new THREE.BoxGeometry(0.15, height * 0.35, depth);
+    addChild(group, new THREE.Mesh(armGeo, mat), -width / 2 + 0.075, seatH + height * 0.175, 0);
+    addChild(group, new THREE.Mesh(armGeo, mat), width / 2 - 0.075, seatH + height * 0.175, 0);
+
+    // Seat cushion
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width - 0.35, 0.12, depth - 0.1), createMat(0x6b8e23, 0.0, 0.95)), 0, seatH + 0.06, 0.02);
+    return group;
+};
+
+export const buildTvStand = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x1a1a1a, 0.2, 0.6);
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat), 0, height / 2, 0);
+
+    // TV panel
+    const screen = new THREE.Mesh(new THREE.BoxGeometry(width * 0.8, width * 0.45, 0.05), createMat(0x111111, 0.3, 0.2));
+    addChild(group, screen, 0, height + (width * 0.45) / 2 + 0.05, 0);
+
+    // Stand neck
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), createMat(0x333333, 0.8, 0.2)), 0, height + 0.025, 0);
+    return group;
+};
+
+// --- Bedroom ---
+
+export const buildWardrobe = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x5d4037, 0.0, 0.8);
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat), 0, height / 2, 0);
+
+    // Centre seam between the two doors
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(0.01, height * 0.94, 0.01), createMat(0x000000, 0.0, 0.9)), 0, height / 2, depth / 2 + 0.005);
+
+    // Handles
+    const handleMat = createMat(0xcccccc, 0.9, 0.1);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.15, 0.02), handleMat), -0.06, height / 2, depth / 2 + 0.02);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.15, 0.02), handleMat), 0.06, height / 2, depth / 2 + 0.02);
+    return group;
+};
+
+export const buildNightstand = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x5d4037, 0.0, 0.8);
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat), 0, height / 2, 0);
+
+    // Drawer face and handle
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, height * 0.4, 0.01), createMat(0x4e342e, 0.0, 0.8)), 0, height * 0.72, depth / 2 + 0.005);
+    addChild(group, new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), createMat(0xcccccc, 0.9, 0.1)), 0, height * 0.72, depth / 2 + 0.03);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.04, height * 0.12, 0.04);
+    [[-width / 2 + 0.05, -depth / 2 + 0.05], [width / 2 - 0.05, -depth / 2 + 0.05], [-width / 2 + 0.05, depth / 2 - 0.05], [width / 2 - 0.05, depth / 2 - 0.05]].forEach(([x, z]) => {
+        addChild(group, new THREE.Mesh(legGeo, mat), x, -height * 0.06 + height / 2, z);
+    });
+    return group;
+};
+
+// --- Office ---
+
+export const buildOfficeChair = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x212121, 0.1, 0.7);
+    const metalMat = createMat(0x333333, 0.8, 0.2);
+
+    // Seat
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, 0.1, depth), mat), 0, height * 0.45, 0);
+
+    // Backrest
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height * 0.45, 0.05), mat), 0, height * 0.7, -depth / 2 + 0.025);
+
+    // Gas stem
+    addChild(group, new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, height * 0.4, 8), metalMat), 0, height * 0.22, 0);
+
+    // Base and wheels
+    addChild(group, new THREE.Mesh(new THREE.CylinderGeometry(width * 0.55, width * 0.55, 0.05, 16), metalMat), 0, 0.025, 0);
+    for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        addChild(group, new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), metalMat), Math.cos(a) * width * 0.5, 0.04, Math.sin(a) * width * 0.5);
+    }
+    return group;
+};
+
+// --- Dining ---
+
+export const buildDiningChair = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x3e2723, 0.0, 0.8);
+    const seatH = height * 0.5;
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, 0.05, depth), mat), 0, seatH, 0);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height * 0.5, 0.05), mat), 0, seatH + height * 0.25, -depth / 2 + 0.025);
+
+    const legGeo = new THREE.BoxGeometry(0.04, seatH, 0.04);
+    [[-width / 2 + 0.05, -depth / 2 + 0.05], [width / 2 - 0.05, -depth / 2 + 0.05], [-width / 2 + 0.05, depth / 2 - 0.05], [width / 2 - 0.05, depth / 2 - 0.05]].forEach(([x, z]) => {
+        addChild(group, new THREE.Mesh(legGeo, mat), x, seatH / 2, z);
+    });
+    return group;
+};
+
+export const buildSideboard = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x5d4037, 0.0, 0.8);
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat), 0, height / 2, 0);
+
+    // Two door panels
+    const doorMat = createMat(0x333333, 0.1, 0.6);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width / 2 - 0.05, height - 0.1, 0.02), doorMat), -width / 4, height / 2, depth / 2 + 0.01);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width / 2 - 0.05, height - 0.1, 0.02), doorMat), width / 4, height / 2, depth / 2 + 0.01);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.05, height * 0.1, 0.05);
+    [[-width / 2 + 0.06, -depth / 2 + 0.06], [width / 2 - 0.06, -depth / 2 + 0.06], [-width / 2 + 0.06, depth / 2 - 0.06], [width / 2 - 0.06, depth / 2 - 0.06]].forEach(([x, z]) => {
+        addChild(group, new THREE.Mesh(legGeo, mat), x, -height * 0.05 + height / 2, z);
+    });
+    return group;
+};
+
+// --- Lighting / Outdoor ---
+
+export const buildWallLamp = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const alt = fixture?.metadata?.altitude || 1.8;
+
+    // Backplate
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width * 0.5, height, 0.03), material || createMat(0x333333, 0.8, 0.2)), 0, 0, 0);
+
+    // Arm
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, depth), material || createMat(0x333333, 0.8, 0.2)), 0, 0, depth / 2);
+
+    // Shade
+    const shade = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.35, width * 0.25, height * 0.4, 12), new THREE.MeshStandardMaterial({ color: 0xffffee, emissive: 0x332200, side: THREE.DoubleSide }));
+    shade.position.set(0, -height * 0.2, depth);
+    group.add(shade);
+
+    const light = new THREE.PointLight(0xffaa00, 0.4, 2.5);
+    light.position.set(0, -height * 0.2, depth);
+    group.add(light);
+
+    group.position.y = alt;
+    return group;
+};
+
+export const buildPatioTable = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0x8b4513, 0.0, 0.8);
+
+    addChild(group, new THREE.Mesh(new THREE.CylinderGeometry(width / 2, width / 2, 0.05, 32), mat), 0, height, 0);
+    addChild(group, new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.25, height, 8), mat), 0, height / 2, 0);
+    return group;
+};
+
+export const buildPatioChair = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0xf5f5dc, 0.0, 0.8);
+    const seatH = height * 0.45;
+
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, 0.05, depth), mat), 0, seatH, 0);
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height - seatH, 0.08), mat), 0, seatH + (height - seatH) / 2, -depth / 2 + 0.04);
+
+    const legGeo = new THREE.BoxGeometry(0.04, seatH, 0.04);
+    [[-width / 2 + 0.05, -depth / 2 + 0.05], [width / 2 - 0.05, -depth / 2 + 0.05], [-width / 2 + 0.05, depth / 2 - 0.05], [width / 2 - 0.05, depth / 2 - 0.05]].forEach(([x, z]) => {
+        addChild(group, new THREE.Mesh(legGeo, mat), x, seatH / 2, z);
+    });
+    return group;
+};
+
+export const buildLounger = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    const mat = material || createMat(0xffffff, 0.0, 0.9);
+
+    // Base
+    addChild(group, new THREE.Mesh(new THREE.BoxGeometry(width, height * 0.1, depth), mat), 0, height * 0.3, 0);
+
+    // Inclined backrest
+    const back = new THREE.Mesh(new THREE.BoxGeometry(width, height * 0.6, 0.08), mat);
+    back.rotation.x = -Math.PI / 4;
+    back.position.set(0, height * 0.45, -depth / 2 + 0.15);
+    back.castShadow = true;
+    back.receiveShadow = true;
+    group.add(back);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.05, height * 0.3, 0.05);
+    [[-width / 2 + 0.06, -depth / 2 + 0.2], [width / 2 - 0.06, -depth / 2 + 0.2], [-width / 2 + 0.06, depth / 2 - 0.2], [width / 2 - 0.06, depth / 2 - 0.2]].forEach(([x, z]) => {
+        addChild(group, new THREE.Mesh(legGeo, mat), x, height * 0.15, z);
+    });
+    return group;
+};
+
 // Fallback
 export const buildDefaultBox = (width, height, depth, material, fixture) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
@@ -338,18 +624,34 @@ export const FurnitureFactory = {
         addChild(group, seat, 0, 0.42, 0.05);
         return group;
     },
+    'sink': buildSink,
+    'shower': buildShower,
+    'fridge': buildFridge,
+    'kitchen_sink': buildKitchenSink,
+    'kitchen_island': buildKitchenIsland,
     'sofa': buildSofa,
+    'armchair': buildArmchair,
+    'coffee_table': buildCoffeeTable,
+    'tv_stand': buildTvStand,
     'bed_queen': buildBed,
     'bed_single': buildBed,
-    'stove': buildStove,
-    'floor_lamp': buildFloorLamp,
-    'coffee_table': buildCoffeeTable,
+    'wardrobe': buildWardrobe,
+    'nightstand': buildNightstand,
     'desk': buildDesk,
+    'office_chair': buildOfficeChair,
     'bookshelf': buildBookshelf,
     'kitchen_cabinet': buildKitchenCabinet,
     'dining_table': buildDiningTable,
+    'dining_chair': buildDiningChair,
+    'sideboard': buildSideboard,
+    'stove': buildStove,
+    'floor_lamp': buildFloorLamp,
+    'wall_lamp': buildWallLamp,
     'potted_plant': buildPottedPlant,
     'rug_large': buildRug,
     'rug_round': buildRug,
     'painting': buildPainting,
+    'patio_table': buildPatioTable,
+    'patio_chair': buildPatioChair,
+    'lounger': buildLounger,
 };

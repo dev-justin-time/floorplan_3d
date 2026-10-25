@@ -176,6 +176,3 @@ export class FloorplanSyncDemo {
     this.update3D();
   }
 }
-
-
-```

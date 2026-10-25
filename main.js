@@ -8,7 +8,7 @@ import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
 import { FloorPlanProcessor } from './floorPlanProcessor.js';
 import { ConversionEngine3D } from './3dConversionEngine.js';
 import { Wall, ItemFactory } from './items.js';
-import { TEXTURES, MOCK_DATA, GLOBAL_CONFIG } from './metadata.js';
+import { TEXTURES, GLOBAL_CONFIG } from './metadata.js';
 import { StorageManager } from './storage.js';
 import { StateManager } from './state-manager.js';
 import { MOCK_DATA as TEST_DATA } from './test-data.js';

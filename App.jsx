@@ -6,8 +6,7 @@ import Cutlist from './Cutlist';
 import ControlPanel from './ControlPanel';
 import ViewControls from './ViewControls';
 
-// Optional: Import the processor we built earlier
-// import { FloorPlanProcessor } from './processors/FloorPlanProcessor';
+import { FloorPlanProcessor } from './floorPlanProcessor.js';
 
 export default function App() {
   // --- State Management ---
@@ -149,32 +148,33 @@ export default function App() {
     e.target.value = ''; // Reset input
   }, [showNotification]);
 
-  // --- NEW ABILITY: Floor Plan Import Integration ---
-  const onFloorPlanImport = useCallback((e) => {
+  // --- Floor Plan Import Integration ---
+  const onFloorPlanImport = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
     showNotification('Processing floor plan...', 'info');
     
-    // INTEGRATION POINT: Use the FloorPlanProcessor we built earlier
-    // const processor = new FloorPlanProcessor();
-    // processor.processImage(file).then(result => {
-    //   setProject(prev => ({ 
-    //     ...prev, 
-    //     room: { width: result.width / 10, depth: result.height / 10, height: 6 } 
-    //   }));
-    //   showNotification('Floor plan processed successfully!', 'success');
-    // }).catch(() => {
-    //   showNotification('Failed to process floor plan', 'error');
-    // });
-    
-    // Mock success for demonstration
-    setTimeout(() => {
-      setProject(prev => ({ ...prev, room: { width: 24, depth: 16, height: 6 } }));
-      showNotification('Floor plan dimensions updated (Mock)', 'success');
-    }, 800);
-    
-    e.target.value = '';
+    try {
+      const processor = new FloorPlanProcessor();
+      const result = await processor.processImage(file);
+
+      // The processor reports pixel dimensions; convert to room units.
+      setProject(prev => ({
+        ...prev,
+        room: {
+          width: Math.max(4, Math.round(result.width / 10)),
+          depth: Math.max(4, Math.round(result.height / 10)),
+          height: prev.room.height
+        }
+      }));
+      showNotification(`Floor plan processed: ${result.walls?.length || 0} wall segments`, 'success');
+    } catch (error) {
+      console.error('Error processing floor plan:', error);
+      showNotification('Failed to process floor plan', 'error');
+    } finally {
+      e.target.value = '';
+    }
   }, [showNotification]);
 
   // --- Render ---

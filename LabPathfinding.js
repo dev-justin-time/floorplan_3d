@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sphere, Line } from '@react-three/drei';
 import * as THREE from 'three';
-import { Pathfinder } from 'three-pathfinding';
+import { Pathfinding as Pathfinder } from 'three-pathfinding';
 
 // Pathfinding Demonstration Component
 function PathfindingDemo() {
