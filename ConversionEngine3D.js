@@ -7,7 +7,9 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 // Import the refactored factory pattern
 import { FurnitureFactory, buildDefaultBox } from './furnitureBuilders.js';
 import { toWireframe } from './wireframe.js';
-import { formatLength, formatArea } from './measurements.js';
+import { formatLength } from './measurements.js';
+import { wallFinishOf } from './features/wall-finish.js';
+import { createRoomLabelSprite } from './features/room-labels.js';
 
 import { WINDOW_SILL_HEIGHT } from './world-space.js';
 
@@ -164,13 +166,19 @@ export class ConversionEngine3D {
                 this.addCeilingToGroup(storyGroup, storyHeight);
             }
 
-            this.addWallsToGroup(storyGroup, story.walls, appState.defaultWallTexture, canvasWidth, canvasHeight, story.fixtures, storyHeight, appState.selectedWallId);
+            this.addWallsToGroup(storyGroup, story.walls, appState.defaultWallTexture, canvasWidth, canvasHeight, story.fixtures, storyHeight, appState.selectedWallId, appState.fixtureStyles);
             this.addItemsToGroup(storyGroup, story.fixtures, appState.fixtureStyles, canvasWidth, canvasHeight, appState.selectedFixture?.id);
 
             // Labels only on the ground floor, from the same measurement data
             // the 2D canvas draws, so both views quote identical numbers.
             if (index === 0 && appState.showMeasurements && appState.measurements) {
                 this.addMeasurementsToGroup(storyGroup, appState.measurements, storyHeight);
+            }
+
+            // Room labels own the area/volume chips; the wall lengths above stay
+            // with the dimensions toggle.
+            if (index === 0 && appState.showRoomLabels !== false && appState.roomLabels?.length) {
+                this.addRoomLabels(storyGroup, appState.roomLabels);
             }
 
             if (isTopStory && appState.showRoof) {
@@ -289,6 +297,10 @@ export class ConversionEngine3D {
                 const lift = fixture.elevation || 0;
                 mesh.position.set(x, mesh.position.y + lift, z);
                 mesh.rotation.y = -fixture.rotation;
+                // A flipped piece is mirrored about its own centre so its
+                // handles/doors face the other way without moving in plan.
+                if (fixture.flipped?.x) mesh.scale.x *= -1;
+                if (fixture.flipped?.z) mesh.scale.z *= -1;
                 
                 mesh.userData.id = fixture.id;
                 mesh.userData.type = 'item';
@@ -331,7 +343,7 @@ export class ConversionEngine3D {
         this.addWallsToGroup(group, walls, textureId, canvasWidth, canvasHeight, fixtures, ROOM_HEIGHT, null);
     }
 
-    addWallsToGroup(group, walls, textureId, canvasWidth, canvasHeight, fixtures, wallHeight, selectedWallId) {
+    addWallsToGroup(group, walls, textureId, canvasWidth, canvasHeight, fixtures, wallHeight, selectedWallId, wallStyles = null) {
         const texture = textureId && TEXTURES.walls[textureId] ? loadTexture(TEXTURES.walls[textureId]) : null;
         const material = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.7, metalness: 0.1, map: texture });
 
@@ -350,8 +362,21 @@ export class ConversionEngine3D {
             const cx = ((wall.start.x + wall.end.x) / 2 - canvasWidth / 2) / SCALE;
             const cz = ((wall.start.y + wall.end.y) / 2 - canvasHeight / 2) / SCALE;
 
-            const wallMaterial = wall.id === selectedWallId ? material.clone() : material;
-            if (wall.id === selectedWallId) wallMaterial.color.set(0xf59e0b);
+            // Per-wall finish from the shared style map, keyed by wall id.
+            const finish = wallFinishOf(wall, wallStyles, textureId);
+            let wallMaterial = material;
+            if (finish.color || finish.textureUrl) {
+                wallMaterial = material.clone();
+                if (finish.color) wallMaterial.color.set(finish.color);
+                if (finish.textureUrl) {
+                    wallMaterial.map = loadTexture(finish.textureUrl);
+                    wallMaterial.needsUpdate = true;
+                }
+            }
+            if (wall.id === selectedWallId) {
+                wallMaterial = wallMaterial.clone();
+                wallMaterial.color.set(0xf59e0b);
+            }
             
             const wallBrush = new Brush(wallGeo, wallMaterial);
             wallBrush.userData = { id: wall.id, type: 'wall' };
@@ -433,10 +458,17 @@ export class ConversionEngine3D {
             group.add(sprite);
         });
 
-        (measurements.rooms || []).forEach((room) => {
-            if (!room.centroid || room.area < 0.5) return;
-            const sprite = createLabelSprite(formatArea(room.area));
-            sprite.position.set(room.centroid.x, 0.15, room.centroid.z);
+    }
+
+    /**
+     * Room labels at the polygon centroid, built by features/room-labels.js from
+     * the wall graph. Position is planToWorld(centroid) from world-space.js.
+     */
+    addRoomLabels(group, labels = []) {
+        (labels || []).forEach((label) => {
+            if (!label?.world || !(label.area >= 0.5)) return;
+            const sprite = createRoomLabelSprite(THREE, label);
+            sprite.position.set(label.world.x, label.world.y, label.world.z);
             group.add(sprite);
         });
     }

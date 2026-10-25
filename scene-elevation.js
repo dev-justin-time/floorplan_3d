@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PIXELS_PER_METER, WALL_HEIGHT } from './world-space.js';
 import { pickItemId } from './scene-gizmo.js';
 import { inSameRun, snapAlongAxis, snapVertically, ELEVATION_SNAP } from './elevation-snap.js';
+import { constrainToLocks } from './features/transforms.js';
 
 /**
  * Elevation views for the 3D preview.
@@ -122,6 +123,7 @@ export function createElevationDrag({
     getObject,
     onDraggingChange,
     onCommit,
+    onDrag,
     threshold = ELEVATION_SNAP
 }) {
     const raycaster = new THREE.Raycaster();
@@ -198,6 +200,14 @@ export function createElevationDrag({
                 bottom: box.min.y
             };
             onDraggingChange?.(true);
+            onDrag?.({
+                phase: 'start',
+                fixture,
+                bottom: drag.startBottom,
+                top: drag.startBottom + drag.height,
+                height: drag.height,
+                lift: fixture.elevation || 0
+            });
         }
     }
 
@@ -221,6 +231,11 @@ export function createElevationDrag({
             fixture.y += axes.axis.y * joint.delta * PIXELS_PER_METER;
         }
 
+        // A locked plan axis stays put even while the piece is lifted.
+        const constrained = constrainToLocks(fixture, { x: fixture.x, y: fixture.y }, { x: drag.startX, y: drag.startY });
+        fixture.x = constrained.x;
+        fixture.y = constrained.y;
+
         // Screen-vertical -> height off the floor
         let bottom = Math.max(0, drag.startBottom + (hit.y - start.y));
         const stack = snapVertically(
@@ -242,6 +257,15 @@ export function createElevationDrag({
         );
 
         if (Math.abs(alongDelta) > 0.005 || Math.abs(hit.y - start.y) > 0.005) drag.moved = true;
+
+        onDrag?.({
+            phase: 'move',
+            fixture,
+            bottom,
+            top: bottom + drag.height,
+            height: drag.height,
+            lift: fixture.elevation || 0
+        });
     }
 
     function endDrag() {
@@ -249,6 +273,7 @@ export function createElevationDrag({
         const finished = drag;
         drag = null;
         onDraggingChange?.(false);
+        onDrag?.({ phase: 'end', fixture: finished.fixture });
         if (finished.moved) onCommit?.(finished.fixture);
     }
 

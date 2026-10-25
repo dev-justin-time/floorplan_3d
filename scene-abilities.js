@@ -41,7 +41,13 @@ export const ABILITY_DEFAULTS = {
     shadows3D: true,
     fog3D: false,
     turntable: false,
-    hideWalls3D: false
+    hideWalls3D: false,
+    // Feature kit (features/ folder)
+    dimensionChains: false,
+    roomLabels: true,
+    liftMarkers: true,
+    snapGuides: true,
+    elevationHeights: true
 };
 
 const PLAN_GROUP = 'Plan overlays';
@@ -49,6 +55,7 @@ const SNAP_GROUP = 'Snapping';
 const ITEM_GROUP = 'Item actions';
 const PLAN_ACTIONS = 'Plan actions';
 const THREE_GROUP = '3D & export';
+const FEATURE_GROUP = 'Feature kit';
 
 /** Small helper so a toggle entry is one line. */
 const toggleAbility = (id, label, group, key = id) => ({
@@ -118,6 +125,10 @@ export function createAbilityList() {
         actionAbility('arrayDuplicate', 'Array duplicate ×3', ITEM_GROUP, (state, host) => host.arrayDuplicateSelection()),
         actionAbility('copyItem', 'Copy item', ITEM_GROUP, (state, host) => host.copySelection()),
         actionAbility('pasteItem', 'Paste item', ITEM_GROUP, (state, host) => host.pasteSelection()),
+        actionAbility('flipHorizontal', 'Flip item', ITEM_GROUP, (state, host) => host.flipSelection()),
+        actionAbility('repeatRun', 'Repeat along run ×3', ITEM_GROUP, (state, host) => host.repeatSelection()),
+        actionAbility('lockAxisX', 'Lock X axis', ITEM_GROUP, (state, host) => host.toggleAxisLock('x')),
+        actionAbility('lockAxisZ', 'Lock Z axis', ITEM_GROUP, (state, host) => host.toggleAxisLock('z')),
 
         // --- Plan actions --------------------------------------------------
         actionAbility('snapWallsToGrid', 'Snap walls to grid', PLAN_ACTIONS, (state, host) => host.snapWallsToGrid()),
@@ -136,7 +147,14 @@ export function createAbilityList() {
         toggleAbility('hideWalls3D', 'Hide walls in 3D', THREE_GROUP),
         actionAbility('cutlistCSV', 'Cut-list CSV', THREE_GROUP, (state, host) => host.exportCutList()),
         actionAbility('savePreset', 'Save ability preset', THREE_GROUP, (state, host) => host.savePreset()),
-        actionAbility('loadPreset', 'Load ability preset', THREE_GROUP, (state, host) => host.loadPreset())
+        actionAbility('loadPreset', 'Load ability preset', THREE_GROUP, (state, host) => host.loadPreset()),
+
+        // --- Feature kit ----------------------------------------------------
+        toggleAbility('dimensionChains', 'Dimension chains', FEATURE_GROUP),
+        toggleAbility('roomLabels', 'Room labels', FEATURE_GROUP),
+        toggleAbility('liftMarkers', 'Lifted-piece markers', FEATURE_GROUP),
+        toggleAbility('snapGuides', 'Snap guides', FEATURE_GROUP),
+        toggleAbility('elevationHeights', 'Elevation heights', FEATURE_GROUP)
     ];
 
     return list;

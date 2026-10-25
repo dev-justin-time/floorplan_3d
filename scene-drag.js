@@ -1,5 +1,6 @@
 import { PIXELS_PER_METER } from './world-space.js';
 import { snapToWalls } from './wall-snap.js';
+import { constrainToLocks } from './features/transforms.js';
 
 /**
  * Dragging for plan objects (fixtures, windows, doors).
@@ -40,7 +41,9 @@ export function beginDrag(fixture, point) {
     if (!fixture) return null;
     return {
         fixture,
-        offset: { x: point.x - fixture.x, y: point.y - fixture.y }
+        offset: { x: point.x - fixture.x, y: point.y - fixture.y },
+        // Where the piece started, so locked axes have something to stay on.
+        origin: { x: fixture.x, y: fixture.y }
     };
 }
 
@@ -78,6 +81,12 @@ export function dragTo(drag, point, walls, { gridSize = 0, snapThreshold = 20, w
         const snapped = snapToWalls(fixture, walls, { threshold: snapThreshold });
         drag.snappedWall = snapped ? snapped.wall : null;
     }
+
+    // Per-axis locks win over everything above: a locked axis keeps the
+    // position the gesture started from.
+    const constrained = constrainToLocks(fixture, { x: fixture.x, y: fixture.y }, drag.origin);
+    fixture.x = constrained.x;
+    fixture.y = constrained.y;
 
     return fixture;
 }

@@ -1,5 +1,7 @@
 import { PIXELS_PER_METER as SCALE } from './world-space.js';
 import { itemDimensions } from './items.js';
+import { drawFeatureOverlays } from './features/index.js';
+import { drawNorthArrow, drawScaleBar } from './features/annotations.js';
 
 const metres = (pixels) => pixels / SCALE;
 const label = (metresValue, digits = 2) => `${metresValue.toFixed(digits)} m`;
@@ -25,7 +27,16 @@ function boundsIntersect(a, b) {
  * Called by the editor after walls and fixtures are painted.
  */
 export function drawPlanOverlays(ctx, model) {
-    const { walls = [], fixtures = [], state = {}, selected = null, selectedWallId = null, ruler = null } = model;
+    const {
+        walls = [],
+        fixtures = [],
+        state = {},
+        selected = null,
+        selectedWallId = null,
+        ruler = null,
+        roomLabels = [],
+        snapGuide = null
+    } = model;
 
     // Wall hatching: a second, inset line makes thin walls read as solid.
     if (state.wallHatch) {
@@ -209,6 +220,10 @@ export function drawPlanOverlays(ctx, model) {
             ctx.restore();
         }
     }
+
+    // Feature kit overlays: dimension chains, room labels, lift markers and
+    // snap guides. They live in features/ so the editor stays a shell.
+    drawFeatureOverlays(ctx, { walls, fixtures, state, roomLabels, snapGuide });
 }
 
 /**
@@ -231,39 +246,11 @@ export function drawScreenOverlays(ctx, model) {
     }
 
     if (state.north) {
-        const x = width - 42;
-        const y = 42;
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-        ctx.beginPath();
-        ctx.moveTo(x, y - 16);
-        ctx.lineTo(x - 7, y + 8);
-        ctx.lineTo(x, y + 2);
-        ctx.lineTo(x + 7, y + 8);
-        ctx.closePath();
-        ctx.fill();
-        ctx.font = 'bold 11px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('N', x, y + 20);
+        drawNorthArrow(ctx, { width, height });
     }
 
     if (state.scaleBar) {
-        const barPixels = SCALE; // exactly one metre
-        const x = 20;
-        const y = height - 26;
-        ctx.strokeStyle = 'rgba(15, 23, 42, 0.7)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + barPixels, y);
-        ctx.moveTo(x, y - 4);
-        ctx.lineTo(x, y + 4);
-        ctx.moveTo(x + barPixels, y - 4);
-        ctx.lineTo(x + barPixels, y + 4);
-        ctx.stroke();
-        ctx.font = '10px ui-monospace, monospace';
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-        ctx.textAlign = 'left';
-        ctx.fillText('1 m', x + barPixels + 6, y);
+        drawScaleBar(ctx, { width, height, scale: SCALE });
     }
 
     if (state.coords && cursor) {

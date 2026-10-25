@@ -125,6 +125,14 @@
                             <input type="range" min="0.1" max="5" step="0.1" value="1" class="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary" oninput="window.setBgScale(this.value)">
                         </div>
 
+                        <!-- Room area / volume readout (features/room-metrics.js) -->
+                        <div class="px-2 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-gray-500">Area / volume</label>
+                            </div>
+                            <span id="plan-metrics" class="text-xs font-mono text-gray-700 dark:text-gray-200">—</span>
+                        </div>
+
                         <button onclick="window.exportProject()" class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left text-sm font-medium">
                             <span class="material-symbols-outlined text-green-500">download</span>
                             Save Project
@@ -163,6 +171,18 @@
                             <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-orange-500 mb-1">delete_sweep</span>
                             <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-orange-500">Clear</span>
                         </button>
+                    </div>
+
+                    <!-- Grid size selector (features/grid.js) -->
+                    <div class="mt-3 flex items-center justify-between gap-2 px-1">
+                        <label for="grid-size-select" class="text-xs font-medium text-gray-500 dark:text-gray-400">Grid</label>
+                        <select id="grid-size-select" onchange="window.setGridSize(this.value)" class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-800 dark:text-gray-100">
+                            <option value="0">Off</option>
+                            <option value="25">25 cm</option>
+                            <option value="50">50 cm</option>
+                            <option value="100" selected>1 m</option>
+                            <option value="200">2 m</option>
+                        </select>
                     </div>
                 </div>
 
@@ -221,6 +241,19 @@
                                     <span class="text-[11px] font-bold text-red-500">Delete</span>
                                 </button>
                             </div>
+                            <!-- Feature kit item transforms (features/transforms.js) -->
+                            <div class="grid grid-cols-2 gap-1">
+                                <button onclick="window.flipSelected()" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors" title="Mirror the selected item">
+                                    <span class="material-symbols-outlined text-base text-gray-600 dark:text-gray-300">flip</span>
+                                    <span class="text-[11px] font-bold">Flip</span>
+                                </button>
+                                <button onclick="window.repeatSelected()" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors" title="Repeat the item along its run">
+                                    <span class="material-symbols-outlined text-base text-gray-600 dark:text-gray-300">view_week</span>
+                                    <span class="text-[11px] font-bold">Repeat</span>
+                                </button>
+                                <button id="sel-item-lock-x" onclick="window.toggleAxisLock('x')" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-[11px] font-bold" title="Lock movement on the plan X axis">Lock X</button>
+                                <button id="sel-item-lock-z" onclick="window.toggleAxisLock('z')" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-[11px] font-bold" title="Lock movement on the plan Z axis">Lock Z</button>
+                            </div>
                         </div>
 
                         <div id="selection-wall" class="hidden space-y-2">
@@ -231,6 +264,23 @@
                             <label class="block text-[11px] text-gray-500 dark:text-gray-400">Height (m)
                                 <input id="sel-wall-height" type="number" min="0.5" max="6" step="0.1" value="2.7" oninput="window.setWallHeight(this.value)" class="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-800 dark:text-gray-100">
                             </label>
+                            <!-- Per-wall finish (features/wall-finish.js) -->
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="block text-[11px] text-gray-500 dark:text-gray-400">Colour
+                                    <input id="sel-wall-color" type="color" value="#e0e0e0" oninput="window.setWallColor(this.value)" class="mt-1 w-full h-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                                </label>
+                                <label class="block text-[11px] text-gray-500 dark:text-gray-400">Texture
+                                    <select id="sel-wall-texture" onchange="window.setWallTexture(this.value)" class="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-1 text-xs text-gray-800 dark:text-gray-100">
+                                        <option value="">Storey default</option>
+                                        <option value="paint">Paint</option>
+                                        <option value="marble">Marble</option>
+                                        <option value="wood">Wood</option>
+                                        <option value="tile">Tile</option>
+                                        <option value="concrete">Concrete</option>
+                                        <option value="stone">Stone</option>
+                                    </select>
+                                </label>
+                            </div>
                             <button onclick="window.deleteSelectedWall()" class="w-full flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 border border-gray-200 dark:border-gray-700 hover:border-red-400 transition-colors">
                                 <span class="material-symbols-outlined text-base text-red-500">delete</span>
                                 <span class="text-[11px] font-bold text-red-500">Delete wall</span>
@@ -398,6 +448,8 @@
                 <!-- 3D View -->
                 <div id="view-3d" class="absolute inset-0 z-0 opacity-0 pointer-events-none">
                     <div id="render-3d-view" class="w-full h-full bg-gray-100 dark:bg-gray-800"></div>
+                    <!-- Height readout shown while dragging in elevation (features/elevation-annotations.js) -->
+                    <div id="height-readout" class="hidden absolute top-4 right-4 z-20 bg-gray-900/85 backdrop-blur text-white px-3 py-1.5 rounded-lg text-[11px] font-mono shadow-lg pointer-events-none"></div>
                     <div id="elevation-hint" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur text-white px-4 py-2 rounded-full text-xs font-medium pointer-events-none shadow-lg">
                         Click an object to select • G move • R rotate • Elevation for up/down
                     </div>

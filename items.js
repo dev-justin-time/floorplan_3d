@@ -30,6 +30,12 @@ export class Item {
         // Locked pieces stay put: dragging, the 3D gizmo and elevation drags all
         // skip them, but they still render and can be selected.
         this.locked = false;
+        // Per-axis position locks ({ x, z } booleans). A locked axis ignores
+        // dragging in that direction while the other stays free.
+        this.lockedAxes = { x: false, z: false };
+        // Mirror state set by flipping the piece; the 3D builder mirrors the
+        // mesh on the flipped axis so the plan and the model agree.
+        this.flipped = { x: false, z: false };
         this.modelUrl = null; // Support for custom 3D models
         // Metres the piece is lifted above its default height position (0 for
         // floor-standing pieces, which sit on the floor). Dragged up/down in
@@ -58,6 +64,8 @@ export class Item {
             elevation: this.elevation || 0,
             visible: this.visible !== false,
             locked: !!this.locked,
+            lockedAxes: { x: Boolean(this.lockedAxes?.x), z: Boolean(this.lockedAxes?.z) },
+            flipped: { x: Boolean(this.flipped?.x), z: Boolean(this.flipped?.z) },
             size: this.size || null
         };
     }
@@ -224,6 +232,12 @@ export class ItemFactory {
         if (typeof json.elevation === 'number') item.elevation = json.elevation;
         if (typeof json.visible === 'boolean') item.visible = json.visible;
         if (typeof json.locked === 'boolean') item.locked = json.locked;
+        if (json.lockedAxes && typeof json.lockedAxes === 'object') {
+            item.lockedAxes = { x: Boolean(json.lockedAxes.x), z: Boolean(json.lockedAxes.z) };
+        }
+        if (json.flipped && typeof json.flipped === 'object') {
+            item.flipped = { x: Boolean(json.flipped.x), z: Boolean(json.flipped.z) };
+        }
         if (json.size && typeof json.size === 'object') item.size = { ...json.size };
         return item;
     }

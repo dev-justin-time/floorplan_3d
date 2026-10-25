@@ -17,6 +17,34 @@ import { createItemGizmo, planFromObject, pickItemId } from './scene-gizmo.js';
 import { createElevationDrag, frameElevation, applyElevationVisibility, ELEVATION_SIDES } from './scene-elevation.js';
 import { createSceneAbilities, apply3DAbilities } from './scene-abilities.js';
 import { drawPlanOverlays, drawScreenOverlays } from './plan-overlays.js';
+import {
+    FEATURES,
+    wallHeightOf,
+    setWallHeight as setWallHeightValue,
+    resetWallHeights as resetWallHeightsFeature,
+    setWallFinish,
+    roomLabelsFromWalls,
+    roomMetrics,
+    formatMetrics,
+    snapGuidesFor,
+    cloneItem,
+    repeatAlongAxis,
+    flipItem,
+    toggleAxisLock as toggleAxisLockFeature,
+    lockedAxesOf,
+    gridPixelsFromCm,
+    gridCmFromPixels,
+    toggleVisible,
+    isVisible,
+    setCeiling,
+    setRoof,
+    syncShellToggles,
+    buildCutList,
+    downloadCutList,
+    buildElevationAnnotations,
+    disposeAnnotationGroup,
+    createHeightReadout
+} from './features/index.js';
 
 // Application State
 const AppState = {
@@ -54,6 +82,10 @@ const AppState = {
     // Elevation view ('front' | 'back' | 'left' | 'right'); null is the 3D orbit
     elevationSide: null,
     
+    // Derived plan data from the feature kit (recomputed on every save).
+    roomLabels: [],
+    metrics: null,
+
     // Background
     backgroundImage: null,
     backgroundScale: 1.0, // Added scale property
@@ -75,6 +107,9 @@ let conversionEngine;
 let itemGizmo;
 let gizmoMode = 'translate';
 let stateManager;
+// Elevation height annotations (feature kit) and the live drag readout.
+let elevationAnnotations = null;
+let heightReadout = null;
 
 // Constants
 const SCALE = 30; // Pixels per meter approximation for internal logic
@@ -106,6 +141,9 @@ function init() {
 
     // Initial Draw
     onResize();
+    const gridSelect = document.getElementById('grid-size-select');
+    if (gridSelect) gridSelect.value = String(gridCmFromPixels(AppState.gridSize) || 0);
+    syncShellToggles(document, AppState);
     draw2D();
     updateViewButtons();
     
@@ -120,14 +158,56 @@ function init() {
         if (abilities) abilities.toggle('dimensions');
         else { AppState.showDimensions = !AppState.showDimensions; draw2D(); }
     };
-    window.toggleCeiling = () => { AppState.showCeiling = !AppState.showCeiling; update3D(); };
-    window.toggleRoof = () => { AppState.showRoof = !AppState.showRoof; update3D(); };
+    window.toggleCeiling = () => {
+        setCeiling(AppState, !AppState.showCeiling);
+        syncShellToggles(document, AppState);
+        saveToStorage();
+        update3D();
+    };
+    window.toggleRoof = () => {
+        setRoof(AppState, !AppState.showRoof);
+        syncShellToggles(document, AppState);
+        saveToStorage();
+        update3D();
+    };
     window.setWallHeight = (value) => {
         const wall = selectedWall();
-        const height = parseFloat(value);
-        if (!wall || !Number.isFinite(height) || height <= 0) return;
-        wall.height = height;
+        if (!wall) return;
+        setWallHeightValue(wall, parseFloat(value));
         saveAndSync();
+    };
+    window.setWallColor = (value) => {
+        const wall = selectedWall();
+        if (!wall) return;
+        setWallFinish(AppState.fixtureStyles, wall.id, { color: value });
+        saveAndSync();
+    };
+    window.setWallTexture = (value) => {
+        const wall = selectedWall();
+        if (!wall) return;
+        setWallFinish(AppState.fixtureStyles, wall.id, { texture: value || null });
+        saveAndSync();
+    };
+    window.setGridSize = (cm) => {
+        AppState.gridSize = gridPixelsFromCm(cm);
+        const select = document.getElementById('grid-size-select');
+        if (select) select.value = String(gridCmFromPixels(AppState.gridSize) || 0);
+        saveToStorage();
+        draw2D();
+    };
+    window.flipSelected = flipSelection;
+    window.repeatSelected = repeatSelection;
+    window.toggleAxisLock = toggleAxisLock;
+    window.exportCutList = exportCutList;
+    // The whole feature kit on one handle, for debugging and the panel.
+    window.featureKit = {
+        features: FEATURES,
+        metrics: () => AppState.metrics,
+        roomLabels: () => AppState.roomLabels,
+        walls: () => AppState.walls,
+        fixtures: () => AppState.fixtures,
+        abilities: () => abilitiesState(),
+        annotations: () => elevationAnnotations
     };
     window.setItemSize = (key, value) => {
         const fixture = AppState.selectedFixture;
@@ -150,9 +230,9 @@ function init() {
     window.toggleSelectedVisibility = () => {
         const fixture = AppState.selectedFixture;
         if (!fixture) return;
-        fixture.visible = fixture.visible === false;
+        toggleVisible(fixture);
         // A hidden piece cannot be dragged or gizmo'd.
-        if (fixture.visible === false) AppState.drag = null;
+        if (!isVisible(fixture)) AppState.drag = null;
         saveAndSync();
         refreshGizmo();
     };
@@ -623,6 +703,13 @@ function syncSelectionPanels() {
         setPanelText('sel-item-visible', fixture.visible === false ? 'Show' : 'Hide');
         setPanelText('sel-item-lock', fixture.locked ? 'Unlock' : 'Lock');
 
+        // Per-axis lock buttons read as pressed when that axis is held.
+        const axes = lockedAxesOf(fixture);
+        const lockX = document.getElementById('sel-item-lock-x');
+        const lockZ = document.getElementById('sel-item-lock-z');
+        if (lockX) lockX.classList.toggle('bg-amber-100', axes.x);
+        if (lockZ) lockZ.classList.toggle('bg-amber-100', axes.z);
+
         const dims = itemDimensions(fixture);
         const sizeFields = { 'sel-item-width': dims.width, 'sel-item-depth': dims.depth, 'sel-item-height': dims.height };
         Object.entries(sizeFields).forEach(([id, metres]) => {
@@ -634,10 +721,21 @@ function syncSelectionPanels() {
     }
 
     if (wall) {
-        setPanelText('sel-wall-len', `${(wall.length / SCALE).toFixed(2)} m`);
+        setPanelText('sel-wall-len', `${(wall.length / SCALE).toFixed(2)} m ${wallHeightOf(wall).toFixed(1)} m high`);
         const heightInput = document.getElementById('sel-wall-height');
         if (heightInput && document.activeElement !== heightInput) {
-            heightInput.value = (wall.height ?? 2.7).toFixed(1);
+            heightInput.value = wallHeightOf(wall).toFixed(1);
+        }
+
+        // Per-wall finish, from the same style map items use.
+        const style = AppState.fixtureStyles[wall.id] || {};
+        const colorInput = document.getElementById('sel-wall-color');
+        if (colorInput && document.activeElement !== colorInput) {
+            colorInput.value = style.color || '#e0e0e0';
+        }
+        const textureSelect = document.getElementById('sel-wall-texture');
+        if (textureSelect && document.activeElement !== textureSelect) {
+            textureSelect.value = style.texture || '';
         }
     }
 }
@@ -646,15 +744,10 @@ function duplicateSelected() {
     const fixture = AppState.selectedFixture;
     if (!fixture) return;
 
-    const data = fixture.toJSON();
-    delete data.id; // let the factory mint a fresh id
-    data.x = fixture.x + 0.3 * SCALE;
-    data.y = fixture.y + 0.3 * SCALE;
-    const copy = ItemFactory.fromJSON(data);
-
-    if (AppState.fixtureStyles[fixture.id]) {
-        AppState.fixtureStyles[copy.id] = { ...AppState.fixtureStyles[fixture.id] };
-    }
+    // Clone through the feature kit so the copy keeps size, lift, locks and
+    // flip state, and gets a style entry of its own.
+    const copy = cloneItem(fixture, { dx: 0.3, dy: 0.3, styles: AppState.fixtureStyles });
+    if (!copy) return;
 
     AppState.fixtures.push(copy);
     AppState.selectedFixture = copy;
@@ -706,6 +799,8 @@ function refreshAbilities() {
         );
     }
 
+    // Height annotations are editor-side, so they follow the ability flag here.
+    refreshElevationAnnotations();
     applyAbilityPanel();
     draw2D();
 }
@@ -796,6 +891,9 @@ function initAbilities() {
         arrayDuplicateSelection,
         copySelection,
         pasteSelection,
+        flipSelection,
+        repeatSelection,
+        toggleAxisLock,
         savePreset: saveAbilityPreset,
         loadPreset: loadAbilityPreset
     });
@@ -920,7 +1018,7 @@ function centerPlan() {
 }
 
 function resetWallHeights() {
-    AppState.walls.forEach((wall) => { wall.height = null; });
+    resetWallHeightsFeature(AppState.walls);
     saveAndSync();
 }
 
@@ -946,28 +1044,9 @@ function removeShortWalls() {
 }
 
 function exportCutList() {
-    const rows = [['type', 'label', 'width_m', 'depth_m', 'height_m', 'x_m', 'y_m', 'elevation_m']];
-    AppState.fixtures.forEach((fixture) => {
-        const meta = fixture.metadata || {};
-        rows.push([
-            fixture.type,
-            meta.label || fixture.type,
-            (meta.width || 0).toFixed(3),
-            (meta.depth || 0).toFixed(3),
-            (meta.height || 0).toFixed(3),
-            (fixture.x / SCALE).toFixed(2),
-            (fixture.y / SCALE).toFixed(2),
-            (fixture.elevation || 0).toFixed(2)
-        ]);
-    });
-
-    const blob = new Blob([rows.map((row) => row.join(',')).join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'cut-list.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    // Grouped by type and real size: ten identical cabinets are one line with
+    // count 10, and a resized piece exports at its own size.
+    downloadCutList(buildCutList(AppState.fixtures));
 }
 
 // --- More item/plan abilities ---------------------------------------
@@ -978,18 +1057,34 @@ function arrayDuplicateSelection(count = 3, spacing = 0.65) {
     const fixture = AppState.selectedFixture;
     if (!fixture) return;
 
-    for (let index = 1; index <= count; index++) {
-        const data = fixture.toJSON();
-        delete data.id;
-        data.x = fixture.x + spacing * SCALE * index;
-        data.y = fixture.y;
-        const copy = ItemFactory.fromJSON(data);
-        AppState.fixtures.push(copy);
-        if (AppState.fixtureStyles[fixture.id]) {
-            AppState.fixtureStyles[copy.id] = { ...AppState.fixtureStyles[fixture.id] };
-        }
-    }
+    const copies = repeatAlongAxis(fixture, { count, pitch: spacing, styles: AppState.fixtureStyles });
+    AppState.fixtures.push(...copies);
+    saveAndSync();
+}
 
+/** Mirror the selected piece in place (features/transforms.flipItem). */
+function flipSelection() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+    flipItem(fixture, 'x');
+    saveAndSync();
+}
+
+/** Butt-jointed repeat along the piece's own axis. */
+function repeatSelection(count = 3) {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+
+    const copies = repeatAlongAxis(fixture, { count, styles: AppState.fixtureStyles });
+    AppState.fixtures.push(...copies);
+    saveAndSync();
+}
+
+/** Hold one plan axis of the selection so only the other moves. */
+function toggleAxisLock(axis) {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+    toggleAxisLockFeature(fixture, axis);
     saveAndSync();
 }
 
@@ -1031,6 +1126,43 @@ function loadAbilityPreset() {
     });
 
     refreshAbilities();
+}
+
+// --- Feature kit glue ------------------------------------------------
+
+/** Guide lines for the wall the dragged piece just snapped to, or null. */
+function currentSnapGuide() {
+    const drag = AppState.drag;
+    if (!drag?.fixture || !drag.snappedWall) return null;
+    return snapGuidesFor(drag.fixture, drag.snappedWall);
+}
+
+/** Recompute room labels and the area/volume readout from the current plan. */
+function refreshPlanDerived() {
+    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    AppState.roomLabels = roomLabelsFromWalls(AppState.walls, view, { wallHeight: WALL_HEIGHT });
+    AppState.metrics = roomMetrics({ walls: AppState.walls, view, wallHeight: WALL_HEIGHT });
+    setPanelText('plan-metrics', formatMetrics(AppState.metrics));
+}
+
+/**
+ * Rebuild the elevation height annotations for the current scene. Removed and
+ * re-added whenever the meshes are rebuilt or the view changes.
+ */
+function refreshElevationAnnotations() {
+    if (elevationAnnotations) {
+        disposeAnnotationGroup(elevationAnnotations);
+        elevationAnnotations = null;
+    }
+    if (!AppState.elevationSide || !scene3D || abilitiesState().elevationHeights === false) return;
+
+    elevationAnnotations = buildElevationAnnotations({
+        THREE,
+        fixtures: AppState.fixtures,
+        getObject: findItemObject,
+        height: WALL_HEIGHT
+    });
+    scene3D.add(elevationAnnotations);
 }
 
 function draw2D(cursorPos = null) {
@@ -1089,13 +1221,15 @@ function draw2D(cursorPos = null) {
         ctx.globalAlpha = 1.0;
     }
 
-    // Ability overlays that belong to the plan plane.
+    // Ability + feature overlays that belong to the plan plane.
     drawPlanOverlays(ctx, {
         walls: AppState.walls,
         fixtures: AppState.fixtures,
         selected: AppState.selectedFixture,
         selectedWallId: AppState.selectedWallId,
         state: abilityState,
+        roomLabels: AppState.roomLabels,
+        snapGuide: currentSnapGuide(),
         ruler: { ...(AppState.ruler || {}), cursor: AppState.cursor }
     });
 
@@ -1113,8 +1247,10 @@ function draw2D(cursorPos = null) {
 }
 
 function drawGrid(ctx, w, h, abilityState = {}) {
-    if (abilityState.grid !== false) {
-        const g = AppState.gridSize;
+    const g = AppState.gridSize;
+    // A grid size of 0 is the "off" option; without this guard the loop below
+    // would never advance.
+    if (abilityState.grid !== false && g > 0) {
         // Large enough to cover the panned view at any zoom.
         const large = 5000;
         ctx.strokeStyle = '#e5e7eb';
@@ -1269,6 +1405,9 @@ function init3D() {
 
     initGizmo();
 
+    // Live bottom/top/height readout for elevation drags.
+    heightReadout = createHeightReadout(document.getElementById('height-readout'));
+
     // Up/down and side-to-side dragging inside an elevation view.
     elevationDrag = createElevationDrag({
         scene: scene3D,
@@ -1286,6 +1425,15 @@ function init3D() {
             // (and so snapping is baked into the saved position).
             saveAndSync();
             refreshGizmo();
+        },
+        onDrag: (info) => {
+            if (!heightReadout) return;
+            if (!info || info.phase === 'end') {
+                heightReadout.hide();
+                return;
+            }
+            if (abilitiesState().elevationHeights === false) return;
+            heightReadout.show({ bottom: info.bottom, top: info.top, lift: info.lift });
         }
     });
 
@@ -1484,6 +1632,7 @@ function setViewMode(mode) {
 
     if (itemGizmo) itemGizmo.detach();
     if (!show3d && elevationDrag) elevationDrag.end();
+    if (!AppState.elevationSide && heightReadout) heightReadout.hide();
 
     if (show3d) update3D();
     if (AppState.elevationSide) updateElevationCamera();
@@ -1553,6 +1702,9 @@ function update3D() {
         measurements: measurePlan(graph),
         showMeasurements: AppState.showDimensions,
         fixtureStyles: AppState.fixtureStyles,
+        // Room labels from features/room-labels.js (centroid + area + volume).
+        roomLabels: AppState.roomLabels,
+        showRoomLabels: abilitiesState().roomLabels !== false,
         showCeiling: AppState.showCeiling,
         showRoof: AppState.showRoof,
         defaultWallTexture: AppState.defaultWallTexture,
@@ -1589,6 +1741,9 @@ function update3D() {
     }
 
     refreshGizmo();
+    // The rebuild replaced every mesh, so the height annotations anchored to
+    // them are rebuilt too.
+    refreshElevationAnnotations();
 }
 
 function animate3D() {
@@ -1829,6 +1984,8 @@ function onResize() {
     const parent = blueprintCanvas.parentElement;
     blueprintCanvas.width = parent.clientWidth;
     blueprintCanvas.height = parent.clientHeight;
+    // Room labels are stored in canvas pixels, so they move with the viewport.
+    refreshPlanDerived();
     draw2D();
     
     const container3D = document.getElementById('render-3d-view');
@@ -1851,7 +2008,16 @@ function restoreState(data) {
     if (data.walls) AppState.walls = data.walls.map(w => Wall.fromJSON(w));
     if (data.fixtures) AppState.fixtures = data.fixtures.map(f => ItemFactory.fromJSON(f));
     if (data.fixtureStyles) AppState.fixtureStyles = data.fixtureStyles;
-    
+
+    // Shell and grid settings ride along with the project.
+    if (typeof data.showCeiling === 'boolean') setCeiling(AppState, data.showCeiling);
+    if (typeof data.showRoof === 'boolean') setRoof(AppState, data.showRoof);
+    if (typeof data.gridSize === 'number') AppState.gridSize = data.gridSize;
+    syncShellToggles(document, AppState);
+    const gridSelect = document.getElementById('grid-size-select');
+    if (gridSelect) gridSelect.value = String(gridCmFromPixels(AppState.gridSize) || 0);
+
+    refreshPlanDerived();
     stateManager.saveState(); // Reset history with new state
     draw2D();
     update3D();
@@ -1876,6 +2042,8 @@ function scheduleDragUpdate() {
 
 function saveAndSync() {
     stateManager.saveState();
+    // Room labels/metrics are derived from the plan, not stored in it.
+    refreshPlanDerived();
     update3D();
     draw2D();
     syncSelectionPanels();
@@ -1886,7 +2054,10 @@ function saveToStorage() {
     StorageManager.saveProject('autosave', {
         walls: AppState.walls,
         fixtures: AppState.fixtures,
-        fixtureStyles: AppState.fixtureStyles
+        fixtureStyles: AppState.fixtureStyles,
+        showCeiling: AppState.showCeiling,
+        showRoof: AppState.showRoof,
+        gridSize: AppState.gridSize
     });
 }
 
