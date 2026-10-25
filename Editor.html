@@ -452,6 +452,108 @@
                     </div>
                 </div>
 
+                <!-- Outdoor stair systems (features/stairs/outdoor.js) -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('outdoor-stair-items')">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Outdoor stairs</h3>
+                        <span class="material-symbols-outlined text-gray-400" id="outdoor-stair-items-icon">expand_more</span>
+                    </div>
+                    <div id="outdoor-stair-items" class="grid grid-cols-3 gap-2 mt-1">
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="stair_deck" title="IRC deck stair: 36 in, 36 in guard, frost-depth piers">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">deck</span>
+                            <span class="text-[10px] mt-1 text-center">Deck</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="stair_porch" title="IRC porch stair with a door landing">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">house</span>
+                            <span class="text-[10px] mt-1 text-center">Porch</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="stair_egress" title="IBC exterior egress stair: 44 in, 42 in guards">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">emergency_exit</span>
+                            <span class="text-[10px] mt-1 text-center">Egress</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="stair_apartment" title="R-2 apartment building egress stair">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">apartment</span>
+                            <span class="text-[10px] mt-1 text-center">Apartment</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="stair_concrete" title="Cast concrete walkway stair">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">foundation</span>
+                            <span class="text-[10px] mt-1 text-center">Concrete</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="fire_pole" title="Fireman's pole with guard, mat and warning sign">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">vertical_align_bottom</span>
+                            <span class="text-[10px] mt-1 text-center">Fire pole</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Landscape water features (features/landscape) -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('landscape-items')">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Landscape</h3>
+                        <span class="material-symbols-outlined text-gray-400" id="landscape-items-icon">expand_more</span>
+                    </div>
+                    <div id="landscape-items" class="grid grid-cols-3 gap-2 mt-1">
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="pool" title="Swimming pool with deck, coping and barrier settings">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">pool</span>
+                            <span class="text-[10px] mt-1 text-center">Pool</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="spa" title="Spa / hot tub with jets and a 104 F limit">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">hot_tub</span>
+                            <span class="text-[10px] mt-1 text-center">Spa</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="fountain" title="Fountain basin, pedestal and jet">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">water</span>
+                            <span class="text-[10px] mt-1 text-center">Fountain</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="pond" title="Ornamental pond with liner and rock edging">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">waves</span>
+                            <span class="text-[10px] mt-1 text-center">Pond</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="waterfall" title="Weir wall with a falling water sheet">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">water_damage</span>
+                            <span class="text-[10px] mt-1 text-center">Waterfall</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="water_wall" title="Water wall with a basin and top spout">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">view_stream</span>
+                            <span class="text-[10px] mt-1 text-center">Water wall</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stair suite option bar (features/stairs/panel.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Stair design</h3>
+                        <div class="flex items-center gap-1">
+                            <button onclick="window.addStairFromPanel()" class="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Add the drafted stair at the plan centre">
+                                <span class="material-symbols-outlined text-base text-primary">add</span>
+                            </button>
+                            <button onclick="window.walkStairs()" class="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Walk the stairs in first person (WASD, drag to look, Esc to exit)">
+                                <span class="material-symbols-outlined text-base text-gray-500">directions_walk</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="stair-controls" class="mt-2 space-y-1"></div>
+                    <div id="stair-summary" class="mt-2 max-h-40 overflow-y-auto space-y-0.5 text-[10px] font-mono text-gray-500"></div>
+                    <div class="grid grid-cols-2 gap-1 mt-2">
+                        <button onclick="window.exportStairTakeoff()" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-[11px] font-bold" title="Parts takeoff for the selected or drafted stair">Takeoff CSV</button>
+                        <button onclick="window.refreshStairPanel()" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-[11px] font-bold" title="Re-run the code checks">Check</button>
+                    </div>
+                    <p id="stair-walk-status" class="text-[10px] text-primary mt-1"></p>
+                </div>
+
+                <!-- Landscape option bar (features/landscape/panel.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Water features</h3>
+                        <button onclick="window.addLandscapeFromPanel()" class="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Add the drafted water feature at the plan centre">
+                            <span class="material-symbols-outlined text-base text-primary">add</span>
+                        </button>
+                    </div>
+                    <div id="landscape-controls" class="mt-2 space-y-1"></div>
+                    <div id="landscape-summary" class="mt-2 max-h-40 overflow-y-auto space-y-0.5 text-[10px] font-mono text-gray-500"></div>
+                </div>
+
                 <!-- Merlot Cabinetry line -->
                 <div class="item-category">
                     <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('merlot-items')">

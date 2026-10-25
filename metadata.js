@@ -21,7 +21,36 @@ export const ITEM_METADATA = {
     // Structural
     door: { type: 'in_wall_floor', width: 1.0, depth: 0.15, height: 2.1, color: 0x8b4513 },
     // A stair cuts an opening in the floor of the storey above it (studio 41).
-    stair: { type: 'floor', width: 1.0, depth: 2.6, height: 2.7, color: 0x9ca3af, label: 'Stair' },
+    // The `stair` block is the design config the stair suite reads: type, code,
+    // available space, and for the outdoor presets the system key.
+    stair: {
+        type: 'floor', width: 1.0, depth: 2.6, height: 2.7, color: 0x9ca3af, label: 'Stair',
+        stair: { type: 'straight', code: 'IRC2021', width: 1.0, availableRun: 4.2, availableWidth: 1.2 }
+    },
+    stair_deck: {
+        type: 'floor', width: 0.9144, depth: 4.4, height: 2.7, color: 0x8b5a2b, label: 'Deck stair',
+        stair: { system: 'deck', type: 'straight', code: 'IRC2021', width: 0.9144, availableRun: 4.4, availableWidth: 1.2 }
+    },
+    stair_porch: {
+        type: 'floor', width: 0.9144, depth: 4.4, height: 2.7, color: 0x9a6b3f, label: 'Porch stair',
+        stair: { system: 'porch', type: 'straight', code: 'IRC2021', width: 0.9144, availableRun: 4.4, availableWidth: 1.2 }
+    },
+    stair_egress: {
+        type: 'floor', width: 1.1176, depth: 5.2, height: 2.7, color: 0x475569, label: 'Egress stair',
+        stair: { system: 'egress', type: 'straight', code: 'IBC2021', width: 1.1176, availableRun: 5.2, availableWidth: 1.5 }
+    },
+    stair_apartment: {
+        type: 'floor', width: 1.1176, depth: 5.6, height: 3.0, color: 0x64748b, label: 'Apartment stair',
+        stair: { system: 'apartment', type: 'straight', code: 'IBC2021', width: 1.1176, availableRun: 5.6, availableWidth: 1.6 }
+    },
+    stair_concrete: {
+        type: 'floor', width: 1.524, depth: 6.4, height: 2.7, color: 0xcbd5e1, label: 'Concrete stair',
+        stair: { system: 'concrete', type: 'straight', code: 'IBC2021', width: 1.524, availableRun: 6.4, availableWidth: 1.9 }
+    },
+    fire_pole: {
+        type: 'floor', width: 0.95, depth: 0.95, height: 2.7, color: 0xb45309, label: 'Fire pole',
+        stair: { type: 'fire-pole', code: 'IRC2021', width: 0.95, availableRun: 0.95, availableWidth: 0.95 }
+    },
     // sillHeight = floor to the bottom edge of the unit.
     window: { type: 'in_wall', width: 1.2, depth: 0.15, height: 1.2, color: 0x87ceeb, sillHeight: WINDOW_SILL_HEIGHT, altitude: WINDOW_SILL_HEIGHT },
     round_window: { type: 'in_wall', width: 1.0, depth: 0.15, height: 1.0, color: 0x87ceeb, sillHeight: 1.5, altitude: 1.5, shape: 'circle' },
@@ -99,6 +128,33 @@ export const ITEM_METADATA = {
     patio_table: { type: 'floor', width: 1.0, depth: 1.0, height: 0.7, color: 0x8b4513 },
     patio_chair: { type: 'floor', width: 0.6, depth: 0.6, height: 0.85, color: 0xf5f5dc },
     lounger: { type: 'floor', width: 0.7, depth: 2.0, height: 0.4, color: 0xffffff },
+
+    // Landscape water features (features/landscape). Widths are metres; the
+    // `landscape` block is the design config the geometry and checks read.
+    pool: {
+        type: 'floor', width: 4.0, depth: 9.0, height: 0.1, color: 0x38bdf8, label: 'Pool',
+        landscape: { type: 'pool', code: 'ISPSC2021', shape: 'rectangle', width: 4.0, length: 9.0, shallow: 1.1, deep: 1.9, deck: 1.22, barrier: true }
+    },
+    spa: {
+        type: 'floor', width: 2.4, depth: 2.4, height: 0.5, color: 0x38bdf8, label: 'Spa',
+        landscape: { type: 'spa', code: 'ISPSC2021', shape: 'circular', width: 2.4, length: 2.4, shallow: 0.9, deep: 0.9, deck: 1.0, barrier: true, jets: 6, waterTempF: 102 }
+    },
+    fountain: {
+        type: 'floor', width: 2.4, depth: 2.4, height: 1.2, color: 0x38bdf8, label: 'Fountain',
+        landscape: { type: 'fountain', code: 'ISPSC2021', shape: 'circular', width: 2.4, length: 2.4, shallow: 0.35, deep: 0.45, deck: 0.6, jets: 4, head: 1.2 }
+    },
+    pond: {
+        type: 'floor', width: 3.5, depth: 5.0, height: 0.2, color: 0x0ea5e9, label: 'Pond',
+        landscape: { type: 'pond', code: 'ISPSC2021', shape: 'kidney', width: 3.5, length: 5.0, shallow: 0.45, deep: 0.9, deck: 0.0, aeration: true }
+    },
+    waterfall: {
+        type: 'floor', width: 2.4, depth: 1.2, height: 0.6, color: 0x0ea5e9, label: 'Waterfall',
+        landscape: { type: 'waterfall', code: 'ISPSC2021', shape: 'rectangle', width: 2.4, length: 1.2, shallow: 0.25, deep: 0.4, deck: 0.4, weirLength: 2.4, drop: 0.6 }
+    },
+    water_wall: {
+        type: 'floor', width: 3.0, depth: 0.5, height: 2.4, color: 0x0ea5e9, label: 'Water wall',
+        landscape: { type: 'water-wall', code: 'ISPSC2021', shape: 'rectangle', width: 3.0, length: 0.5, shallow: 0.2, deep: 0.35, deck: 0.4, weirLength: 3.0, drop: 2.4 }
+    },
 
     // Example 3D model items
     shaker: { 

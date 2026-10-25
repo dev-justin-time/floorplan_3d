@@ -49,6 +49,12 @@ export class Item {
         // Parametric cabinet configuration ({ doorStyle, doors, drawers,
         // shelves, toeKick, counter }). null = use the line's fixed builder.
         this.config = null;
+        // Stair design config (run type, code, available space, landings, support,
+        // outdoor system). Copied from the type's metadata so a placed stair
+        // starts with its preset; the stair suite reads it back.
+        this.stair = this.metadata?.stair ? { ...this.metadata.stair } : null;
+        // Landscape water-feature config (type, shape, depths, barrier, turnover).
+        this.landscape = this.metadata?.landscape ? { ...this.metadata.landscape } : null;
     }
     
     setPosition(x, y) {
@@ -77,7 +83,9 @@ export class Item {
             groupId: this.groupId || null,
             defaultBottom: typeof this.defaultBottom === 'number' ? this.defaultBottom : null,
             size: this.size || null,
-            config: this.config ? { ...this.config } : null
+            config: this.config ? { ...this.config } : null,
+            stair: this.stair ? { ...this.stair } : null,
+            landscape: this.landscape ? { ...this.landscape } : null
         };
     }
 }
@@ -253,6 +261,8 @@ export class ItemFactory {
         if (typeof json.defaultBottom === 'number') item.defaultBottom = json.defaultBottom;
         if (json.size && typeof json.size === 'object') item.size = { ...json.size };
         if (json.config && typeof json.config === 'object') item.config = { ...json.config };
+        if (json.stair && typeof json.stair === 'object') item.stair = { ...json.stair };
+        if (json.landscape && typeof json.landscape === 'object') item.landscape = { ...json.landscape };
         return item;
     }
 }

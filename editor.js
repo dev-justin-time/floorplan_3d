@@ -98,6 +98,38 @@ import {
     suggestRun,
     drawStudioOverlays
 } from './features/studio/index.js';
+import {
+    computeStairDesign,
+    computeOutdoorStair,
+    outdoorStairConfig,
+    outdoorSummary,
+    outdoorBomCsv,
+    buildStairAssembly,
+    assemblySummary,
+    getOutdoorSystem,
+    OUTDOOR_SYSTEMS,
+    STAIR_TYPE_LABELS,
+    stairDesignForItem,
+    stairLocalToPlanPoint,
+    isStairItem,
+    drawStairPlan,
+    createStairWalker,
+    findStairClashes,
+    createStairPanel
+} from './features/stairs/index.js';
+import {
+    computeWaterFeature,
+    waterConfigForItem,
+    waterDesignForItem,
+    waterSummary,
+    isWaterFeature,
+    drawWaterPlan,
+    WATER_FEATURE_TYPES,
+    WATER_FEATURE_LABELS,
+    POOL_SHAPES,
+    POOL_SHAPE_LABELS,
+    createLandscapePanel
+} from './features/landscape/index.js';
 
 // Application State
 const AppState = {
@@ -164,6 +196,34 @@ const AppState = {
     projects: [],
     activeProjectId: null,
     activeProjectName: null,
+
+    // Stair and landscape suites: the option-bar draft used until a stair or
+    // water feature is selected, plus the walker state.
+    stairDraft: {
+        system: 'deck',
+        type: 'straight',
+        code: 'IRC2021',
+        width: 0.9144,
+        availableRun: 4.4,
+        availableWidth: 1.2,
+        turnDegrees: 90
+    },
+    landscapeDraft: {
+        type: 'pool',
+        shape: 'rectangle',
+        code: 'ISPSC2021',
+        width: 4,
+        length: 9,
+        shallow: 1.1,
+        deep: 1.9,
+        deck: 1.22,
+        turnoverHours: 6,
+        suctionOutlets: 2,
+        waterTempF: 102,
+        barrier: true
+    },
+    walking: false,
+
     lastConvert: null
 };
 
@@ -188,6 +248,9 @@ let walkthrough = null;
 const walkthroughClock = new THREE.Clock();
 // Studio kit: dirty-flag render loop and the collaboration store.
 let renderLoop = null;
+// Stair suite: first-person walker and its clock.
+let stairWalker = null;
+const stairWalkerClock = new THREE.Clock();
 let collaboration = null;
 
 const ACTIVE_PROJECT_KEY = 'floorplan3d_active_project';
@@ -227,6 +290,8 @@ function init() {
     refreshRoomFloorPanel();
     refreshProjectsPanel();
     refreshCommentsPanel();
+    refreshStairPanel();
+    refreshLandscapePanel();
     
     // Load Autosave
     const saved = StorageManager.loadProject('autosave');
@@ -382,6 +447,32 @@ function init() {
     window.openProject = (id) => openProject(id);
     window.removeProject = (id) => removeProject(id);
     window.refreshProjects = refreshProjectsPanel;
+
+    // --- Stair suite actions ------------------------------------------
+    window.setStairField = (key, value) => applyStairField(key, value);
+    window.addStairFromPanel = () => addStairFromPanel();
+    window.walkStairs = () => toggleStairWalk();
+    window.exportStairTakeoff = () => exportStairTakeoff();
+    window.refreshStairPanel = refreshStairPanel;
+    window.stairKit = {
+        systems: () => OUTDOOR_SYSTEMS,
+        design: () => currentStairDesign(),
+        assembly: () => currentStairAssembly(),
+        clashes: () => findStairClashes(currentStairAssembly(), { walls: AppState.walls }),
+        walker: () => stairWalker,
+        summary: () => assemblySummary(currentStairAssembly())
+    };
+
+    // --- Landscape actions --------------------------------------------
+    window.setLandscapeField = (key, value) => applyLandscapeField(key, value);
+    window.addLandscapeFromPanel = () => addLandscapeFromPanel();
+    window.refreshLandscapePanel = refreshLandscapePanel;
+    window.landscapeKit = {
+        design: () => currentWaterDesign(),
+        rules: () => WATER_FEATURE_TYPES.map((key) => ({ key, label: WATER_FEATURE_LABELS[key] })),
+        summary: () => waterSummary(currentWaterDesign())
+    };
+
     window.addCommentHere = () => addCommentAt(AppState.cursor || planCenter());
     window.resolveComment = (id) => resolveComment(id);
     window.selectComment = (id) => selectComment(id);
@@ -914,6 +1005,10 @@ function syncSelectionPanels() {
         });
         const rotation = document.getElementById('sel-item-rotation');
         if (rotation && document.activeElement !== rotation) rotation.value = Math.round((fixture.rotation * 180) / Math.PI);
+
+        // Stair and water-feature option bars follow the selection.
+        refreshStairPanel();
+        refreshLandscapePanel();
 
         // Parametric cabinet controls (studio feature 44). Any cabinet accepts
         // a config; the first edit switches it off its fixed line builder.
@@ -2179,6 +2274,30 @@ function drawWall(ctx, start, end, isPreview = false, isSelected = false) {
 }
 
 function drawFixture(ctx, f) {
+    // Stairs and water features have their own plan symbols: every tread, the
+    // stair-up arrow, the coping ring and the water surface.
+    const storeyHeight = activeStoreyHeight();
+    if (isStairItem(f)) {
+        drawStairPlan(ctx, f, { storeyHeight, scale: SCALE });
+        if (AppState.selectedFixture?.id === f.id) {
+            const design = stairDesignForItem(f, storeyHeight);
+            const w = design.footprint.width * SCALE;
+            const d = design.footprint.depth * SCALE;
+            ctx.save();
+            ctx.translate(f.x, f.y);
+            ctx.rotate(f.rotation || 0);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.setLineDash([5, 3]);
+            ctx.strokeRect(-w / 2, -d / 2, w, d);
+            ctx.restore();
+        }
+        return;
+    }
+    if (isWaterFeature(f)) {
+        drawWaterPlan(ctx, f, { scale: SCALE });
+        return;
+    }
+
     ctx.save();
     ctx.translate(f.x, f.y);
     ctx.rotate(f.rotation);
@@ -2353,11 +2472,12 @@ function init3D() {
             const controls = AppState.elevationSide ? orthoControls3D : controls3D;
             if (controls) controls.update();
             if (walkthrough) walkthrough.update(walkthroughClock.getDelta());
+            if (stairWalker?.active) stairWalker.update(stairWalkerClock.getDelta());
             if (AppState.viewMode !== '3d') return;
             renderer3D.render(scene3D, activeCamera());
         },
         continuous: () => abilitiesState().dirtyRender === false
-            || Boolean(abilitiesState().walkthrough || abilitiesState().turntable),
+            || Boolean(abilitiesState().walkthrough || abilitiesState().turntable || AppState.walking),
         isActive: () => AppState.viewMode === '3d'
     });
     renderLoop.start();
@@ -3083,4 +3203,90 @@ async function export3D(format) {
         console.error('Scene export failed', error);
         alert(`Export failed: ${error?.message || error}`);
     }
+}
+
+// ------------------------------------------------------------------
+// Stair and landscape suite panels
+// ------------------------------------------------------------------
+
+let stairPanel = null;
+let landscapePanel = null;
+
+function activeStoreyHeight() {
+    return AppState.stories?.[AppState.currentStoryIndex]?.height || WALL_HEIGHT;
+}
+
+function stairPanelApi() {
+    if (!stairPanel) {
+        stairPanel = createStairPanel({
+            getState: () => AppState,
+            getStoreyHeight: activeStoreyHeight,
+            getView: () => ({ width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 }),
+            getCamera: () => camera3D,
+            getRenderer: () => renderer3D,
+            getControls: () => controls3D,
+            getRenderLoop: () => renderLoop,
+            planCenter,
+            save: () => saveAndSync(),
+            setViewMode: (mode) => setViewMode(mode),
+            createItem: (type, x, y, rotation) => ItemFactory.create(type, x, y, rotation)
+        });
+    }
+    return stairPanel;
+}
+
+function landscapePanelApi() {
+    if (!landscapePanel) {
+        landscapePanel = createLandscapePanel({
+            getState: () => AppState,
+            planCenter,
+            save: () => saveAndSync(),
+            createItem: (type, x, y, rotation) => ItemFactory.create(type, x, y, rotation)
+        });
+    }
+    return landscapePanel;
+}
+
+function refreshStairPanel() {
+    return stairPanelApi().refresh();
+}
+
+function applyStairField(key, value) {
+    return stairPanelApi().applyField(key, value);
+}
+
+function addStairFromPanel() {
+    return stairPanelApi().add();
+}
+
+function exportStairTakeoff() {
+    return stairPanelApi().exportTakeoff();
+}
+
+function toggleStairWalk() {
+    return stairPanelApi().toggleWalk();
+}
+
+function currentStairDesign() {
+    return stairPanelApi().design();
+}
+
+function currentStairAssembly() {
+    return stairPanelApi().assembly();
+}
+
+function refreshLandscapePanel() {
+    return landscapePanelApi().refresh();
+}
+
+function applyLandscapeField(key, value) {
+    return landscapePanelApi().applyField(key, value);
+}
+
+function addLandscapeFromPanel() {
+    return landscapePanelApi().add();
+}
+
+function currentWaterDesign() {
+    return landscapePanelApi().design();
 }

@@ -17,9 +17,10 @@ import {
     openingCorners,
     openingsForRoom,
     floorTextureUrl,
-    buildParametricCabinet,
-    buildStairObject
+    buildParametricCabinet
 } from './features/studio/index.js';
+import { buildStairGeometry, isStairItem } from './features/stairs/index.js';
+import { buildWaterFeature, isWaterFeature } from './features/landscape/index.js';
 
 const SCALE = GLOBAL_CONFIG.pixelsPerMeter;
 const ROOM_HEIGHT = GLOBAL_CONFIG.wallHeight;
@@ -244,7 +245,7 @@ export class ConversionEngine3D {
             wallStats.reused += stats.reused;
             wallStats.removed += stats.removed;
 
-            this.addItemsToGroup(storyGroup, story.fixtures, appState.fixtureStyles, canvasWidth, canvasHeight, appState.selectedFixture?.id);
+            this.addItemsToGroup(storyGroup, story.fixtures, appState.fixtureStyles, canvasWidth, canvasHeight, appState.selectedFixture?.id, storyHeight);
 
             // Labels only on the ground floor, from the same measurement data
             // the 2D canvas draws, so both views quote identical numbers.
@@ -465,7 +466,7 @@ export class ConversionEngine3D {
         group.add(ceiling);
     }
 
-    addItemsToGroup(group, fixtures, fixtureStyles, canvasWidth, canvasHeight, selectedId) {
+    addItemsToGroup(group, fixtures, fixtureStyles, canvasWidth, canvasHeight, selectedId, storeyHeight = ROOM_HEIGHT) {
         if (!fixtures) return;
         fixtures.forEach(fixture => {
             // Hidden pieces stay in the model so they can be brought back, but
@@ -479,7 +480,7 @@ export class ConversionEngine3D {
             const sized = fixture.size
                 ? { ...fixture, metadata: { ...fixture.metadata, ...fixture.size } }
                 : fixture;
-            const mesh = this.createItemMesh(sized, style);
+            const mesh = this.createItemMesh(sized, style, storeyHeight);
             if (mesh) {
                 const x = (fixture.x - canvasWidth / 2) / SCALE;
                 const z = (fixture.y - canvasHeight / 2) / SCALE;
@@ -593,7 +594,7 @@ export class ConversionEngine3D {
     }
 
     // FIX 6 Applied: Factory Pattern replacing 400+ line switch statement
-    createItemMesh(fixture, style = {}) {
+    createItemMesh(fixture, style = {}, storeyHeight = ROOM_HEIGHT) {
         const color = style.color || fixture.metadata?.color || 0xffffff;
         const materialParams = { color: new THREE.Color(color) };
 
@@ -639,9 +640,16 @@ export class ConversionEngine3D {
         // model instead of the line's fixed builder, so doors, drawers and
         // shelves follow the inspector.
         let mesh;
-        if (fixture.type === 'stair') {
-            mesh = buildStairObject(THREE, { width, depth, height, material });
-            mesh.userData = { type: 'item', id: fixture.id };
+        if (isStairItem(fixture)) {
+            // The stair suite owns the geometry: code-sized run, automatic
+            // landings, and the outdoor system's structure.
+            mesh = buildStairGeometry(fixture, { storeyHeight, color });
+            mesh.userData = { ...mesh.userData, type: 'item', id: fixture.id };
+        } else if (isWaterFeature(fixture)) {
+            // Pools and water features sit on the grade plane with their coping
+            // at floor level, so no lift is applied unless the user sets one.
+            mesh = buildWaterFeature(fixture);
+            mesh.userData = { ...mesh.userData, type: 'item', id: fixture.id };
         } else if (fixture.config) {
             mesh = buildParametricCabinet({
                 THREE,

@@ -1,0 +1,56 @@
+id,jurisdiction,code_ref,topic,requirement,min_in,max_in,min_mm,max_mm,unit,applies_to,severity,source_url
+POOL-BARRIER-H,ISPSC 2021,305.2,barrier,"Barrier height above grade measured on the outside of the enclosure",48,,1219,,in,Pool / spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-BARRIER-SPHERE,ISPSC 2021,305.2,barrier,"No opening in the barrier may pass a 4 in sphere",,,102,,in,Pool / spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-BARRIER-CLIMB,ISPSC 2021,305.2,barrier,"Barrier has no footholds or handholds; horizontal members at least 45 in apart",45,,1143,,in,Pool / spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-GATE-CLOSE,ISPSC 2021,305.3,barrier,"Gate self-closes and self-latches and opens away from the pool",,,,,,boolean,Pool / spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-GATE-LATCH,ISPSC 2021,305.3,barrier,"Gate latch release height above grade",54,,1372,,in,Pool / spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-DOOR-ALARM,ISPSC 2021,305.4,barrier,"Door with direct pool access has an alarm or self-latching device at 54 in",54,,1372,,in,Pool / spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-ABOVE-GROUND,ISPSC 2021,305.5,barrier,"Above-ground pool barrier or lockable ladder and cover",48,,1219,,in,Above-ground pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-SAFETY-COVER,ASTM F1346,ASTM F1346,barrier,"Safety cover meets ASTM F1346 and supports a 485 lb load",,,,,,standard,Pool / spa,info,https://www.astm.org/f1346-91r18.html
+POOL-DECK-WIDTH,ISPSC 2021,306.1,deck,"Unobstructed deck width around the pool perimeter",48,,1220,,in,Pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-DECK-SLOPE,IRC 2021,R401.3,deck,"Deck slopes 1/4 in per foot away from the pool and building",,,,,,ratio,Pool deck,error,https://up.codes/s/site-grading
+POOL-DEPTH-MIN,ISPSC 2021,306.2,depth,"Minimum water depth at the shallow end",36,,914,,in,Pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-DEPTH-MAX,ISPSC 2021,306.2,depth,"Maximum residential water depth without an engineered diving design",,96,,2438,in,Pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-DIVING-DEPTH,ISPSC 2021,304,depth,"Diving envelope water depth at the board",90,108,2286,2743,in,Diving pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-SLOPE-SHALLOW,ISPSC 2021,306.3,slope,"Shallow-end floor slope run:rise",3,,76,,run:rise,Pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-SLOPE-TRANSITION,ISPSC 2021,306.3,slope,"Transition slope between shallow and deep water",1,,25,,run:rise,Pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-ENTRY,ISPSC 2021,306.4,access,"Steps, ladder or sloped entry at the shallow end; two entries over 30 ft",,,,,,count,Pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-TURNOVER-POOL,ISPSC 2021,326.2,filtration,"Residential pool turnover period",6,8,360,480,hours,Pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-TURNOVER-PUBLIC,ISPSC 2021,326.2,filtration,"Public pool turnover period",4,6,240,360,hours,Public pool,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-TURNOVER-SPA,ISPSC 2021,326.2,filtration,"Spa turnover period",0.5,,30,,hours,Spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-TURNOVER-FEATURE,ISPSC 2021,326.2,filtration,"Fountain and water feature turnover period",1,,60,,hours,Water feature,info,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-SUCTION-COUNT,VGB Act,ISPSC 310.2,suction,"Two suction outlets per pump, at least 3 ft apart",2,,51,,count,Pool / spa,error,https://www.cpsc.gov/Business--Manufacturing/Statutes-Rules-Regulations/Virginia-Graeme-Baker-Pool-and-Spa-Safety-Act
+POOL-SUCTION-SEP,VGB Act,ISPSC 310.2,suction,"Centre-to-centre separation of suction outlets",36,,914,,in,Pool / spa,error,https://www.cpsc.gov/Business--Manufacturing/Statutes-Rules-Regulations/Virginia-Graeme-Baker-Pool-and-Spa-Safety-Act
+POOL-SUCTION-COVER,VGB Act,CPSC 16 CFR 1450,suction,"VGB-listed anti-entrapment cover on every suction outlet",,,,,,standard,Pool / spa,error,https://www.cpsc.gov/Business--Manufacturing/Statutes-Rules-Regulations/Virginia-Graeme-Baker-Pool-and-Spa-Safety-Act
+POOL-SUCTION-VELOCITY,ISPSC 2021,310.3,suction,"Maximum velocity across the drain cover face",,1.5,,38,ft/s,Pool / spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-SVRS,ISPSC 2021,310.2,suction,"SVRS, vent or gravity drain where outlets cannot be duplicated",,,,,,standard,Pool / spa,info,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-SKIMMER,ISPSC 2021,327,filtration,"One skimmer per 400-500 sq ft of surface on the windward side",,,,,,count,Pool,info,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+POOL-BATHERS,ISPSC 2021,421,occupancy,"Water area per bather: 15 sq ft shallow, 20 sq ft deep",15,20,1.4,1.9,sq ft/bather,Pool,info,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-3-general-compliance
+SPA-TEMP,ISPSC 2021,307.4,spa,"Maximum spa water temperature",,104,,40,°F,Spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-6-spas-and-hot-tubs
+SPA-DEPTH,ISPSC 2021,307.1,spa,"Maximum spa water depth",,36,,914,in,Spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-6-spas-and-hot-tubs
+SPA-SHUTOFF,ISPSC 2021,609.4,spa,"Emergency shut-off within 5 ft of the spa",,,,,,count,Spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-6-spas-and-hot-tubs
+SPA-JETS,ISPSC 2021,609,spa,"Jet flow 10-15 gpm per jet; booster pump above filter flow",10,15,,,gpm/jet,Spa,info,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-6-spas-and-hot-tubs
+SPA-SIGNAGE,ISPSC 2021,609.5,spa,"No-lifeguard, temperature and pregnancy warning signs",,,,,,standard,Spa,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-6-spas-and-hot-tubs
+FOUNTAIN-BASIN,ISPSC 2021,702,fountain,"Basin water depth over the intake",6,,150,,in,Fountain,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-7-fountains-and-other-water-features
+FOUNTAIN-SPLASH,ISPSC 2021,702,fountain,"Splash and wind drift contained within the basin or drained deck",,,,,,standard,Fountain,info,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-7-fountains-and-other-water-features
+POND-DEPTH,ISPSC 2021,Appendix,pond,"Ornamental pond depth for fish",24,,610,,in,Pond,error,https://codes.iccsafe.org/s/ISPSC2021P1
+POND-BANK,ISPSC 2021,Appendix,pond,"Pond bank slope with coping to prevent slumping",3,,76,,run:rise,Pond,info,https://codes.iccsafe.org/s/ISPSC2021P1
+POND-LINER,Manufacturer,—,pond,"45 mil EPDM liner or bentonite/clay seal",,,,,,standard,Pond,info,https://www.epa.gov/sites/default/files/2015-11/documents/pondguide.pdf
+POND-AERATION,Manufacturer,—,pond,"Aeration or pump for ponds deeper than 18 in",,,,,,standard,Pond,info,https://www.epa.gov/sites/default/files/2015-11/documents/pondguide.pdf
+WATERFALL-WEIR,Engineering,Sharp-crested weir,waterfall,"Weir flow Q = 3.33 x L(ft) x H(ft)^1.5 (cfs)",1,2,,,gpm/in,Waterfall,info,https://www.engineeringtoolbox.com/weirs-flow-rate-d_592.html
+WATERFALL-LEVEL,Manufacturer,—,waterfall,"Weir lip level within 1/8 in across the spill",,,,,,standard,Waterfall,error,https://www.engineeringtoolbox.com/weirs-flow-rate-d_592.html
+WALL-BASIN,Manufacturer,—,water-wall,"Water-wall basin depth with autofill and overflow",6,,150,,in,Water wall,error,https://codes.iccsafe.org/s/ISPSC2021P1/chapter-7-fountains-and-other-water-features
+NEC-OVERHEAD,NEC 2021,680.8,electrical,"Overhead conductor clearance from the pool edge (up to 750 V)",300,,7620,,ft,Pool,error,https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70
+NEC-OVERHEAD-HV,NEC 2021,680.8,electrical,"Overhead conductor clearance 750 V to 15 kV",324,,8230,,ft,Pool,error,https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70
+NEC-RECEPTACLE-MIN,NEC 2021,680.22,electrical,"Receptacle minimum distance from the pool edge",72,,1829,,in,Pool,error,https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70
+NEC-RECEPTACLE-MAX,NEC 2021,680.22,electrical,"Receptacle maximum distance from the pool edge",,,240,,in,Pool,error,https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70
+NEC-BONDING,NEC 2021,680.26,electrical,"Equipotential bonding conductor size",,,,,8,AWG,Pool,error,https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70
+NEC-GFCI,NEC 2021,680.21,electrical,"GFCI protection for pool pump motors",,,,,,standard,Pool,error,https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70
+NEC-LUMINAIRE,NEC 2021,680.23,electrical,"Luminaires listed for pool use and GFCI protected",,,,,,standard,Pool,error,https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70
+SETBACK-LOCAL,Local zoning,varies,siting,"Pool shell and equipment setback from the property line",60,120,1524,3048,in,Pool,error,https://www.iccsafe.org/
+ADA-POOL-ENTRY,ADA 2010,242 / 1009,access,"Accessible pool entry by lift or sloped entry at a public pool",,,,,,standard,Public pool,error,https://www.access-board.gov/ada/guides/chapter-10-recreation-facilities/
+WATER-PH,ANSI/APSP/ICC-11,Table 1,water,"pH range",7.2,7.8,,,pH,Pool / spa,error,https://www.phta.org/standards-and-codes/
+WATER-CHLORINE,ANSI/APSP/ICC-11,Table 1,water,"Free chlorine range",1,3,,,ppm,Pool,error,https://www.phta.org/standards-and-codes/
+WATER-ALKALINITY,ANSI/APSP/ICC-11,Table 1,water,"Total alkalinity range",80,120,,,ppm,Pool / spa,info,https://www.phta.org/standards-and-codes/
+WATER-CYA,ANSI/APSP/ICC-11,Table 1,water,"Cyanuric acid range",30,50,,,ppm,Pool,info,https://www.phta.org/standards-and-codes/
+WATER-CALCIUM,ANSI/APSP/ICC-11,Table 1,water,"Calcium hardness range",200,400,,,ppm,Pool / spa,info,https://www.phta.org/standards-and-codes/
