@@ -4,6 +4,7 @@ import { ConversionEngine3D } from './3dConversionEngine.js';
 import { FloorPlanGraph } from './floorplan-graph.js';
 import { WALL_HEIGHT } from './world-space.js';
 import { measurePlan, formatLength, formatArea } from './measurements.js';
+import { fitCameraToGraph } from './scene-camera.js';
 
 export class FloorplanSyncDemo {
   constructor(canvas2DId, container3DId, options = {}) {
@@ -74,6 +75,8 @@ export class FloorplanSyncDemo {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.target.set(0, 0.6, 0);
+    this.controls.addEventListener('start', () => { this.userMovedCamera = true; });
+    this.userMovedCamera = false;
 
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.45));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -253,6 +256,15 @@ export class FloorplanSyncDemo {
     };
 
     this.engine.convert(appState, this.view.width, this.view.height);
+
+    // Keep the whole plan framed while it is being drawn; stop once the user
+    // takes over the camera.
+    if (!this.userMovedCamera) this.fitView();
+  }
+
+  /** Frame the plan the same way every scene does. */
+  fitView() {
+    fitCameraToGraph(this.camera, this.controls, this.graph, { targetHeight: WALL_HEIGHT * 0.3 });
   }
 
   reset() {

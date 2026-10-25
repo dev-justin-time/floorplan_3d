@@ -5,6 +5,7 @@ import { ConversionEngine3D } from './3dConversionEngine.js';
 import { graphFromWalls } from './floorplan-graph.js';
 import { measurePlan } from './measurements.js';
 import { WALL_HEIGHT } from './world-space.js';
+import { fitCameraToGraph } from './scene-camera.js';
 
 // Floorplan mini-demos
 import { FloorplanSyncDemo } from './demo-floorplan-sync.js';
@@ -376,6 +377,14 @@ function update3DFrom2D() {
   };
 
   conversionEngine.convert(appState, blueprintCanvas.width, blueprintCanvas.height);
+
+  // Frame the first non-empty plan, then leave the camera to the user.
+  if (!AppState.hasFramed3D && graph.edges.length > 0 && camera3D && controls3D) {
+    fitCameraToGraph(camera3D, controls3D, graph, { targetHeight: WALL_HEIGHT * 0.45 });
+    AppState.hasFramed3D = true;
+  }
+  if (graph.edges.length === 0) AppState.hasFramed3D = false;
+
   walkObstacles.length = 0;
   scene3D.traverse((object) => {
     if (object.isMesh && object.visible) walkObstacles.push(object);

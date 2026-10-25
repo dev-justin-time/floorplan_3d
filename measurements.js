@@ -20,6 +20,11 @@ export function wallMeasurements(graph) {
 
 /** Shoelace area of a closed polygon in metres squared. */
 export function polygonArea(points) {
+    return Math.abs(signedArea(points));
+}
+
+/** Shoelace sum; the sign tells the winding direction. */
+export function signedArea(points) {
     if (!points || points.length < 3) return 0;
     let sum = 0;
     for (let i = 0; i < points.length; i++) {
@@ -27,7 +32,7 @@ export function polygonArea(points) {
         const b = points[(i + 1) % points.length];
         sum += a.x * b.z - b.x * a.z;
     }
-    return Math.abs(sum) / 2;
+    return sum / 2;
 }
 
 export function polygonCentroid(points) {
@@ -88,8 +93,12 @@ export function findRooms(graph) {
 
             if (loop.length < 3) continue;
 
-            const area = polygonArea(loop);
-            if (area < 1e-6) continue;
+            // The face walk yields bounded faces with one winding and the
+            // unbounded outer ring with the other; only keep the bounded ones.
+            const signed = signedArea(loop);
+            if (signed <= 1e-6) continue;
+
+            const area = signed;
 
             rooms.push({
                 id: `room_${rooms.length + 1}`,

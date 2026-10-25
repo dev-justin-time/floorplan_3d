@@ -18,11 +18,19 @@ loadingManager.onLoad = () => console.log('All textures loaded');
 const textureLoader = new THREE.TextureLoader(loadingManager);
 const loadedTextures = {};
 
-// 1x1 white texture: a map that failed to load samples black, so materials fall
-// back to this and keep their base colour.
-const WHITE_PIXEL = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
-WHITE_PIXEL.colorSpace = THREE.SRGBColorSpace;
-WHITE_PIXEL.needsUpdate = true;
+// A texture that failed to load samples black. Swapping the image for a 1x1
+// white canvas keeps the material's base colour instead.
+let whitePixelCanvas = null;
+function getWhitePixelImage() {
+    if (whitePixelCanvas) return whitePixelCanvas;
+    whitePixelCanvas = document.createElement('canvas');
+    whitePixelCanvas.width = 1;
+    whitePixelCanvas.height = 1;
+    const ctx = whitePixelCanvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 1, 1);
+    return whitePixelCanvas;
+}
 
 function loadTexture(url) {
     if (!url) return null;
@@ -40,14 +48,10 @@ function loadTexture(url) {
         undefined,
         () => {
             console.warn(`Failed to load texture ${url}, using flat colour`);
-            // Point this texture at a 1x1 white source so every material that
-            // already references it renders its base colour instead of black.
-            if (WHITE_PIXEL.source) {
-                texture.source = WHITE_PIXEL.source;
-                texture.needsUpdate = true;
-            } else {
-                texture.image = undefined;
-            }
+            // Materials already reference this texture, so fixing its image is
+            // enough to turn every one of them into its plain base colour.
+            texture.image = getWhitePixelImage();
+            texture.needsUpdate = true;
         }
     );
     return texture;
@@ -113,7 +117,7 @@ export class ConversionEngine3D {
         const mesh = this.meshes.find(m => m.userData.id === item.id);
         if (mesh) {
             const x = (item.x - canvasWidth / 2) / SCALE;
-            const z = -(item.y - canvasHeight / 2) / SCALE;
+            const z = (item.y - canvasHeight / 2) / SCALE;
             mesh.position.set(x, mesh.position.y, z);
             mesh.rotation.y = -item.rotation;
             
@@ -194,9 +198,9 @@ export class ConversionEngine3D {
         let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
         walls.forEach(wall => {
             const x1 = (wall.start.x - canvasWidth / 2) / SCALE;
-            const z1 = -(wall.start.y - canvasHeight / 2) / SCALE;
+            const z1 = (wall.start.y - canvasHeight / 2) / SCALE;
             const x2 = (wall.end.x - canvasWidth / 2) / SCALE;
-            const z2 = -(wall.end.y - canvasHeight / 2) / SCALE;
+            const z2 = (wall.end.y - canvasHeight / 2) / SCALE;
             minX = Math.min(minX, x1, x2); maxX = Math.max(maxX, x1, x2);
             minZ = Math.min(minZ, z1, z2); maxZ = Math.max(maxZ, z1, z2);
         });
@@ -212,12 +216,12 @@ export class ConversionEngine3D {
         shape.lineTo(width / 2, 0);
         shape.lineTo(-width / 2, 0);
 
+        // The profile is built in XY (width across X, pitch up Y) and extruded
+        // along +Z, which already matches world axes: no rotation needed.
         const geometry = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: false });
         const material = new THREE.MeshStandardMaterial({ color: 0x8a4b38, roughness: 0.9 });
         const roof = new THREE.Mesh(geometry, material);
-        
-        roof.rotation.x = -Math.PI / 2;
-        roof.rotation.z = Math.PI / 2;
+
         roof.position.set(minX - overhang + width / 2, elevation, minZ - overhang);
         
         roof.castShadow = true;
@@ -239,7 +243,17 @@ export class ConversionEngine3D {
         dir.position.set(10, 15, 10);
         dir.castShadow = true;
         dir.shadow.mapSize.set(2048, 2048);
-        dir.shadow.bias = -0.0001;
+        // The floor is 40 m across: with the default +/-5 shadow box everything
+        // outside it samples the map edge and renders as if fully shadowed.
+        dir.shadow.camera.left = -22;
+        dir.shadow.camera.right = 22;
+        dir.shadow.camera.top = 22;
+        dir.shadow.camera.bottom = -22;
+        dir.shadow.camera.near = 1;
+        dir.shadow.camera.far = 70;
+        dir.shadow.camera.updateProjectionMatrix();
+        dir.shadow.bias = -0.0005;
+        dir.shadow.normalBias = 0.02;
         this.scene.add(dir); this.meshes.push(dir);
     }
 
@@ -270,7 +284,7 @@ export class ConversionEngine3D {
             const mesh = this.createItemMesh(fixture, style);
             if (mesh) {
                 const x = (fixture.x - canvasWidth / 2) / SCALE;
-                const z = -(fixture.y - canvasHeight / 2) / SCALE;
+                const z = (fixture.y - canvasHeight / 2) / SCALE;
                 mesh.position.set(x, mesh.position.y, z);
                 mesh.rotation.y = -fixture.rotation;
                 
@@ -335,7 +349,7 @@ export class ConversionEngine3D {
             
             const wallBrush = new Brush(wallGeo, wallMaterial);
             wallBrush.userData = { id: wall.id, type: 'wall' };
-            wallBrush.position.set(cx, wallHeight / 2, -cz);
+            wallBrush.position.set(cx, wallHeight / 2, cz);
             wallBrush.rotation.y = -angle;
             wallBrush.updateMatrixWorld();
 
@@ -354,7 +368,7 @@ export class ConversionEngine3D {
 
                     const holeBrush = new Brush(holeGeo);
                     const hx = (hole.x - canvasWidth / 2) / SCALE;
-                    const hz = -(hole.y - canvasHeight / 2) / SCALE;
+                    const hz = (hole.y - canvasHeight / 2) / SCALE;
                     
                     let hy = h / 2; 
                     if (hole.type === 'window' || hole.type === 'round_window') hy = hole.metadata?.altitude || 1.0;

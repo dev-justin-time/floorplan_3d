@@ -10,6 +10,7 @@ import { FloorPlanProcessor } from './floorPlanProcessor.js';
 import { graphFromWalls } from './floorplan-graph.js';
 import { measurePlan } from './measurements.js';
 import { WALL_HEIGHT } from './world-space.js';
+import { fitCameraToGraph } from './scene-camera.js';
 
 // Application State
 const AppState = {
@@ -484,7 +485,14 @@ function update3D() {
     // Pass canvas dimensions to center the model correctly
     // conversionEngine calculates: (x - width/2) / SCALE
     // So by passing blueprintCanvas.width, we align logical center to 3D origin
-    conversionEngine.convert(engineState, blueprintCanvas.width, blueprintCanvas.height); 
+    conversionEngine.convert(engineState, blueprintCanvas.width, blueprintCanvas.height);
+
+    // Frame the first non-empty plan, then leave the camera to the user.
+    if (!AppState.hasFramed3D && graph.edges.length > 0 && camera3D && controls3D) {
+        fitCameraToGraph(camera3D, controls3D, graph, { targetHeight: WALL_HEIGHT * 0.45 });
+        AppState.hasFramed3D = true;
+    }
+    if (graph.edges.length === 0) AppState.hasFramed3D = false;
 }
 
 function animate3D() {

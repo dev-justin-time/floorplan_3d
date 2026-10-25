@@ -6,7 +6,7 @@
  *   up axis      +y, height above the floor
  *   plan origin  world origin, on the floor plane
  *   plan x       -> world x   (+ to the right)
- *   plan y       -> world z   (canvas y grows downwards, so world z is negated)
+ *   plan y       -> world z   (canvas y grows downwards, which is +z towards the viewer)
  *
  * A 2D canvas is centred on the plan origin: its middle pixel is (0, 0) in plan
  * metres, at PIXELS_PER_METER pixels per metre.
@@ -32,7 +32,7 @@ export const metresToPixels = (metres) => metres * PIXELS_PER_METER;
 export function canvasToPlan(point, view) {
     return {
         x: (point.x - view.width / 2) / PIXELS_PER_METER,
-        z: -(point.y - view.height / 2) / PIXELS_PER_METER
+        z: (point.y - view.height / 2) / PIXELS_PER_METER
     };
 }
 
@@ -40,7 +40,7 @@ export function canvasToPlan(point, view) {
 export function planToCanvas(point, view) {
     return {
         x: point.x * PIXELS_PER_METER + view.width / 2,
-        y: -point.z * PIXELS_PER_METER + view.height / 2
+        y: point.z * PIXELS_PER_METER + view.height / 2
     };
 }
 

@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DEFAULT_ROOM_SIZE, WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
+import { fitCameraToBounds } from './scene-camera.js';
 
 class SharedViewer {
     constructor() {
@@ -82,10 +83,19 @@ class SharedViewer {
         this.floorplanControls = new OrbitControls(this.floorplanCamera, this.floorplanRenderer.domElement);
         this.floorplanControls.enableDamping = true;
         this.floorplanControls.dampingFactor = 0.06;
-        this.floorplanControls.target.set(0, 0.9, 0);
+        this.floorplanControls.maxPolarAngle = Math.PI / 2.05;
+
+        // Same framing as the plan-driven scenes: one orbit direction, plan
+        // centred, whole footprint in view.
+        const half = DEFAULT_ROOM_SIZE / 2;
+        fitCameraToBounds(
+            this.floorplanCamera,
+            this.floorplanControls,
+            { minX: -half, maxX: half, minZ: -half, maxZ: half },
+            { padding: 1.02, targetHeight: WALL_HEIGHT * 0.35 }
+        );
         this.floorplanControls.minDistance = 4;
         this.floorplanControls.maxDistance = 26;
-        this.floorplanControls.maxPolarAngle = Math.PI / 2.05;
 
         this.setupEnvironment();
         this.setupLights();
