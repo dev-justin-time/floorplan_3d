@@ -270,6 +270,9 @@ export class ConversionEngine3D {
     addItemsToGroup(group, fixtures, fixtureStyles, canvasWidth, canvasHeight, selectedId) {
         if (!fixtures) return;
         fixtures.forEach(fixture => {
+            // Hidden pieces stay in the model so they can be brought back, but
+            // they are not built into the scene.
+            if (fixture.visible === false) return;
             const style = (fixtureStyles && fixtureStyles[fixture.id]) || {};
             const mesh = this.createItemMesh(fixture, style);
             if (mesh) {
@@ -334,7 +337,11 @@ export class ConversionEngine3D {
             const length = Math.sqrt(dx * dx + dy * dy);
             const angle = Math.atan2(dy, dx);
 
-            const wallGeo = new THREE.BoxGeometry(length, wallHeight, WALL_THICKNESS);
+            // A wall can carry its own height (half walls, gables); otherwise it
+            // rises with the storey.
+            const height = typeof wall.height === 'number' && wall.height > 0 ? wall.height : wallHeight;
+
+            const wallGeo = new THREE.BoxGeometry(length, height, WALL_THICKNESS);
             const cx = ((wall.start.x + wall.end.x) / 2 - canvasWidth / 2) / SCALE;
             const cz = ((wall.start.y + wall.end.y) / 2 - canvasHeight / 2) / SCALE;
 
@@ -343,7 +350,7 @@ export class ConversionEngine3D {
             
             const wallBrush = new Brush(wallGeo, wallMaterial);
             wallBrush.userData = { id: wall.id, type: 'wall' };
-            wallBrush.position.set(cx, wallHeight / 2, cz);
+            wallBrush.position.set(cx, height / 2, cz);
             wallBrush.rotation.y = -angle;
             wallBrush.updateMatrixWorld();
 

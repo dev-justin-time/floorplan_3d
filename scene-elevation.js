@@ -169,7 +169,8 @@ export function createElevationDrag({
 
             const fixture = (getFixtures() || []).find((f) => f.id === id);
             const object = getObject(id);
-            if (!fixture || !object) return;
+            // Locked and hidden pieces cannot be lifted either.
+            if (!fixture || !object || fixture.locked || fixture.visible === false) return;
 
             const axes = elevationAxes(side);
             const box = new THREE.Box3().setFromObject(object);

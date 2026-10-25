@@ -105,8 +105,13 @@
             }
 
             async function resolve(url) {
-                for (const candidate of [url, url + '.js', url + '.jsx', url + '.ts', url + '.tsx']) {
-                    if (await exists(candidate)) return candidate;
+                if (/\.[a-z0-9]+$/i.test(url)) {
+                    if (await exists(url)) return url;
+                } else {
+                    for (const ext of ['.js', '.jsx', '.ts', '.tsx']) {
+                        if (await exists(url + ext)) return url + ext;
+                    }
+                    if (await exists(url)) return url;
                 }
                 throw new Error('Cannot resolve module: ' + url);
             }

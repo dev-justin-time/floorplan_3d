@@ -5,8 +5,54 @@ import KitchenScene from './KitchenScene';
 import Cutlist from './Cutlist';
 import ControlPanel from './ControlPanel';
 import ViewControls from './ViewControls';
+import SceneLabPanel from './SceneLabPanel.jsx';
+
+import LabPathfinding from './LabPathfinding.js';
+import LabGLTFExport from './LabGLTFExport.js';
+import LabDracoCompression from './LabDracoCompression.js';
+import LabInstancing from './LabInstancing.js';
+import LabPostProcessing from './LabPostProcessing.js';
+import LabReactSpring from './LabReactSpring.js';
+import LabUpload from './LabUpload.js';
+import LabShaker3DViewer from './LabShaker3DViewer.js';
+import LabShakerPhysics from './LabShakerPhysics.js';
+import LabShakerAR from './LabShakerAR.js';
+import LabR3FWebGPUFloorplan from './LabR3FWebGPUFloorplan.js';
+import LabWebGPUReactDemo from './LabWebGPUReactDemo.js';
 
 import { FloorPlanProcessor } from './floorPlanProcessor.js';
+
+// Every lab keeps its own implementation; the panel either drives the merged
+// version in the main scene or opens the original demo full size.
+const LAB_COMPONENTS = {
+  pathfinding: LabPathfinding,
+  gltf: LabGLTFExport,
+  draco: LabDracoCompression,
+  instancing: LabInstancing,
+  postfx: LabPostProcessing,
+  spring: LabReactSpring,
+  upload: LabUpload,
+  viewer: LabShaker3DViewer,
+  physics: LabShakerPhysics,
+  ar: LabShakerAR,
+  r3f: LabR3FWebGPUFloorplan,
+  webgpu: LabWebGPUReactDemo
+};
+
+const LAB_LIST = [
+  { key: 'pathfinding', label: 'Pathfinding' },
+  { key: 'gltf', label: 'GLTF export' },
+  { key: 'draco', label: 'DRACO' },
+  { key: 'instancing', label: 'Instancing' },
+  { key: 'postfx', label: 'Post FX' },
+  { key: 'spring', label: 'Spring' },
+  { key: 'upload', label: 'Upload plan' },
+  { key: 'viewer', label: '3D viewer' },
+  { key: 'physics', label: 'Shake' },
+  { key: 'ar', label: 'AR' },
+  { key: 'r3f', label: 'R3F plan' },
+  { key: 'webgpu', label: 'WebGPU' }
+];
 
 export default function App() {
   // --- State Management ---
@@ -29,6 +75,22 @@ export default function App() {
   });
 
   const [notification, setNotification] = useState(null);
+  const [sidebarTab, setSidebarTab] = useState('design');
+  const [openLab, setOpenLab] = useState(null);
+  const exporters = useRef(null);
+
+  // Merged lab abilities for the main scene. All opt-in, all default off.
+  const [sceneLabs, setSceneLabs] = useState({
+    effects: { bloom: false, dof: false, vignette: false },
+    spring: false,
+    instances: 0,
+    shaker: { visible: false, shaking: false, intensity: 0.5 },
+    agent: false
+  });
+  const updateSceneLabs = useCallback((patch) => {
+    setSceneLabs((prev) => ({ ...prev, ...patch }));
+  }, []);
+  const agentCabinet = cabinets.find((cabinet) => cabinet.id === selectedCabinet) || null;
   
   // --- Refs ---
   const controlsRef = useRef(null);
@@ -266,6 +328,13 @@ export default function App() {
               onControlsRef={controlsRef}
               room={project.room}
               viewMode={viewMode}
+              effects={sceneLabs.effects}
+              spring={sceneLabs.spring}
+              instances={sceneLabs.instances}
+              shaker={sceneLabs.shaker}
+              agent={sceneLabs.agent}
+              agentTarget={agentCabinet ? agentCabinet.position : null}
+              exporters={exporters}
             />
           </Canvas>
           
@@ -281,23 +350,63 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right Pane: Controls & Cutlist */}
+        {/* Right Pane: Controls, Cutlist and the lab abilities */}
         <aside className="w-96 bg-white border-l border-gray-200 flex flex-col shadow-xl z-20">
-          <ControlPanel
-            project={project}
-            setProject={setProject}
-            selectedCabinet={selectedCabinet}
-            cabinets={cabinets}
-            addCabinet={addCabinet}
-            removeCabinet={removeCabinet}
-            updateCabinet={updateCabinet}
-          />
-          <div className="flex-1 overflow-y-auto border-t border-gray-200">
-            <Cutlist cabinets={cabinets} />
+          <div className="flex border-b border-gray-200 flex-shrink-0">
+            {['design', 'labs'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setSidebarTab(tab)}
+                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${sidebarTab === tab ? 'text-cyan-700 border-b-2 border-cyan-500 bg-cyan-50/50' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                {tab === 'design' ? 'Design' : 'Scene Labs'}
+              </button>
+            ))}
           </div>
+
+          {sidebarTab === 'design' ? (
+            <>
+              <ControlPanel
+                project={project}
+                setProject={setProject}
+                selectedCabinet={selectedCabinet}
+                cabinets={cabinets}
+                addCabinet={addCabinet}
+                removeCabinet={removeCabinet}
+                updateCabinet={updateCabinet}
+              />
+              <div className="flex-1 overflow-y-auto border-t border-gray-200">
+                <Cutlist cabinets={cabinets} />
+              </div>
+            </>
+          ) : (
+            <SceneLabPanel
+              scene={sceneLabs}
+              update={updateSceneLabs}
+              exporters={exporters}
+              labs={LAB_LIST}
+              onOpenLab={setOpenLab}
+              targetName={agentCabinet ? agentCabinet.name : null}
+            />
+          )}
         </aside>
         
       </main>
+
+      {/* Demo labs that need their own canvas open here, unchanged. */}
+      {openLab && LAB_COMPONENTS[openLab] && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setOpenLab(null)}>
+          <div className="w-full max-w-5xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-white text-sm font-bold">{LAB_LIST.find((lab) => lab.key === openLab)?.label}</p>
+              <button onClick={() => setOpenLab(null)} className="px-3 py-1 rounded-md bg-white/90 text-xs font-bold text-gray-800 hover:bg-white">Close</button>
+            </div>
+            {React.createElement(LAB_COMPONENTS[openLab], {
+              onUpload: (result) => showNotification(`${result.walls.length} walls detected`, 'success')
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

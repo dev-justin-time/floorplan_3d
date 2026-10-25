@@ -25,6 +25,8 @@ const AppState = {
     walls: [],
     fixtures: [],
     selectedFixture: null,
+    // Selected wall id; drives the wall highlight in 2D/3D and the inspector.
+    selectedWallId: null,
     drag: null,
     
     // Settings
@@ -100,6 +102,34 @@ function init() {
     window.setElevationView = setElevationView;
     window.toggleDimensions = () => { AppState.showDimensions = !AppState.showDimensions; draw2D(); };
     window.toggleCeiling = () => { AppState.showCeiling = !AppState.showCeiling; update3D(); };
+    window.toggleRoof = () => { AppState.showRoof = !AppState.showRoof; update3D(); };
+    window.setWallHeight = (value) => {
+        const wall = selectedWall();
+        const height = parseFloat(value);
+        if (!wall || !Number.isFinite(height) || height <= 0) return;
+        wall.height = height;
+        saveAndSync();
+    };
+    window.deleteSelectedWall = deleteSelectedWall;
+    window.deleteSelected = deleteSelected;
+    window.duplicateSelected = duplicateSelected;
+    window.toggleSelectedVisibility = () => {
+        const fixture = AppState.selectedFixture;
+        if (!fixture) return;
+        fixture.visible = fixture.visible === false;
+        // A hidden piece cannot be dragged or gizmo'd.
+        if (fixture.visible === false) AppState.drag = null;
+        saveAndSync();
+        refreshGizmo();
+    };
+    window.toggleSelectedLock = () => {
+        const fixture = AppState.selectedFixture;
+        if (!fixture) return;
+        fixture.locked = !fixture.locked;
+        if (fixture.locked) AppState.drag = null;
+        saveAndSync();
+        refreshGizmo();
+    };
     window.exportProject = exportProject;
     window.export3D = export3D;
     window.setBgScale = (val) => {
@@ -184,9 +214,15 @@ function onPointerDown(e) {
     } else if (AppState.currentTool === 'select') {
         const fixture = fixtureAt(AppState.fixtures, pos, { slack: 10 / AppState.scale });
         AppState.selectedFixture = fixture;
-        AppState.drag = beginDrag(fixture, pos);
+        AppState.selectedWallId = fixture ? null : wallAt(pos);
+
+        // Locked (or hidden) pieces can be selected and inspected, but never
+        // dragged until they are unlocked.
+        const movable = fixture && !fixture.locked && fixture.visible !== false;
+        AppState.drag = movable ? beginDrag(fixture, pos) : null;
         draw2D(pos);
         refreshGizmo();
+        syncSelectionPanels();
     } else if (AppState.currentTool) {
         // Place item
         const item = ItemFactory.create(AppState.currentTool, pos.x, pos.y);
@@ -320,6 +356,120 @@ function deleteObjectAt(x, y) {
     }
 }
 
+// ------------------------------------------------------------------
+// Selection: walls and item actions
+// ------------------------------------------------------------------
+
+function distanceToSegment(point, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const lengthSq = dx * dx + dy * dy;
+    if (lengthSq === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+
+    const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq));
+    return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+}
+
+/** Id of the wall within a few screen pixels of a plan point, or null. */
+function wallAt(pos) {
+    const threshold = 12 / AppState.scale;
+    let closest = null;
+    let closestDistance = Infinity;
+
+    AppState.walls.forEach((wall) => {
+        const distance = distanceToSegment(pos, wall.start, wall.end);
+        if (distance < threshold && distance < closestDistance) {
+            closest = wall.id;
+            closestDistance = distance;
+        }
+    });
+
+    return closest;
+}
+
+function selectedWall() {
+    return AppState.walls.find((wall) => wall.id === AppState.selectedWallId) || null;
+}
+
+function setPanelText(id, text) {
+    const node = document.getElementById(id);
+    if (node) node.textContent = text;
+}
+
+/** Mirrors the current fixture/wall selection into the sidebar inspector. */
+function syncSelectionPanels() {
+    const itemPane = document.getElementById('selection-item');
+    const wallPane = document.getElementById('selection-wall');
+    const emptyPane = document.getElementById('selection-empty');
+    if (!itemPane || !wallPane) return;
+
+    const fixture = AppState.selectedFixture;
+    const wall = selectedWall();
+
+    itemPane.classList.toggle('hidden', !fixture);
+    wallPane.classList.toggle('hidden', !wall);
+    if (emptyPane) emptyPane.classList.toggle('hidden', !!(fixture || wall));
+
+    if (fixture) {
+        setPanelText('sel-item-name', fixture.metadata?.label || fixture.type.replace(/_/g, ' '));
+        setPanelText('sel-item-pos', `${(fixture.x / SCALE).toFixed(2)} , ${(fixture.y / SCALE).toFixed(2)} m`);
+        setPanelText('sel-item-elev', `${(fixture.elevation || 0).toFixed(2)} m`);
+        setPanelText('sel-item-visible', fixture.visible === false ? 'Show' : 'Hide');
+        setPanelText('sel-item-lock', fixture.locked ? 'Unlock' : 'Lock');
+    }
+
+    if (wall) {
+        setPanelText('sel-wall-len', `${(wall.length / SCALE).toFixed(2)} m`);
+        const heightInput = document.getElementById('sel-wall-height');
+        if (heightInput && document.activeElement !== heightInput) {
+            heightInput.value = (wall.height ?? 2.7).toFixed(1);
+        }
+    }
+}
+
+function duplicateSelected() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+
+    const data = fixture.toJSON();
+    delete data.id; // let the factory mint a fresh id
+    data.x = fixture.x + 0.3 * SCALE;
+    data.y = fixture.y + 0.3 * SCALE;
+    const copy = ItemFactory.fromJSON(data);
+
+    if (AppState.fixtureStyles[fixture.id]) {
+        AppState.fixtureStyles[copy.id] = { ...AppState.fixtureStyles[fixture.id] };
+    }
+
+    AppState.fixtures.push(copy);
+    AppState.selectedFixture = copy;
+    AppState.selectedWallId = null;
+    saveAndSync();
+}
+
+function deleteSelected() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return;
+
+    AppState.fixtures = AppState.fixtures.filter((item) => item.id !== fixture.id);
+    delete AppState.fixtureStyles[fixture.id];
+    AppState.selectedFixture = null;
+    saveAndSync();
+}
+
+function deleteSelectedWall() {
+    const wall = selectedWall();
+    if (!wall) return;
+
+    AppState.walls = AppState.walls.filter((item) => item.id !== wall.id);
+    // Openings lose their host wall rather than disappearing with it.
+    AppState.fixtures.forEach((fixture) => {
+        if (fixture.boundToWallId === wall.id) fixture.boundToWallId = null;
+    });
+    AppState.selectedWallId = null;
+    saveAndSync();
+}
+
 function draw2D(cursorPos = null) {
     const ctx = blueprintCtx;
     if (!ctx) return;
@@ -351,7 +501,7 @@ function draw2D(cursorPos = null) {
     }
     
     // Walls
-    AppState.walls.forEach(wall => drawWall(ctx, wall.start, wall.end));
+    AppState.walls.forEach(wall => drawWall(ctx, wall.start, wall.end, false, wall.id === AppState.selectedWallId));
     
     // Wall Preview
     if (AppState.isDrawing && AppState.wallStart && cursorPos) {
@@ -399,18 +549,18 @@ function drawGrid(ctx, w, h) {
     ctx.stroke();
 }
 
-function drawWall(ctx, start, end, isPreview = false) {
+function drawWall(ctx, start, end, isPreview = false, isSelected = false) {
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = isPreview ? '#9ca3af' : '#2563eb';
+    ctx.lineWidth = isSelected ? 9 : 6;
+    ctx.strokeStyle = isPreview ? '#9ca3af' : (isSelected ? '#f59e0b' : '#2563eb');
     if (isPreview) ctx.setLineDash([10, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
     
     // Endpoints
-    ctx.fillStyle = isPreview ? '#9ca3af' : '#1e40af';
+    ctx.fillStyle = isPreview ? '#9ca3af' : (isSelected ? '#b45309' : '#1e40af');
     ctx.beginPath(); ctx.arc(start.x, start.y, 4, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc(end.x, end.y, 4, 0, Math.PI*2); ctx.fill();
     
@@ -445,6 +595,21 @@ function drawFixture(ctx, f) {
     const d = (f.metadata.depth || 0.5) * SCALE;
     
     const isSelected = AppState.selectedFixture && AppState.selectedFixture.id === f.id;
+    const isHidden = f.visible === false;
+
+    if (isHidden) {
+        // Draw hidden pieces as a dashed outline so they can still be found and
+        // brought back, without pretending to be part of the plan.
+        ctx.setLineDash([6, 4]);
+        ctx.globalAlpha = 0.45;
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-w / 2, -d / 2, w, d);
+        ctx.globalAlpha = 1;
+        ctx.setLineDash([]);
+        ctx.restore();
+        return;
+    }
 
     const metaColor = f.metadata?.color != null
         ? '#' + f.metadata.color.toString(16).padStart(6, '0')
@@ -592,7 +757,7 @@ function findItemObject(id) {
 function refreshGizmo() {
     if (!itemGizmo) return;
     const fixture = AppState.selectedFixture;
-    if (!fixture || AppState.viewMode !== '3d' || AppState.elevationSide) {
+    if (!fixture || fixture.locked || fixture.visible === false || AppState.viewMode !== '3d' || AppState.elevationSide) {
         itemGizmo.detach();
         return;
     }
@@ -605,9 +770,11 @@ function selectItemAtPointer(event) {
     if (!scene3D || !renderer3D) return;
     const id = pickItemId(scene3D, activeCamera(), renderer3D.domElement, event);
     AppState.selectedFixture = id ? AppState.fixtures.find((f) => f.id === id) || null : null;
+    if (AppState.selectedFixture) AppState.selectedWallId = null;
     if (AppState.selectedFixture) AppState.currentTool = 'select';
     draw2D();
     refreshGizmo();
+    syncSelectionPanels();
 }
 
 function setGizmoMode(mode) {
@@ -779,7 +946,14 @@ function setupEventListeners() {
     // Keyboard Shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT') return; // Ignore if typing
-        
+
+        // Ctrl/Cmd+D duplicates the selection (before the D delete-tool shortcut).
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+            e.preventDefault();
+            duplicateSelected();
+            return;
+        }
+
         switch(e.key.toLowerCase()) {
             case 'w': setTool('wall'); setActiveToolBtn('wall'); break;
             case 'd': setTool('delete'); setActiveToolBtn('delete'); break;
@@ -790,6 +964,8 @@ function setupEventListeners() {
                 break;
             case 'g': setGizmoMode('translate'); break;
             case 'r': setGizmoMode('rotate'); break;
+            case 'l': window.toggleSelectedLock(); break;
+            case 'h': window.toggleSelectedVisibility(); break;
             case 'z':
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
@@ -1049,6 +1225,7 @@ function saveAndSync() {
     stateManager.saveState();
     update3D();
     draw2D();
+    syncSelectionPanels();
     saveToStorage();
 }
 

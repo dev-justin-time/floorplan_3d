@@ -87,6 +87,13 @@
                             </div>
                             <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Ceiling</span>
                         </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none" title="Toggle Roof">
+                            <div class="relative">
+                                <input type="checkbox" id="roof-toggle" class="sr-only peer" onchange="window.toggleRoof()">
+                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Roof</span>
+                        </label>
                     </div>
                 </div>
                 <div class="flex gap-2">
@@ -159,6 +166,65 @@
                             <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-orange-500 mb-1">delete_sweep</span>
                             <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-orange-500">Clear</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Selection inspector: walls and items -->
+                <div class="item-category">
+                    <div class="item-category-header pb-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Selection</h3>
+                    </div>
+                    <div class="mt-3 space-y-2">
+                        <p id="selection-empty" class="text-xs text-gray-400">Select an object or a wall to inspect it.</p>
+
+                        <div id="selection-item" class="hidden space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span id="sel-item-name" class="text-sm font-bold capitalize text-gray-800 dark:text-gray-100">-</span>
+                                <span class="text-[10px] uppercase tracking-wide text-gray-400">item</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                    <span class="block text-[10px] uppercase text-gray-400">Position</span>
+                                    <span id="sel-item-pos" class="font-mono text-gray-700 dark:text-gray-200">-</span>
+                                </div>
+                                <div>
+                                    <span class="block text-[10px] uppercase text-gray-400">Lift</span>
+                                    <span id="sel-item-elev" class="font-mono text-gray-700 dark:text-gray-200">-</span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="window.toggleSelectedVisibility()" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors" title="Hide or show the selected item (H)">
+                                    <span class="material-symbols-outlined text-base text-gray-600 dark:text-gray-300">visibility</span>
+                                    <span id="sel-item-visible" class="text-[11px] font-bold">Hide</span>
+                                </button>
+                                <button onclick="window.toggleSelectedLock()" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors" title="Lock or unlock the selected item (L)">
+                                    <span class="material-symbols-outlined text-base text-gray-600 dark:text-gray-300">lock</span>
+                                    <span id="sel-item-lock" class="text-[11px] font-bold">Lock</span>
+                                </button>
+                                <button onclick="window.duplicateSelected()" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors" title="Duplicate the selected item (Ctrl+D)">
+                                    <span class="material-symbols-outlined text-base text-gray-600 dark:text-gray-300">content_copy</span>
+                                    <span class="text-[11px] font-bold">Duplicate</span>
+                                </button>
+                                <button onclick="window.deleteSelected()" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 border border-gray-200 dark:border-gray-700 hover:border-red-400 transition-colors" title="Delete the selected item">
+                                    <span class="material-symbols-outlined text-base text-red-500">delete</span>
+                                    <span class="text-[11px] font-bold text-red-500">Delete</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="selection-wall" class="hidden space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-bold text-gray-800 dark:text-gray-100">Wall</span>
+                                <span id="sel-wall-len" class="text-[11px] font-mono text-gray-500">-</span>
+                            </div>
+                            <label class="block text-[11px] text-gray-500 dark:text-gray-400">Height (m)
+                                <input id="sel-wall-height" type="number" min="0.5" max="6" step="0.1" value="2.7" oninput="window.setWallHeight(this.value)" class="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-800 dark:text-gray-100">
+                            </label>
+                            <button onclick="window.deleteSelectedWall()" class="w-full flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 border border-gray-200 dark:border-gray-700 hover:border-red-400 transition-colors">
+                                <span class="material-symbols-outlined text-base text-red-500">delete</span>
+                                <span class="text-[11px] font-bold text-red-500">Delete wall</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

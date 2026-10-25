@@ -10,6 +10,14 @@ import { useThree } from '@react-three/fiber';import {
 } from '@react-three/drei';
 import Cabinet from './Cabinet';
 import { Wall, wallBox } from './items.js';
+import {
+  PostEffects,
+  SpringCabinet,
+  InstancedProps,
+  PathAgent,
+  ShakerProp,
+  SceneExporter
+} from './SceneAbilities.jsx';
 
 /**
  * KitchenScene Component
@@ -28,7 +36,16 @@ export default function KitchenScene({
   onSelectCabinet = () => {}, 
   showLabels = false, 
   onControlsRef, 
-  room = { width: 20, depth: 12, height: 6 } 
+  room = { width: 20, depth: 12, height: 6 },
+  // Scene abilities merged from the labs. Everything is opt-in and defaults to
+  // the plain scene, so the designer works exactly as before when they are off.
+  effects = {},
+  spring = false,
+  instances = 0,
+  shaker = { visible: false, shaking: false, intensity: 0.5 },
+  agent = false,
+  agentTarget = null,
+  exporters = null
 }) {
   // Destructure safely with fallbacks
   const rw = Math.max(4, room?.width ?? 20);
@@ -113,18 +130,38 @@ export default function KitchenScene({
       ))}
 
       {/* 6. Cabinets */}
-      {cabinets.map((cabinet) => (
-        <Cabinet
-          key={cabinet.id}
-          position={cabinet.position}
-          size={cabinet.size}
-          color={cabinet.color}
-          name={cabinet.name}
-          isSelected={selectedCabinet === cabinet.id}
-          onClick={() => onSelectCabinet(cabinet.id)}
-          showLabels={showLabels}
+      {cabinets.map((cabinet) => {
+        const props = {
+          position: cabinet.position,
+          size: cabinet.size,
+          color: cabinet.color,
+          name: cabinet.name,
+          isSelected: selectedCabinet === cabinet.id,
+          onClick: () => onSelectCabinet(cabinet.id),
+          showLabels: showLabels
+        };
+        return spring
+          ? <SpringCabinet key={cabinet.id} active={selectedCabinet === cabinet.id} {...props} />
+          : <Cabinet key={cabinet.id} {...props} />;
+      })}
+
+      {/* 6b. Lab abilities, live in the scene */}
+      {instances > 0 && (
+        <InstancedProps count={instances} width={rw} depth={rd} />
+      )}
+      {agent && <PathAgent target={agentTarget} width={rw} depth={rd} />}
+      {shaker?.visible && (
+        <ShakerProp
+          shaking={!!shaker.shaking}
+          intensity={shaker.intensity ?? 0.5}
+          position={[rw / 2 - 2, 0, -rd / 2 + 2]}
+          scale={1.5}
         />
-      ))}
+      )}
+      <SceneExporter register={exporters} />
+
+      {/* 6c. Post-processing from the post FX lab */}
+      <PostEffects bloom={!!effects?.bloom} dof={!!effects?.dof} vignette={!!effects?.vignette} />
 
       {/* 7. Grounding Shadows (Makes objects feel like they are resting on the floor) */}
       <ContactShadows 

@@ -11,6 +11,9 @@ export class Item {
         this.metadata = ITEM_METADATA[type] || { color: 0x999999 };
         this.selected = false;
         this.visible = true;
+        // Locked pieces stay put: dragging, the 3D gizmo and elevation drags all
+        // skip them, but they still render and can be selected.
+        this.locked = false;
         this.modelUrl = null; // Support for custom 3D models
         // Metres the piece is lifted above its default height position (0 for
         // floor-standing pieces, which sit on the floor). Dragged up/down in
@@ -36,7 +39,9 @@ export class Item {
             rotation: this.rotation,
             id: this.id,
             modelUrl: this.modelUrl, // Include in serialization
-            elevation: this.elevation || 0
+            elevation: this.elevation || 0,
+            visible: this.visible !== false,
+            locked: !!this.locked
         };
     }
 }
@@ -126,11 +131,18 @@ export class InWallFloorItem extends InWallItem {
 }
 
 export class Wall {
-    constructor(x1, y1, x2, y2, thickness = 10, id = null) {
+    constructor(x1, y1, x2, y2, thickness = 10, id = null, height = null) {
         this.start = { x: x1, y: y1 };
         this.end = { x: x2, y: y2 };
         this.id = id || 'wall_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         this.thickness = thickness; // Display thickness
+        // Per-wall height in metres. null means "use the storey height", so
+        // existing plans and the React scene behave exactly as before.
+        this.height = typeof height === 'number' ? height : null;
+    }
+
+    get length() {
+        return Math.hypot(this.end.x - this.start.x, this.end.y - this.start.y);
     }
 
     toJSON() {
@@ -139,12 +151,13 @@ export class Wall {
             start: this.start,
             end: this.end,
             id: this.id,
-            thickness: this.thickness
+            thickness: this.thickness,
+            height: this.height
         };
     }
 
     static fromJSON(json) {
-        return new Wall(json.start.x, json.start.y, json.end.x, json.end.y, json.thickness, json.id);
+        return new Wall(json.start.x, json.start.y, json.end.x, json.end.y, json.thickness, json.id, json.height);
     }
 }
 
@@ -158,7 +171,7 @@ export class Wall {
 export function wallBox(wall, options = {}) {
     if (!wall || !wall.start || !wall.end) return null;
 
-    const height = options.height ?? WALL_HEIGHT;
+    const height = options.height ?? wall.height ?? WALL_HEIGHT;
     const thickness = options.thickness ?? wall.thickness ?? WALL_THICKNESS;
     const dx = wall.end.x - wall.start.x;
     const dz = wall.end.y - wall.start.y;
@@ -192,6 +205,8 @@ export class ItemFactory {
         if (json.boundToWallId) item.boundToWallId = json.boundToWallId;
         if (json.modelUrl) item.modelUrl = json.modelUrl; // Restore custom model URL
         if (typeof json.elevation === 'number') item.elevation = json.elevation;
+        if (typeof json.visible === 'boolean') item.visible = json.visible;
+        if (typeof json.locked === 'boolean') item.locked = json.locked;
         return item;
     }
 }
