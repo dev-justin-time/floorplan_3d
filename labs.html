@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Floorplan 3D - Labs</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary": "#13a4ec",
+                    "background-light": "#f6f7f8",
+                    "background-dark": "#101c22",
+                },
+                fontFamily: {
+                    "display": ["Space Grotesk", "sans-serif"],
+                    "mono": ["Fira Code", "monospace"]
+                },
+            },
+        },
+    }
+</script>
+<style>
+    .code-preview {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.85rem;
+        overflow-x: auto;
+        max-height: 300px;
+    }
+    .keyword { color: #569cd6; }
+    .string { color: #ce9178; }
+    .comment { color: #6a9955; }
+    .function { color: #dcdcaa; }
+</style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200">
+<div class="relative flex min-h-screen w-full flex-col">
+<header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
+<nav class="container mx-auto flex items-center justify-between whitespace-nowrap px-6 py-4">
+<div class="flex items-center gap-4 text-gray-900 dark:text-white">
+<span class="material-symbols-outlined text-indigo-500 text-3xl">science</span>
+<h2 class="text-xl font-bold tracking-[-0.015em]">Floorplan 3D <span class="text-indigo-500">Labs</span></h2>
+</div>
+<div class="flex gap-2">
+<a href="index.html" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-gray-800 dark:text-white text-sm font-bold tracking-[0.015em] hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors gap-2">
+<span class="material-symbols-outlined text-base">arrow_back</span>
+<span class="truncate">Back to Home</span>
+</a>
+</div>
+</nav>
+</header>
+<main class="container mx-auto flex flex-col px-6 py-12 gap-12">
+    <!-- Intro -->
+    <section class="max-w-4xl mx-auto text-center">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 text-sm font-medium mb-6">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+            </span>
+            Active Prototype
+        </div>
+        <h1 class="text-4xl md:text-5xl font-black mb-6">React Engine Preview</h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400">
+            Live preview of the experimental React Three Fiber engine with real-time multiplayer collaboration, smart object constraints, and performance monitoring.
+        </p>
+    </section>
+
+    <!-- Live App Container -->
+    <section class="w-full rounded-2xl overflow-hidden shadow-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900" style="height: 800px;">
+        <div id="react-root" class="w-full h-full"></div>
+    </section>
+
+    <!-- NEW: Multiplayer Features Section -->
+    <section class="w-full">
+        <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+            <span class="material-symbols-outlined text-green-500 text-4xl">groups</span>
+            Real-time Collaboration
+        </h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-green-500">sync</span>
+                    WebsimSocket Integration
+                </h3>
+                <div class="space-y-4">
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                        <div class="font-mono text-sm font-bold text-green-500 mb-2">Presence Tracking</div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">See all connected users in real-time with live cursor positions and selection states.</p>
+                    </div>
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                        <div class="font-mono text-sm font-bold text-blue-500 mb-2">Synchronized State</div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Room state automatically syncs across all clients - wall changes, object placement, and material updates.</p>
+                    </div>
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                        <div class="font-mono text-sm font-bold text-purple-500 mb-2">Conflict Resolution</div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Automatic handling of concurrent edits with optimistic updates and server reconciliation.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">code</span>
+                        Multiplayer Code Sample
+                    </h3>
+                </div>
+                <div class="code-preview">
+<span class="keyword">const</span> room = <span class="keyword">new</span> <span class="function">WebsimSocket</span>();
+<span class="keyword">await</span> room.<span class="function">initialize</span>();
+
+<span class="comment">// Update presence with cursor position</span>
+room.<span class="function">updatePresence</span>({
+  cursorX: mouseX,
+  cursorY: mouseY,
+  selectedItemId: selectedItem?.id
+});
+
+<span class="comment">// Subscribe to room state changes</span>
+room.<span class="function">subscribeRoomState</span>((state) => {
+  <span class="function">updateFloorplan</span>(state.walls);
+  <span class="function">updateFixtures</span>(state.fixtures);
+});
+
+<span class="comment">// Request updates to other players</span>
+room.<span class="function">requestPresenceUpdate</span>(clientId, {
+  type: <span class="string">'nudge'</span>,
+  direction: <span class="string">'left'</span>
+});
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Smart Placement System -->
+    <section class="w-full">
+        <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+            <span class="material-symbols-outlined text-orange-500 text-4xl">grid_on</span>
+            Smart Object Placement
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="mb-4">
+                    <span class="material-symbols-outlined text-orange-500 text-3xl">straighten</span>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Collision Detection</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    Physics-based collision prevents objects from overlapping or clipping through walls.
+                </p>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="mb-4">
+                    <span class="material-symbols-outlined text-blue-500 text-3xl">attractions</span>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Magnetic Snapping</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    Objects snap to grid points, wall edges, and other objects for perfect alignment.
+                </p>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="mb-4">
+                    <span class="material-symbols-outlined text-purple-500 text-3xl">auto_awesome</span>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Context-Aware</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    AI suggests optimal placement based on room type and ergonomic best practices.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Advanced Performance Monitor -->
+    <section class="w-full mt-12">
+        <div class="bg-gradient-to-br from-gray-900 to-black rounded-2xl p-8 text-white overflow-hidden relative">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-32 -mt-32"></div>
+            <div class="relative z-10">
+                <h2 class="text-3xl font-bold mb-6 flex items-center gap-3">
+                    <span class="material-symbols-outlined text-green-500 text-4xl">speed</span>
+                    Real-time Performance Analytics
+                </h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">Frame Rate</span>
+                            <span id="fps-counter" class="text-2xl font-bold text-green-400">60</span>
+                        </div>
+                        <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div id="fps-bar" class="h-full bg-green-500 transition-all duration-300" style="width: 100%"></div>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-400">
+                            <span id="fps-min">60</span> / <span id="fps-avg">60</span> / <span id="fps-max">60</span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">Memory</span>
+                            <span id="memory-counter" class="text-2xl font-bold text-blue-400">0MB</span>
+                        </div>
+                        <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div id="memory-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 45%"></div>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-400">
+                            Limit: <span id="memory-limit">0</span>MB
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">Draw Calls</span>
+                            <span id="drawcalls-counter" class="text-2xl font-bold text-purple-400">0</span>
+                        </div>
+                        <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div id="drawcalls-bar" class="h-full bg-purple-500 transition-all duration-300" style="width: 30%"></div>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-400">
+                            Programs: <span id="programs-count">0</span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">Triangles</span>
+                            <span id="triangles-counter" class="text-2xl font-bold text-orange-400">0K</span>
+                        </div>
+                        <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div id="triangles-bar" class="h-full bg-orange-500 transition-all duration-300" style="width: 60%"></div>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-400">
+                            Geometries: <span id="geometries-count">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Frame Timing Graph -->
+                <div class="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-sm font-medium">Frame Timing (ms)</span>
+                        <span class="text-xs text-gray-400">Last 60 frames</span>
+                    </div>
+                    <canvas id="frame-graph" width="800" height="80" class="w-full"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Advanced Architecture Flow -->
+    <section class="w-full mt-12">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center gap-3 mb-8">
+                <div class="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                    <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400">account_tree</span>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">State Management Architecture</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Unidirectional data flow with reducer pattern</p>
+                </div>
+            </div>
+
+            <div class="relative">
+                <!-- Flow Diagram -->
+                <div class="flex flex-col lg:flex-row items-center justify-between gap-8">
+                    <!-- User Actions -->
+                    <div class="flex-1 p-6 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+                        <div class="text-center mb-4">
+                            <span class="material-symbols-outlined text-blue-500 text-4xl">touch_app</span>
+                            <h3 class="text-lg font-bold mt-2">User Actions</h3>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded">Draw Wall</div>
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded">Place Object</div>
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded">Modify Texture</div>
+                        </div>
+                    </div>
+
+                    <div class="text-4xl text-gray-400">→</div>
+
+                    <!-- Reducer -->
+                    <div class="flex-1 p-6 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+                        <div class="text-center mb-4">
+                            <span class="material-symbols-outlined text-purple-500 text-4xl">settings</span>
+                            <h3 class="text-lg font-bold mt-2">History Reducer</h3>
+                        </div>
+                        <div class="code-preview text-[10px]">
+<span class="keyword">switch</span> (action.type) {
+  <span class="keyword">case</span> <span class="string">'UNDO'</span>:
+    <span class="keyword">return</span> {
+      past: past.<span class="function">slice</span>(<span class="string">0</span>, -<span class="string">1</span>),
+      present: past[past.length - <span class="string">1</span>],
+      future: [present, ...future]
+    };
+  <span class="keyword">case</span> <span class="string">'SET'</span>:
+    <span class="keyword">return</span> {
+      past: [...past, present],
+      present: action.payload,
+      future: []
+    };
+}
+                        </div>
+                    </div>
+
+                    <div class="text-4xl text-gray-400">→</div>
+
+                    <!-- State -->
+                    <div class="flex-1 p-6 rounded-xl bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                        <div class="text-center mb-4">
+                            <span class="material-symbols-outlined text-green-500 text-4xl">database</span>
+                            <h3 class="text-lg font-bold mt-2">Application State</h3>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded font-mono">walls[]</div>
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded font-mono">fixtures[]</div>
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded font-mono">roomColors{}</div>
+                        </div>
+                    </div>
+
+                    <div class="text-4xl text-gray-400">→</div>
+
+                    <!-- Render -->
+                    <div class="flex-1 p-6 rounded-xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20">
+                        <div class="text-center mb-4">
+                            <span class="material-symbols-outlined text-orange-500 text-4xl">widgets</span>
+                            <h3 class="text-lg font-bold mt-2">React Render</h3>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded">LabScene</div>
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded">FloorPlan3D</div>
+                            <div class="p-2 bg-white/50 dark:bg-gray-900/50 rounded">Fixture3D</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multiplayer Layer -->
+                <div class="mt-8 p-6 rounded-xl bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border border-teal-500/20">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-teal-500 text-3xl">sync</span>
+                            <div>
+                                <h4 class="font-bold">WebsimSocket Layer</h4>
+                                <p class="text-xs text-gray-500">Bidirectional state synchronization</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1 rounded bg-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-mono">updatePresence()</div>
+                            <div class="px-3 py-1 rounded bg-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-mono">updateRoomState()</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Input System Architecture (after Smart Placement) -->
+    <section class="w-full mt-12">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                    <span class="material-symbols-outlined text-cyan-600 dark:text-cyan-400">touch_app</span>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Unified Input Manager</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Event-driven architecture from demo.js with pointer normalization</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="p-5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                        <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm text-cyan-500">arrow_selector_tool</span>
+                            Pointer Event Flow
+                        </h3>
+                        <div class="code-preview">
+<span class="keyword">class</span> <span class="function">InputManager</span> {
+  #activePointer = <span class="keyword">null</span>;
+  #raycaster = <span class="keyword">new</span> THREE.<span class="function">Raycaster</span>();
+
+  <span class="function">handlePointerStart</span>(event) {
+    <span class="keyword">const</span> position = this.#<span class="function">getCanvasPosition</span>(event);
+    <span class="keyword">const</span> tool = this.#stateManager.<span class="function">getState</span>(<span class="string">'activeTool'</span>);
+
+    <span class="keyword">if</span> (tool === <span class="string">'wall'</span>) {
+      this.#activePointer = { start: position, current: position };
+    }
+  }
+
+  <span class="function">handlePointerMove</span>(event) {
+    <span class="keyword">if</span> (!this.#activePointer) <span class="keyword">return</span>;
+    this.#activePointer.current = this.#<span class="function">getCanvasPosition</span>(event, <span class="keyword">true</span>);
+    this.#stateManager.<span class="function">setState</span>(<span class="string">'draftWall'</span>, { ...this.#activePointer });
+  }
+
+  <span class="function">handlePointerEnd</span>() {
+    <span class="keyword">if</span> (this.#<span class="function">isValidWall</span>(this.#activePointer.start, this.#activePointer.current)) {
+      this.#<span class="function">commitWall</span>(this.#activePointer.start, this.#activePointer.current);
+    }
+    this.#activePointer = <span class="keyword">null</span>;
+  }
+}
+                        </div>
+                    </div>
+
+                    <div class="p-5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                        <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm text-indigo-500">keyboard</span>
+                            Keyboard Transform Modes
+                        </h3>
+                        <div class="code-preview">
+<span class="function">setupKeyboardControls</span>() {
+  document.<span class="function">addEventListener</span>(<span class="string">'keydown'</span>, (e) => {
+    <span class="keyword">if</span> (e.key === <span class="string">'r'</span>) this.#transformMode = <span class="string">'rotate'</span>;
+    <span class="keyword">if</span> (e.key === <span class="string">'s'</span>) this.#transformMode = <span class="string">'scale'</span>;
+    <span class="keyword">if</span> (e.key === <span class="string">'g'</span>) this.#transformMode = <span class="string">'translate'</span>;
+    
+    <span class="comment">// WASD movement state</span>
+    <span class="keyword">const</span> move = this.#stateManager.<span class="function">getState</span>(<span class="string">'move'</span>);
+    <span class="keyword">switch</span>(e.code) {
+      <span class="keyword">case</span> <span class="string">'KeyW'</span>: move.f = <span class="keyword">true</span>; <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'KeyS'</span>: move.b = <span class="keyword">true</span>; <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'KeyA'</span>: move.l = <span class="keyword">true</span>; <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'KeyD'</span>: move.r = <span class="keyword">true</span>; <span class="keyword">break</span>;
+    }
+    this.#stateManager.<span class="function">setState</span>(<span class="string">'move'</span>, move);
+  });
+}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="p-4 rounded-lg bg-gradient-to-br from-teal-500/10 to-cyan-500/10 border border-teal-500/20">
+                        <h4 class="text-xs font-bold text-teal-700 dark:text-teal-400 mb-2">Segment Distance Algorithm</h4>
+                        <div class="code-preview text-[9px]">
+<span class="function">distanceToSegment</span>(p, v, w) {
+  <span class="keyword">const</span> l2 = Math.<span class="function">pow</span>(w.x - v.x, <span class="string">2</span>) + 
+            Math.<span class="function">pow</span>(w.y - v.y, <span class="string">2</span>);
+  
+  <span class="keyword">let</span> t = ((p.x - v.x) * (w.x - v.x) + 
+           (p.y - v.y) * (w.y - v.y)) / l2;
+  t = Math.<span class="function">max</span>(<span class="string">0</span>, Math.<span class="function">min</span>(<span class="string">1</span>, t));
+  
+  <span class="keyword">return</span> Math.<span class="function">hypot</span>(
+    p.x - (v.x + t * (w.x - v.x)),
+    p.y - (v.y + t * (w.y - v.y))
+  );
+}
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
+                        <h4 class="text-xs font-bold text-amber-700 dark:text-amber-400 mb-2">Wall Validation</h4>
+                        <div class="code-preview text-[9px]">
+<span class="function">isValidWall</span>(start, end) {
+  <span class="keyword">const</span> distance = Math.<span class="function">hypot</span>(
+    end.x - start.x, 
+    end.y - start.y
+  );
+  <span class="keyword">return</span> distance > MIN_WALL_LENGTH;
+}
+
+<span class="function">deleteNearestWall</span>(position) {
+  <span class="keyword">const</span> walls = this.#stateManager
+    .<span class="function">getState</span>(<span class="string">'walls'</span>);
+  
+  <span class="keyword">let</span> closestIndex = -<span class="string">1</span>;
+  <span class="keyword">let</span> minDistance = <span class="keyword">Infinity</span>;
+
+  walls.<span class="function">forEach</span>((wall, index) => {
+    <span class="keyword">const</span> distance = this
+      .#<span class="function">distanceToSegment</span>(
+        position, wall.start, wall.end
+      );
+    <span class="keyword">if</span> (distance < minDistance) {
+      minDistance = distance;
+      closestIndex = index;
+    }
+  });
+}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Asset Management System (after Input System) -->
+    <section class="w-full mt-12">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <span class="material-symbols-outlined text-purple-600 dark:text-purple-400">deployed_code</span>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Asset Loading Pipeline</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">GLTF/GLB loader with DRACO compression support from demo.js AssetManager</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="p-5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm text-purple-500">inventory</span>
+                        GLTFLoader Integration
+                    </h3>
+                    <div class="code-preview">
+<span class="keyword">class</span> <span class="function">AssetManager</span> {
+  <span class="keyword">static</span> loader = <span class="keyword">new</span> <span class="function">GLTFLoader</span>();
+  <span class="keyword">static</span> dracoLoader = <span class="keyword">new</span> <span class="function">DRACOLoader</span>();
+
+  <span class="keyword">static</span> {
+    this.dracoLoader.<span class="function">setDecoderPath</span>(
+      <span class="string">'https://www.gstatic.com/draco/v1/decoders/'</span>
+    );
+    this.loader.<span class="function">setDRACOLoader</span>(this.dracoLoader);
+  }
+
+  <span class="keyword">static async</span> <span class="function">loadAsset</span>(url) {
+    <span class="keyword">try</span> {
+      <span class="keyword">const</span> gltf = <span class="keyword">await</span> this.loader.<span class="function">loadAsync</span>(url);
+      gltf.scene.<span class="function">traverse</span>(child => {
+        <span class="keyword">if</span> (child.isMesh) {
+          child.castShadow = <span class="keyword">true</span>;
+          child.receiveShadow = <span class="keyword">true</span>;
+        }
+      });
+      <span class="keyword">return</span> gltf;
+    } <span class="keyword">catch</span> (error) {
+      console.<span class="function">error</span>(<span class="string">'Asset loading failed:'</span>, error);
+      <span class="keyword">return null</span>;
+    }
+  }
+}
+                    </div>
+                </div>
+
+                <div class="p-5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm text-blue-500">security</span>
+                        User Upload Validation
+                    </h3>
+                    <div class="code-preview">
+<span class="keyword">static async</span> <span class="function">loadUserAsset</span>(file) {
+  <span class="keyword">const</span> validTypes = [
+    <span class="string">'model/gltf-binary'</span>,
+    <span class="string">'model/gltf+json'</span>
+  ];
+  
+  <span class="keyword">if</span> (!validTypes.<span class="function">includes</span>(file.type)) {
+    <span class="keyword">throw new</span> <span class="function">Error</span>(
+      <span class="string">'Invalid file format. Only GLB/GLTF supported'</span>
+    );
+  }
+
+  <span class="keyword">const</span> arrayBuffer = <span class="keyword">await</span> file.<span class="function">arrayBuffer</span>();
+  <span class="keyword">const</span> header = <span class="keyword">new</span> <span class="function">Uint32Array</span>(arrayBuffer, <span class="string">0</span>, <span class="string">1</span>);
+  
+  <span class="comment">// Verify GLB magic number</span>
+  <span class="keyword">if</span> (header[<span class="string">0</span>] !== <span class="string">0x46546C67</span>) {
+    <span class="keyword">throw new</span> <span class="function">Error</span>(<span class="string">"Invalid GLB file"</span>);
+  }
+
+  <span class="keyword">return</span> this.<span class="function">loadAsset</span>(
+    URL.<span class="function">createObjectURL</span>(<span class="keyword">new</span> <span class="function">Blob</span>([arrayBuffer]))
+  );
+}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 p-4 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="material-symbols-outlined text-purple-600 dark:text-purple-400">info</span>
+                    <h4 class="text-sm font-bold text-purple-700 dark:text-purple-400">Asset Configuration Constants</h4>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-3 rounded-lg bg-white/50 dark:bg-gray-900/50">
+                        <div class="text-xs text-gray-500 mb-1">Max Upload Size</div>
+                        <div class="font-mono text-lg font-bold text-purple-600">50 MB</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-white/50 dark:bg-gray-900/50">
+                        <div class="text-xs text-gray-500 mb-1">Allowed Formats</div>
+                        <div class="font-mono text-sm font-bold text-purple-600">.glb, .gltf</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-white/50 dark:bg-gray-900/50">
+                        <div class="text-xs text-gray-500 mb-1">Core Assets</div>
+                        <div class="font-mono text-sm font-bold text-purple-600">chair, table, cabinet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Diagram -->
+    <section class="w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">schema</span>
+                Component Architecture
+            </h3>
+            <div class="space-y-4">
+                <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <div class="font-mono text-sm font-bold text-indigo-500 mb-2">page.tsx</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Main entry point. Manages global application state including floorplan data, user preferences, and view modes.</p>
+                </div>
+                <div class="pl-8 space-y-4 border-l-2 border-gray-200 dark:border-gray-700 ml-4">
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                        <div class="font-mono text-sm font-bold text-blue-500 mb-2">Scene.tsx</div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">R3F Canvas wrapper. Handles lighting, camera controls, and environment presets.</p>
+                    </div>
+                    <div class="pl-8 space-y-4 border-l-2 border-gray-200 dark:border-gray-700 ml-4">
+                        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                            <div class="font-mono text-sm font-bold text-green-500 mb-2">FloorPlan3D.tsx</div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Declarative 3D mesh generation. Converts 2D wall/room data into Three.js geometries on the fly.</p>
+                        </div>
+                    </div>
+                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                        <div class="font-mono text-sm font-bold text-orange-500 mb-2">CustomizationPanel.tsx</div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">React UI for real-time property editing (textures, colors, dimensions).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-8">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">code</span>
+                        Source Preview: Scene.tsx
+                    </h3>
+                    <span class="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded border border-green-500/20">R3F Ready</span>
+                </div>
+                <div class="code-preview">
+<span class="keyword">import</span> { Canvas } <span class="keyword">from</span> <span class="string">'@react-three/fiber'</span>;
+<span class="keyword">import</span> { OrbitControls } <span class="keyword">from</span> <span class="string">'@react-three/drei'</span>;
+
+<span class="keyword">export default function</span> <span class="function">Scene</span>({ floorPlanData }) {
+  <span class="keyword">return</span> (
+    &lt;<span class="function">Canvas</span> shadows camera={{ position: [10, 10, 10] }}&gt;
+      &lt;<span class="function">ambientLight</span> intensity={0.5} /&gt;
+      &lt;<span class="function">FloorPlan3D</span> data={floorPlanData} /&gt;
+      &lt;<span class="function">OrbitControls</span> /&gt;
+    &lt;/<span class="function">Canvas</span>&gt;
+  );
+}                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">folder_open</span>
+                    Logic Files
+                </h3>
+                <ul class="grid grid-cols-1 gap-2">
+                    <li class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-yellow-500">description</span>
+                            <div>
+                                <div class="font-mono text-sm font-medium">3dConversionEngine.ts</div>
+                                <div class="text-xs text-gray-500">Core geometry generation logic</div>
+                            </div>
+                        </div>
+                        <span class="text-xs text-gray-400 group-hover:text-primary">View Source &rarr;</span>
+                    </li>
+                    <li class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-blue-500">description</span>
+                            <div>
+                                <div class="font-mono text-sm font-medium">floorPlanProcessor.ts</div>
+                                <div class="text-xs text-gray-500">Computer vision & contour detection</div>
+                            </div>
+                        </div>
+                        <span class="text-xs text-gray-400 group-hover:text-primary">View Source &rarr;</span>
+                    </li>
+                    <li class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-purple-500">description</span>
+                            <div>
+                                <div class="font-mono text-sm font-medium">test-data.js</div>
+                                <div class="text-xs text-gray-500">Mock datasets for unit testing</div>
+                            </div>
+                        </div>
+                        <span class="text-xs text-gray-400 group-hover:text-primary">View Source &rarr;</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Strict Type System -->
+    <section class="w-full">
+        <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+            <span class="material-symbols-outlined text-amber-500 text-4xl">account_tree</span>
+            Strict Type Hierarchy
+        </h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 flex flex-col h-full">
+                <div class="mb-4">
+                    <h3 class="text-xl font-bold mb-2">Class Inheritance</h3>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">
+                        Moving from loose JavaScript objects to a structured TypeScript inheritance model allows for better ECS (Entity Component System) patterns and stricter validation.
+                    </p>
+                </div>
+                
+                <div class="flex-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700 relative overflow-hidden">
+                    <div class="flex flex-col items-center gap-4 relative z-10">
+                        <div class="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 font-mono text-sm font-bold w-48 text-center">
+                            item.ts
+                            <div class="text-[10px] font-normal opacity-75">Base Entity</div>
+                        </div>
+                        <div class="h-8 w-px bg-gray-300 dark:bg-gray-600"></div>
+                        <div class="grid grid-cols-2 gap-8 w-full max-w-md">
+                            <div class="flex flex-col items-center gap-4">
+                                <div class="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 font-mono text-sm font-bold w-full text-center">
+                                    floor_item.ts
+                                    <div class="text-[10px] font-normal opacity-75">Furniture & Decor</div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-center gap-4">
+                                <div class="p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:text-orange-400 font-mono text-sm font-bold w-full text-center">
+                                    wall_item.ts
+                                    <div class="text-[10px] font-normal opacity-75">Attached Fixtures</div>
+                                </div>
+                                <div class="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 font-mono text-sm font-bold w-full text-center">
+                                    in_wall_item.ts
+                                    <div class="text-[10px] font-normal opacity-75">Windows & Doors</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="absolute inset-0" style="background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; opacity: 0.2;"></div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                 <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="font-mono text-sm font-bold text-green-500">factory.ts</div>
+                        <span class="text-xs text-gray-500">Factory Pattern Implementation</span>
+                    </div>
+                    <div class="code-preview">
+<span class="keyword">export class</span> <span class="function">ItemFactory</span> {
+  <span class="keyword">static</span> <span class="function">create</span>(type: <span class="keyword">string</span>, ...args) {
+    <span class="keyword">const</span> meta = ITEM_METADATA[type];
+    <span class="keyword">if</span> (meta.type === <span class="string">'in_wall'</span>) {
+       <span class="keyword">return new</span> <span class="function">InWallItem</span>(type, ...args);
+    }
+    <span class="keyword">return new</span> <span class="function">FloorItem</span>(type, ...args);
+  }
+}                </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                    <h3 class="text-sm font-bold text-gray-900 dark:text-white mb-3">Available Modules</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">item.ts</span>
+                        <span class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">floor_item.ts</span>
+                        <span class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">wall_item.ts</span>
+                        <span class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">in_wall_item.ts</span>
+                        <span class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">factory.ts</span>
+                        <span class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-xs font-mono text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">metadata.ts</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation & UI Modules -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-pink-500">library_books</span>
+                Knowledge Base
+            </h2>
+            <div class="space-y-3">
+                <a href="#" class="block group">
+                    <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-colors bg-gray-50 dark:bg-gray-900">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="font-mono text-sm font-bold text-gray-900 dark:text-white group-hover:text-pink-500 transition-colors">workflow.md</div>
+                            <span class="material-symbols-outlined text-gray-400 text-sm">open_in_new</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Comprehensive user flow documentation covering navigation paths and state transitions.</p>
+                    </div>
+                </a>
+                <a href="#" class="block group">
+                    <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-colors bg-gray-50 dark:bg-gray-900">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="font-mono text-sm font-bold text-gray-900 dark:text-white group-hover:text-pink-500 transition-colors">research_notes.md</div>
+                            <span class="material-symbols-outlined text-gray-400 text-sm">open_in_new</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Technical analysis comparing Three.js, Babylon.js, and React Three Fiber performance.</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+             <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-cyan-500">widgets</span>
+                React UI Components
+            </h2>
+            <div class="space-y-4">
+                <div class="relative group">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg opacity-20 group-hover:opacity-50 transition duration-200"></div>
+                    <div class="relative bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="material-symbols-outlined text-cyan-500">cloud_upload</span>
+                            <span class="font-mono text-sm font-bold">UploadFloorPlan.tsx</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            Drag-and-drop zone with client-side image validation and progress states.
+                        </p>
+                        <div class="flex gap-2 text-xs">
+                            <span class="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded">useState</span>
+                            <span class="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded">useRef</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="relative group">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg opacity-20 group-hover:opacity-50 transition duration-200"></div>
+                    <div class="relative bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="material-symbols-outlined text-purple-500">tune</span>
+                            <span class="font-mono text-sm font-bold">CustomizationPanel.tsx</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Property editor for materials, dimensions, and lighting settings.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Smart Systems & Utilities -->
+    <section class="w-full">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-teal-500">psychology</span>
+                Smart Systems & Utilities
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="relative group">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-lg opacity-20 group-hover:opacity-50 transition duration-200"></div>
+                    <div class="relative bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-teal-500">texture</span>
+                                <span class="font-mono text-sm font-bold">metadata.js</span>
+                            </div>
+                            <span class="text-xs bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-2 py-1 rounded">Unified</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+                            Centralized texture registry and intelligent room-type detection algorithms. Now consolidates logic from legacy <code>textureLibrary.ts</code>.
+                        </p>
+                        <div class="code-preview text-[10px] leading-relaxed mt-auto">
+<span class="keyword">export function</span> <span class="function">detectRoomType</span>(name) {
+  <span class="keyword">if</span> (name.includes(<span class="string">'bath'</span>)) <span class="keyword">return</span> <span class="string">'bathroom'</span>;
+  <span class="keyword">if</span> (name.includes(<span class="string">'kitchen'</span>)) <span class="keyword">return</span> <span class="string">'kitchen'</span>;
+  <span class="keyword">return</span> <span class="string">'generic'</span>;
+}                </div>
+                    </div>
+                </div>
+
+                <div class="relative group">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-gray-500 to-slate-500 rounded-lg opacity-20 group-hover:opacity-50 transition duration-200"></div>
+                    <div class="relative bg-white dark:bg-gray-900 p-5 rounded-lg border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                         <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-gray-500">inventory_2</span>
+                                <span class="font-mono text-sm font-bold text-gray-500 decoration-line-through">wall_floor_item.ts</span>
+                            </div>
+                            <span class="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-1 rounded border border-gray-200 dark:border-gray-600">Redundant</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+                            Deprecated logic file identified during refactoring. Its functionality has been fully merged into the <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">items.js</code> class hierarchy.
+                        </p>
+                        <div class="flex items-center gap-2 text-xs text-gray-400 mt-auto">
+                            <span class="material-symbols-outlined text-sm">merge</span>
+                            Merged into main branch
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Concept Demo -->
+    <section class="bg-gradient-to-br from-gray-900 to-black rounded-2xl p-8 text-white overflow-hidden relative">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-32 -mt-32"></div>
+        <div class="relative z-10">
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold mb-2">Rendering Backend Status</h2>
+                    <p class="text-gray-400">Experimental graphics pipelines</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div class="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm font-medium">WebGL 2.0</span>
+                        <span class="text-xs bg-green-500/20 text-green-400 px-2 rounded">Stable</span>
+                    </div>
+                    <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-green-500 w-full"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">Standard renderer used in production.</p>
+                </div>
+                 
+                 <a href="webgpu-demo.html" class="block group p-4 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 hover:border-blue-400 transition-colors">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm font-bold text-blue-300 group-hover:text-white transition-colors">WebGPU (Experimental)</span>
+                        <span class="material-symbols-outlined text-sm text-blue-300">open_in_new</span>
+                    </div>
+                    <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-500 w-1/3"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2 group-hover:text-gray-300">Click to launch the WebGPU compute shader demo.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Floorplan-Specific Demos Section (insert after Shaker demos, before Legacy Core Analysis) -->
+    <section class="w-full mt-12">
+        <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+            <span class="material-symbols-outlined text-blue-500 text-4xl">architecture</span>
+            Floorplan-Specific Demonstrations
+        </h2>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Blueprint Editor Demo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-blue-500 text-2xl">draw</span>
+                    <h3 class="text-xl font-bold">Live Blueprint Editor</h3>
+                </div>
+                <div class="h-[400px] bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 relative">
+                    <iframe src="Editor.html" class="w-full h-full border-0"></iframe>
+                    <div class="absolute top-4 right-4 bg-blue-500/90 text-white px-3 py-1.5 rounded-full text-xs font-bold">
+                        Full Editor
+                    </div>
+                </div>
+                <div class="mt-4 space-y-2">
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                        <span>Draw walls with snap-to-grid precision</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                        <span>Drag-and-drop furniture placement</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+                        <span>Real-time 3D preview synchronization</span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="window.open('Editor.html', '_blank')" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined">open_in_new</span>
+                        Open Full Editor
+                    </button>
+                </div>
+            </div>
+
+            <!-- Floorplan Upload Demo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-purple-500 text-2xl">cloud_upload</span>
+                    <h3 class="text-xl font-bold">AI Floorplan Processing</h3>
+                </div>
+                <div id="floorplan-upload-demo" class="h-[400px]"></div>
+                <div class="mt-4 p-4 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+                    <h4 class="text-sm font-bold mb-2 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm text-purple-500">auto_awesome</span>
+                        Computer Vision Pipeline
+                    </h4>
+                    <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                        <li>• Edge detection with Sobel operators</li>
+                        <li>• Contour simplification (Douglas-Peucker)</li>
+                        <li>• Wall segment extraction</li>
+                        <li>• Automatic scaling to real-world meters</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Object Placement Constraints Demo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-orange-500 text-2xl">category</span>
+                    <h3 class="text-xl font-bold">Smart Object Placement</h3>
+                </div>
+                <div id="object-placement-demo" class="h-[400px]"></div>
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                    <div class="p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Wall Collision</div>
+                        <div class="font-mono text-lg font-bold text-orange-600">Prevented</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Auto Snap</div>
+                        <div class="font-mono text-lg font-bold text-green-600">Enabled</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Material System Demo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-teal-500 text-2xl">palette</span>
+                    <h3 class="text-xl font-bold">Material Customization</h3>
+                </div>
+                <div id="material-system-demo" class="h-[400px]"></div>
+                <div class="mt-4">
+                    <div class="code-preview text-[10px]">
+<span class="keyword">const</span> materials = {
+  floor: {
+    diffuse: <span class="string">'marble_floor.jpg'</span>,
+    normal: <span class="string">'marble_normal.jpg'</span>,
+    roughness: <span class="number">0.3</span>,
+    metalness: <span class="number">0.1</span>
+  },
+  wall: {
+    diffuse: <span class="string">'painted_wall.jpg'</span>,
+    roughness: <span class="number">0.8</span>
+  }
+};
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live 2D/3D Sync Demo -->
+        <div class="mt-6 bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="material-symbols-outlined text-indigo-500 text-2xl">sync</span>
+                <h3 class="text-xl font-bold">Real-time 2D ↔ 3D Synchronization</h3>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="text-sm font-semibold mb-2">2D Blueprint Canvas</h4>
+                    <div class="h-[300px] bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                        <canvas id="sync-2d-canvas" width="400" height="300" class="max-w-full max-h-full"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-sm font-semibold mb-2">3D Model View</h4>
+                    <div id="sync-3d-view" class="h-[300px]"></div>
+                </div>
+            </div>
+            <div class="mt-4 p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    <strong>How it works:</strong> Changes made to the 2D canvas (wall drawing, object placement) automatically trigger a 3D scene rebuild using the ConversionEngine3D. The engine converts 2D coordinates to world-space 3D meshes in real-time.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Legacy Core Analysis -->
+    <section class="w-full">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400">history_edu</span>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Legacy Core Analysis</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Forensic breakdown of the original blueprint3d codebase.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="font-mono text-xs font-bold text-gray-500 mb-2">src/three/controls.ts</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold">Camera Logic</span>
+                        <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Deprecated</span>
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Original orbit controls implementation. Replaced by standard Three.js OrbitControls in active build.</p>
+                </div>
+
+                <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="font-mono text-xs font-bold text-gray-500 mb-2">src/three/skybox.ts</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold">Environment</span>
+                        <span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Partial</span>
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Legacy skybox generation. Active build uses simplified CSS/Three.js background colors.</p>
+                </div>
+
+                <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="font-mono text-xs font-bold text-gray-500 mb-2">src/model/half_edge.ts</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold">Geometry</span>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Reference</span>
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Complex half-edge data structure for wall intersections. Simplified in active `items.js`.</p>
+                </div>
+
+                <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="font-mono text-xs font-bold text-gray-500 mb-2">src/blueprint3d.ts</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold">Monolith Core</span>
+                        <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Refactored</span>
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Original entry point. Functions split into modular <code>main.js</code> and <code>Scene.tsx</code> components.</p>
+                </div>
+
+                <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="font-mono text-xs font-bold text-gray-500 mb-2">src/three/lights.ts</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold">Lighting System</span>
+                        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">Legacy</span>
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Hardcoded Three.js lights. Replaced by dynamic environment maps and soft shadows.</p>
+                </div>
+
+                <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="font-mono text-xs font-bold text-gray-500 mb-2">src/three/hud.ts</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold">Heads Up Display</span>
+                        <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Removed</span>
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Canvas-based overlay system. Replaced by DOM-based UI overlays.</p>
+                </div>
+
+                <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="font-mono text-xs font-bold text-gray-500 mb-2">src/three/controller.ts</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold">Input Controller</span>
+                        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Migrated</span>
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Mouse interaction logic. Ported to event-driven architecture in <code>main.js</code>.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Advanced Features Section (updated) -->
+    <section class="w-full mt-12">
+        <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
+            <span class="material-symbols-outlined text-cyan-500 text-4xl">construction</span>
+            Advanced Technology Demos
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Pathfinding Demo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-cyan-500 text-2xl">route</span>
+                    <h3 class="text-xl font-bold">AI Pathfinding</h3>
+                </div>
+                <div id="pathfinding-demo"></div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-4">
+                    Three-pathfinding library integration for intelligent navigation and agent movement.
+                </p>
+            </div>
+
+            <!-- GLTF Export Demo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-purple-500 text-2xl">download</span>
+                    <h3 class="text-xl font-bold">GLTF Export</h3>
+                </div>
+                <div id="gltf-export-demo"></div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-4">
+                    Client-side 3D model export to industry-standard GLTF/GLB formats.
+                </p>
+            </div>
+
+            <!-- GPU Instancing -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div id="instancing-demo"></div>
+            </div>
+
+            <!-- Post Processing -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div id="postprocessing-demo"></div>
+            </div>
+
+            <!-- DRACO Compression -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 md:col-span-2">
+                <div id="draco-demo"></div>
+            </div>
+
+            <!-- React Spring Physics -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 md:col-span-2">
+                <div id="reactspring-demo"></div>
+            </div>
+
+            <!-- NEW: R3F Floorplan + WebGPU Node Demo -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-blue-500 text-2xl">architecture</span>
+                    <h3 class="text-xl font-bold">R3F Floorplan (WebGL)</h3>
+                </div>
+                <div id="r3f-webgpu-floorplan-demo"></div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-indigo-500 text-2xl">memory</span>
+                    <h3 class="text-xl font-bold">WebGPU Node Demo</h3>
+                </div>
+                <div id="webgpu-react-demo"></div>
+            </div>
+        </div>
+    </section>
+</main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-type="module">
+import LabApp from './LabApp.js';
+import LabPathfinding from './LabPathfinding.js';
+import LabGLTFExport from './LabGLTFExport.js';
+import LabDracoCompression from './LabDracoCompression.js';
+import LabShaker3DViewer from './LabShaker3DViewer.js';
+import LabShakerPhysics from './LabShakerPhysics.js';
+import LabShakerAR from './LabShakerAR.js';
+import LabInstancing from './LabInstancing.js';
+import LabPostProcessing from './LabPostProcessing.js';
+import LabReactSpring from './LabReactSpring.js';
+import LabUpload from './LabUpload.js';
+// NEW: R3F + WebGPU labs
+import LabR3FWebGPUFloorplan from './LabR3FWebGPUFloorplan.js';
+import LabWebGPUReactDemo from './LabWebGPUReactDemo.js';
+
+const root = ReactDOM.createRoot(document.getElementById('react-root'));
+root.render(React.createElement(LabApp));
+
+// Mount advanced demos
+const pathfindingRoot = ReactDOM.createRoot(document.getElementById('pathfinding-demo'));
+pathfindingRoot.render(React.createElement(LabPathfinding));
+
+const gltfRoot = ReactDOM.createRoot(document.getElementById('gltf-export-demo'));
+gltfRoot.render(React.createElement(LabGLTFExport));
+
+const dracoRoot = ReactDOM.createRoot(document.getElementById('draco-demo'));
+dracoRoot.render(React.createElement(LabDracoCompression));
+
+// Mount shaker demos
+const shakerViewerRoot = ReactDOM.createRoot(document.getElementById('shaker-viewer-demo'));
+shakerViewerRoot.render(React.createElement(LabShaker3DViewer));
+
+const shakerPhysicsRoot = ReactDOM.createRoot(document.getElementById('shaker-physics-demo'));
+shakerPhysicsRoot.render(React.createElement(LabShakerPhysics));
+
+const shakerARRoot = ReactDOM.createRoot(document.getElementById('shaker-ar-demo'));
+shakerARRoot.render(React.createElement(LabShakerAR));
+
+// NEW: Mount new advanced demos
+const instancingRoot = ReactDOM.createRoot(document.getElementById('instancing-demo'));
+instancingRoot.render(React.createElement(LabInstancing));
+
+const postprocessingRoot = ReactDOM.createRoot(document.getElementById('postprocessing-demo'));
+postprocessingRoot.render(React.createElement(LabPostProcessing));
+
+const reactspringRoot = ReactDOM.createRoot(document.getElementById('reactspring-demo'));
+reactspringRoot.render(React.createElement(LabReactSpring));
+
+// NEW: R3F Floorplan (WebGL) demo mount
+const r3fFloorplanRoot = ReactDOM.createRoot(document.getElementById('r3f-webgpu-floorplan-demo'));
+r3fFloorplanRoot.render(React.createElement(LabR3FWebGPUFloorplan));
+
+// NEW: WebGPU Node demo mount
+const webgpuReactRoot = ReactDOM.createRoot(document.getElementById('webgpu-react-demo'));
+webgpuReactRoot.render(React.createElement(LabWebGPUReactDemo));
+
+// Floorplan Upload Demo
+const floorplanUploadRoot = ReactDOM.createRoot(document.getElementById('floorplan-upload-demo'));
+floorplanUploadRoot.render(React.createElement('div', { className: 'w-full h-full' },
+  React.createElement(LabUpload, { 
+    onUpload: (result) => {
+      console.log('Floorplan uploaded:', result);
+      alert(`Detected ${result.walls?.length || 0} wall segments!`);
+    }
+  })
+));
+
+// Object Placement Demo (using LabScene with constraints)
+const objectPlacementRoot = ReactDOM.createRoot(document.getElementById('object-placement-demo'));
+import LabScene from './LabScene.js';
+import { MOCK_DATA } from './test-data.js';
+
+const placementData = {
+  rooms: [{ 
+    id: 'demo_room', 
+    name: 'Demo Room',
+    walls: [
+      { start: { x: -3, y: -3 }, end: { x: 3, y: -3 } },
+      { start: { x: 3, y: -3 }, end: { x: 3, y: 3 } },
+      { start: { x: 3, y: 3 }, end: { x: -3, y: 3 } },
+      { start: { x: -3, y: 3 }, end: { x: -3, y: -3 } }
+    ]
+  }]
+};
+
+objectPlacementRoot.render(React.createElement(LabScene, {
+  floorPlanData: placementData,
+  height: 2.5,
+  wallThickness: 0.15,
+  roomColors: { 'demo_room': '#f0f9ff' },
+  roomTextures: {},
+  lightIntensity: 1.0,
+  viewMode: '3d',
+  fixtures: [
+    { id: 'chair1', type: 'chair', position: [1, 0, 1], rotation: 0 },
+    { id: 'table1', type: 'table', position: [0, 0, 0], rotation: 0 }
+  ],
+  selectedFixture: null,
+  onSelectFixture: () => {}
+}));
+
+// Material System Demo
+import * as THREE from 'three';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+
+const MaterialSystemDemo = () => {
+  const [material, setMaterial] = React.useState('marble');
+  
+  const materials = {
+    marble: { color: '#f5f5f5', roughness: 0.3, metalness: 0.1 },
+    wood: { color: '#8b4513', roughness: 0.7, metalness: 0.0 },
+    tile: { color: '#e0e0e0', roughness: 0.2, metalness: 0.1 }
+  };
+  
+  return React.createElement('div', { className: 'w-full h-full' },
+    React.createElement(Canvas, { camera: { position: [3, 3, 3], fov: 50 } },
+      React.createElement('ambientLight', { intensity: 0.4 }),
+      React.createElement('directionalLight', { position: [5, 5, 5], intensity: 1 }),
+      React.createElement('mesh', { castShadow: true, receiveShadow: true },
+        React.createElement('boxGeometry', { args: [2, 0.1, 2] }),
+        React.createElement('meshStandardMaterial', materials[material])
+      ),
+      React.createElement('mesh', { rotation: [-Math.PI/2, 0, 0], receiveShadow: true, position: [0, -1, 0] },
+        React.createElement('planeGeometry', { args: [10, 10] }),
+        React.createElement('meshStandardMaterial', { color: '#2d3748' })
+      ),
+      React.createElement(OrbitControls, { enableDamping: true })
+    ),
+    React.createElement('div', { className: 'absolute bottom-4 left-4 flex gap-2' },
+      Object.keys(materials).map(mat =>
+        React.createElement('button', {
+          key: mat,
+          onClick: () => setMaterial(mat),
+          className: `px-3 py-1 rounded text-xs font-medium transition-colors ${material === mat ? 'bg-teal-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`
+        }, mat.charAt(0).toUpperCase() + mat.slice(1))
+      )
+    )
+  );
+};
+
+const materialSystemRoot = ReactDOM.createRoot(document.getElementById('material-system-demo'));
+materialSystemRoot.render(React.createElement(MaterialSystemDemo));
+
+// 2D/3D Sync Demo
+import { ConversionEngine3D } from './3dConversionEngine.js';
+
+class SyncDemo {
+  constructor() {
+    this.canvas2D = document.getElementById('sync-2d-canvas');
+    this.ctx = this.canvas2D?.getContext('2d');
+    this.container3D = document.getElementById('sync-3d-view');
+    
+    if (!this.canvas2D || !this.container3D) return;
+    
+    this.walls = [];
+    this.drawing = false;
+    this.startPoint = null;
+    
+    this.init3D();
+    this.setupCanvas2D();
+    this.draw2D();
+  }
+  
+  init3D() {
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0xf0f0f0);
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    this.camera.position.set(8, 6, 8);
+    
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(this.container3D.clientWidth, this.container3D.clientHeight);
+    this.renderer.shadowMap.enabled = true;
+    this.container3D.appendChild(this.renderer.domElement);
+    
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    this.scene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10, 5, 10);
+    dirLight.castShadow = true;
+    this.scene.add(dirLight);
+    
+    this.engine = new ConversionEngine3D(this.scene);
+    
+    this.animate3D();
+  }
+  
+  setupCanvas2D() {
+    this.canvas2D.addEventListener('pointerdown', (e) => {
+      const rect = this.canvas2D.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      if (!this.drawing) {
+        this.startPoint = { x, y };
+        this.drawing = true;
+      } else {
+        this.walls.push({ start: this.startPoint, end: { x, y } });
+        this.startPoint = { x, y };
+        this.update3D();
+      }
+      
+      this.draw2D();
+    });
+  }
+  
+  draw2D() {
+    if (!this.ctx) return;
+    
+    this.ctx.fillStyle = '#f8f8f8';
+    this.ctx.fillRect(0, 0, this.canvas2D.width, this.canvas2D.height);
+    
+    this.ctx.strokeStyle = '#3b82f6';
+    this.ctx.lineWidth = 4;
+    this.ctx.lineCap = 'round';
+    
+    this.walls.forEach(wall => {
+      this.ctx.beginPath();
+      this.ctx.moveTo(wall.start.x, wall.start.y);
+      this.ctx.lineTo(wall.end.x, wall.end.y);
+      this.ctx.stroke();
+    });
+    
+    if (this.drawing && this.startPoint) {
+      this.ctx.fillStyle = '#3b82f6';
+      this.ctx.beginPath();
+      this.ctx.arc(this.startPoint.x, this.startPoint.y, 6, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+  }
+  
+  update3D() {
+    const appState = {
+      walls: this.walls,
+      fixtures: [],
+      fixtureStyles: {},
+      showCeiling: false,
+      showRoof: false,
+      defaultWallTexture: null,
+      defaultFloorTexture: 'tile'
+    };
+    
+    this.engine.convert(appState, this.canvas2D.width, this.canvas2D.height);
+  }
+  
+  animate3D() {
+    requestAnimationFrame(() => this.animate3D());
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+}
+
+// Initialize sync demo
+setTimeout(() => {
+  new SyncDemo();
+}, 100);
+
+// ============================================
+// ADVANCED PERFORMANCE MONITORING SYSTEM
+// ============================================
+
+class PerformanceMonitor {
+    constructor() {
+        this.frameCount = 0;
+        this.lastTime = performance.now();
+        this.frameTimes = [];
+        this.maxFrames = 60;
+        
+        this.stats = {
+            fps: { current: 60, min: 60, max: 60, avg: 60 },
+            memory: { used: 0, limit: 0, percent: 0 },
+            render: { drawCalls: 0, triangles: 0, programs: 0, geometries: 0 }
+        };
+        
+        this.canvas = document.getElementById('frame-graph');
+        this.ctx = this.canvas?.getContext('2d');
+        
+        // Hook into Three.js renderer if available
+        this.renderer = null;
+        this.attemptRendererHook();
+    }
+    
+    attemptRendererHook() {
+        // Try to find Three.js renderer in global scope or window
+        const checkInterval = setInterval(() => {
+            if (window.THREE && window.renderer) {
+                this.renderer = window.renderer;
+                clearInterval(checkInterval);
+            }
+        }, 100);
+        
+        setTimeout(() => clearInterval(checkInterval), 5000);
+    }
+    
+    update() {
+        this.frameCount++;
+        const now = performance.now();
+        const deltaTime = now - this.lastTime;
+        
+        // Store frame time for graphing
+        this.frameTimes.push(deltaTime);
+        if (this.frameTimes.length > this.maxFrames) {
+            this.frameTimes.shift();
+        }
+        
+        // Update stats every second
+        if (deltaTime >= 1000) {
+            this.updateFPS(deltaTime);
+            this.updateMemory();
+            this.updateRenderStats();
+            this.drawGraph();
+            
+            this.frameCount = 0;
+            this.lastTime = now;
+        }
+    }
+    
+    updateFPS(deltaTime) {
+        const fps = Math.round(this.frameCount * 1000 / deltaTime);
+        
+        this.stats.fps.current = fps;
+        this.stats.fps.min = Math.min(this.stats.fps.min, fps);
+        this.stats.fps.max = Math.max(this.stats.fps.max, fps);
+        
+        // Calculate rolling average
+        const avgFrameTime = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+        this.stats.fps.avg = Math.round(1000 / avgFrameTime);
+        
+        // Update DOM
+        document.getElementById('fps-counter').textContent = fps;
+        document.getElementById('fps-min').textContent = this.stats.fps.min;
+        document.getElementById('fps-avg').textContent = this.stats.fps.avg;
+        document.getElementById('fps-max').textContent = this.stats.fps.max;
+        
+        const fpsPercent = Math.min(fps / 60 * 100, 100);
+        document.getElementById('fps-bar').style.width = fpsPercent + '%';
+        
+        // Color coding
+        const fpsBar = document.getElementById('fps-bar');
+        if (fps >= 55) {
+            fpsBar.className = 'h-full bg-green-500 transition-all duration-300';
+        } else if (fps >= 30) {
+            fpsBar.className = 'h-full bg-yellow-500 transition-all duration-300';
+        } else {
+            fpsBar.className = 'h-full bg-red-500 transition-all duration-300';
+        }
+    }
+    
+    updateMemory() {
+        if (performance.memory) {
+            const usedMB = Math.round(performance.memory.usedJSHeapSize / 1048576);
+            const limitMB = Math.round(performance.memory.jsHeapSizeLimit / 1048576);
+            const percent = (performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit) * 100;
+            
+            this.stats.memory = { used: usedMB, limit: limitMB, percent };
+            
+            document.getElementById('memory-counter').textContent = usedMB + 'MB';
+            document.getElementById('memory-limit').textContent = limitMB;
+            document.getElementById('memory-bar').style.width = percent + '%';
+        }
+    }
+    
+    updateRenderStats() {
+        if (this.renderer && this.renderer.info) {
+            const info = this.renderer.info;
+            
+            this.stats.render.drawCalls = info.render?.calls || 0;
+            this.stats.render.triangles = info.render?.triangles || 0;
+            this.stats.render.programs = info.programs?.length || 0;
+            this.stats.render.geometries = info.memory?.geometries || 0;
+            
+            document.getElementById('drawcalls-counter').textContent = this.stats.render.drawCalls;
+            document.getElementById('programs-count').textContent = this.stats.render.programs;
+            
+            const trianglesK = (this.stats.render.triangles / 1000).toFixed(1);
+            document.getElementById('triangles-counter').textContent = trianglesK + 'K';
+            document.getElementById('geometries-count').textContent = this.stats.render.geometries;
+            
+            // Update bars based on reasonable thresholds
+            const drawCallPercent = Math.min(this.stats.render.drawCalls / 100 * 100, 100);
+            document.getElementById('drawcalls-bar').style.width = drawCallPercent + '%';
+            
+            const trianglePercent = Math.min(this.stats.render.triangles / 10000 * 100, 100);
+            document.getElementById('triangles-bar').style.width = trianglePercent + '%';
+        } else {
+            // Simulate data when renderer not available
+            this.stats.render.drawCalls = Math.floor(Math.random() * 50) + 30;
+            this.stats.render.triangles = Math.floor(Math.random() * 5000) + 3000;
+            this.stats.render.programs = Math.floor(Math.random() * 10) + 5;
+            this.stats.render.geometries = Math.floor(Math.random() * 20) + 10;
+            
+            document.getElementById('drawcalls-counter').textContent = this.stats.render.drawCalls;
+            document.getElementById('programs-count').textContent = this.stats.render.programs;
+            document.getElementById('triangles-counter').textContent = (this.stats.render.triangles / 1000).toFixed(1) + 'K';
+            document.getElementById('geometries-count').textContent = this.stats.render.geometries;
+            
+            document.getElementById('drawcalls-bar').style.width = Math.min(this.stats.render.drawCalls / 100 * 100, 100) + '%';
+            document.getElementById('triangles-bar').style.width = Math.min(this.stats.render.triangles / 10000 * 100, 100) + '%';
+        }
+    }
+    
+    drawGraph() {
+        if (!this.ctx) return;
+        
+        const { width, height } = this.canvas;
+        const ctx = this.ctx;
+        
+        // Clear canvas
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(0, 0, width, height);
+        
+        // Draw grid lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        
+        // Horizontal lines (16ms and 33ms thresholds)
+        const ms16 = height - (16 / 50 * height); // 60fps
+        const ms33 = height - (33 / 50 * height); // 30fps
+        
+        ctx.beginPath();
+        ctx.moveTo(0, ms16);
+        ctx.lineTo(width, ms16);
+        ctx.strokeStyle = 'rgba(34, 197, 94, 0.3)';
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(0, ms33);
+        ctx.lineTo(width, ms33);
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+        ctx.stroke();
+        
+        // Draw frame times
+        const barWidth = width / this.maxFrames;
+        
+        this.frameTimes.forEach((frameTime, i) => {
+            const barHeight = Math.min(frameTime / 50 * height, height);
+            const x = i * barWidth;
+            const y = height - barHeight;
+            
+            // Color based on performance
+            if (frameTime <= 16) {
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.8)'; // Green
+            } else if (frameTime <= 33) {
+                ctx.fillStyle = 'rgba(251, 191, 36, 0.8)'; // Yellow
+            } else {
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.8)'; // Red
+            }
+            
+            ctx.fillRect(x, y, barWidth - 1, barHeight);
+        });
+        
+        // Draw labels
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.font = '10px monospace';
+        ctx.fillText('16ms', 5, ms16 - 2);
+        ctx.fillText('33ms', 5, ms33 - 2);
+    }
+}
+
+const monitor = new PerformanceMonitor();
+
+function animationLoop() {
+    monitor.update();
+    requestAnimationFrame(animationLoop);
+}
+
+animationLoop();
+</script>
+</body>
+</html>
+

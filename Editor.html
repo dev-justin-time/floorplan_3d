@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+ <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>3D Blueprint Editor</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scrollbar for sidebar */
+        aside::-webkit-scrollbar {
+            width: 6px;
+        }
+        aside::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        aside::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+    </style>
+
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13a4ec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101c22",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200 overflow-hidden">
+    <div class="relative flex h-screen w-full flex-col">
+        <header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm shadow-sm">
+            <nav class="container mx-auto flex items-center justify-between whitespace-nowrap border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+                <div class="flex items-center gap-4 text-gray-900 dark:text-white">
+                    <span class="material-symbols-outlined text-primary text-3xl">view_in_ar</span>
+                    <h2 class="text-xl font-bold tracking-[-0.015em]">Blueprint Editor</h2>
+                </div>
+                <div class="hidden md:flex flex-1 justify-center items-center gap-6">
+                    <div class="flex items-center gap-1 rounded-lg bg-gray-200 dark:bg-gray-800 p-1">
+                        <button onclick="window.undo()" aria-label="Undo" class="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 transition-colors" title="Undo (Ctrl+Z)">
+                            <span class="material-symbols-outlined text-xl">undo</span>
+                        </button>
+                        <button onclick="window.redo()" aria-label="Redo" class="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 transition-colors" title="Redo (Ctrl+Shift+Z)">
+                            <span class="material-symbols-outlined text-xl">redo</span>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-sm font-medium text-gray-500 dark:text-gray-400">2D</span>
+                        <label class="relative inline-flex cursor-pointer items-center">
+                            <input class="peer sr-only" type="checkbox" id="view-toggle" onchange="window.toggleView()">
+                            <div class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-checked:after:border-white dark:border-gray-600 dark:bg-gray-700"></div>
+                        </label>
+                        <span class="text-sm font-medium text-gray-500 dark:text-gray-400">3D</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 border-l border-gray-300 dark:border-gray-700 pl-4">
+                        <label class="flex items-center gap-2 cursor-pointer select-none" title="Toggle Dimensions">
+                            <div class="relative">
+                                <input type="checkbox" class="sr-only peer" checked="" onchange="window.toggleDimensions()">
+                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Dims</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none" title="Toggle Ceiling">
+                            <div class="relative">
+                                <input type="checkbox" id="ceiling-toggle" class="sr-only peer" onchange="window.toggleCeiling()">
+                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Ceiling</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="window.location.href='index.html'" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-gray-800 dark:text-white text-sm font-bold tracking-[0.015em] hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors gap-2">
+                        <span class="material-symbols-outlined text-base">arrow_back</span>
+                        <span class="truncate">Home</span>
+                    </button>
+                </div>
+            </nav>
+        </header>
+        
+        <main class="flex h-full grow overflow-hidden">
+            <!-- Sidebar -->
+            <aside class="w-72 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-background-dark/95 p-4 flex flex-col gap-4 overflow-y-auto z-20 shadow-xl">
+                <!-- Import/Export -->
+                <div class="item-category">
+                    <div class="item-category-header pb-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Project</h3>
+                    </div>
+                    <div class="space-y-2 mt-3">
+                        <button onclick="document.getElementById('upload-modal').classList.remove('hidden')" class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left text-sm font-medium">
+                            <span class="material-symbols-outlined text-primary">upload_file</span>
+                            Import Floorplan
+                        </button>
+                        
+                        <!-- Background Scale Control -->
+                        <div class="px-2 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-gray-500">Plan Scale</label>
+                                <span id="bg-scale-val" class="text-xs font-mono">1.0x</span>
+                            </div>
+                            <input type="range" min="0.1" max="5" step="0.1" value="1" class="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary" oninput="window.setBgScale(this.value)">
+                        </div>
+
+                        <button onclick="window.exportProject()" class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left text-sm font-medium">
+                            <span class="material-symbols-outlined text-green-500">download</span>
+                            Save Project
+                        </button>
+                        
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <button onclick="window.export3D('obj')" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-xs font-bold">
+                                .OBJ
+                            </button>
+                            <button onclick="window.export3D('gltf')" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-xs font-bold">
+                                .GLTF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tools -->
+                <div class="item-category">
+                    <div class="item-category-header pb-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Tools</h3>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mt-3">
+                        <button class="tool-btn active flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary transition-all shadow-sm" data-tool="wall" title="Shortcut: W">
+                            <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 mb-1">edit</span>
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-300">Wall</span>
+                        </button>
+                        <button class="tool-btn flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-red-500 hover:text-red-500 transition-all shadow-sm group" data-tool="delete" title="Shortcut: D">
+                            <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-red-500 mb-1">delete</span>
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-red-500">Delete</span>
+                        </button>
+                        <button class="flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-500 hover:text-orange-500 transition-all shadow-sm group" onclick="if(confirm('Clear entire project? This cannot be undone.')) window.clearProject()" title="Clear All">
+                            <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-orange-500 mb-1">delete_sweep</span>
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-orange-500">Clear</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Structures -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('structure-items')">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Structure</h3>
+                        <span class="material-symbols-outlined text-gray-400" id="structure-items-icon">expand_more</span>
+                    </div>
+                    <div id="structure-items" class="grid grid-cols-3 gap-2 mt-1">
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="door">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">door_front</span>
+                            <span class="text-[10px] mt-1 text-center">Door</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="window">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">window</span>
+                            <span class="text-[10px] mt-1 text-center">Window</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="round_window">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">circle</span>
+                            <span class="text-[10px] mt-1 text-center">Round</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Furniture Categories -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('furniture-items')">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Furniture</h3>
+                        <span class="material-symbols-outlined text-gray-400" id="furniture-items-icon">expand_more</span>
+                    </div>
+                    <div id="furniture-items" class="grid grid-cols-3 gap-2 mt-1">
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="bed_queen">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">bed</span>
+                            <span class="text-[10px] mt-1 text-center">Bed</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="sofa">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">chair</span>
+                            <span class="text-[10px] mt-1 text-center">Sofa</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="dining_table">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">table_restaurant</span>
+                            <span class="text-[10px] mt-1 text-center">Table</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="wardrobe">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">door_sliding</span>
+                            <span class="text-[10px] mt-1 text-center">Wardrobe</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="desk">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">desk</span>
+                            <span class="text-[10px] mt-1 text-center">Desk</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="kitchen_cabinet">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">kitchen</span>
+                            <span class="text-[10px] mt-1 text-center">Cabinet</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Decor & Models -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('decor-items')">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Decor & 3D</h3>
+                        <span class="material-symbols-outlined text-gray-400" id="decor-items-icon">expand_more</span>
+                    </div>
+                    <div id="decor-items" class="grid grid-cols-3 gap-2 mt-1">
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="shaker">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">deployed_code</span>
+                            <span class="text-[10px] mt-1 text-center">3D Shaker</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="rug_round">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">all_out</span>
+                            <span class="text-[10px] mt-1 text-center">Rug</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="floor_lamp">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">light</span>
+                            <span class="text-[10px] mt-1 text-center">Lamp</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="potted_plant">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">potted_plant</span>
+                            <span class="text-[10px] mt-1 text-center">Plant</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="painting">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">image</span>
+                            <span class="text-[10px] mt-1 text-center">Art</span>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Viewport -->
+            <div id="viewport-container" class="flex-1 relative bg-gray-50 dark:bg-gray-900 overflow-hidden relative">
+                <!-- 2D View -->
+                <div id="view-2d" class="absolute inset-0 z-10 bg-white dark:bg-[#e5e5e5]">
+                    <canvas id="blueprint-canvas" class="block w-full h-full touch-none cursor-crosshair"></canvas>
+                    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur text-white px-4 py-2 rounded-full text-xs font-medium pointer-events-none shadow-lg">
+                        Left Click: Draw/Place • Right Click: Pan • Scroll: Zoom
+                    </div>
+                </div>
+                
+                <!-- 3D View -->
+                <div id="view-3d" class="absolute inset-0 z-0 opacity-0 pointer-events-none">
+                    <div id="render-3d-view" class="w-full h-full bg-gray-100 dark:bg-gray-800"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg p-6 transform transition-all">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Import Floorplan</h3>
+                <button onclick="document.getElementById('upload-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- Image Upload -->
+                <div id="upload-image-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-primary dark:hover:border-primary rounded-xl p-6 text-center cursor-pointer transition-colors group">
+                    <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-primary rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-2xl">image</span>
+                    </div>
+                    <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Load Image</h4>
+                    <p class="text-xs text-gray-500">Trace over a blueprint image manually</p>
+                </div>
+
+                <!-- JSON Upload -->
+                <div id="upload-json-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-green-500 dark:hover:border-green-500 rounded-xl p-6 text-center cursor-pointer transition-colors group">
+                    <div class="w-12 h-12 bg-green-50 dark:bg-green-900/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-2xl">data_object</span>
+                    </div>
+                    <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Load Project</h4>
+                    <p class="text-xs text-gray-500">Restore a previously saved .json file</p>
+                </div>
+            </div>
+
+            <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-200 dark:border-gray-700"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-white dark:bg-gray-800 text-gray-500">OR</span>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <div id="upload-ai-btn" class="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-4 rounded-xl shadow-lg cursor-pointer hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center justify-between group">
+                    <div class="flex items-center gap-4">
+                        <div class="p-2 bg-white/20 rounded-lg">
+                            <span class="material-symbols-outlined text-2xl">auto_awesome</span>
+                        </div>
+                        <div class="text-left">
+                            <h4 class="font-bold text-sm">AI Auto-Scan</h4>
+                            <p class="text-xs text-white/80">Automatically detect walls from image</p>
+                        </div>
+                    </div>
+                    <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                </div>
+            </div>
+
+            <input type="file" id="hidden-file-input" class="hidden">
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        function toggleCategory(id) {
+            const el = document.getElementById(id);
+            const icon = document.getElementById(id + '-icon');
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                el.classList.add('grid');
+                icon.innerHTML = 'expand_more';
+            } else {
+                el.classList.add('hidden');
+                el.classList.remove('grid');
+                icon.innerHTML = 'chevron_right';
+            }
+        }
+    </script>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.160.0",
+            "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+            "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js",
+            "three-bvh-csg": "https://esm.sh/three-bvh-csg@0.0.16?external=three"
+        }
+    }
+    </script>
+    <script type="module" src="./editor.js"></script>
+</body>
+</html>

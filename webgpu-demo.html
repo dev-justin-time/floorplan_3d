@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <title>WebGPU Demo - Floorplan 3D</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://esm.sh/three@0.160.0",
+        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+        "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js"
+      }
+    }
+  </script>
+  <style>
+    html, body { height: 100%; margin: 0; background: #101c22; color: white; font-family: system-ui; overflow: hidden; }
+    #info { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+    h1 { margin: 0 0 10px 0; font-size: 1.5rem; }
+    p { margin: 0; opacity: 0.8; }
+    a.button { position: absolute; bottom: 30px; right: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; border-radius: 8px; background: #13a4ec; color: #fff; text-decoration: none; font-weight: 600; pointer-events: auto; transition: opacity 0.2s; }
+    a.button:hover { opacity: 0.9; }
+    #canvas-container { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h1>WebGPU Renderer Test</h1>
+    <p>Experimental backend. Requires compatible browser.</p>
+  </div>
+  
+  <div id="canvas-container"></div>
+  <a class="button" href="index.html">Back to Home</a>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
+    import { color, cos, float, sin, timerLocal, vec3, vec4 } from 'three/nodes';
+
+    if ( WebGPURenderer.isAvailable() === false ) {
+        document.body.innerHTML = `
+            <div style="display:flex;height:100%;justify-content:center;align-items:center;flex-direction:column;text-align:center;">
+                <h1>WebGPU not available</h1>
+                <p>Please use a compatible browser (Chrome Canary, Edge Canary) and enable WebGPU.</p>
+                <br>
+                <a class="button" href="index.html" style="position:relative;bottom:auto;right:auto;">Back</a>
+            </div>
+        `;
+        throw new Error( 'WebGPU not available' );
+    }
+
+    const container = document.getElementById('canvas-container');
+
+    const camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.1, 100 );
+    camera.position.set( 3, 3, 3 );
+    camera.lookAt( 0, 0, 0 );
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color( 0x101c22 );
+
+    // Lighting
+    const dirLight = new THREE.DirectionalLight( 0xffffff, 2 );
+    dirLight.position.set( 5, 5, 5 );
+    scene.add( dirLight );
+    
+    const ambientLight = new THREE.AmbientLight( 0x404040, 5 );
+    scene.add( ambientLight );
+
+    // Object with Node Material
+    const geometry = new THREE.TorusKnotGeometry( 1, 0.3, 128, 32 );
+    const material = new THREE.MeshStandardNodeMaterial();
+    
+    // Node-based vertex manipulation and coloring
+    const time = timerLocal();
+    const varyingColor = vec3( 
+        sin( time.mul( 2 ) ), 
+        cos( time.mul( 1.5 ) ), 
+        sin( time.mul( 1 ) ) 
+    );
+    
+    material.colorNode = vec4( varyingColor.add( 1 ).mul( 0.5 ), 1 );
+    material.roughness = float( 0.2 );
+    material.metalness = float( 0.8 );
+
+    const mesh = new THREE.Mesh( geometry, material );
+    scene.add( mesh );
+
+    // Floor
+    const floorGeo = new THREE.PlaneGeometry( 10, 10 );
+    const floorMat = new THREE.MeshStandardMaterial( { color: 0x222222, roughness: 0.1, metalness: 0.5 } );
+    const floor = new THREE.Mesh( floorGeo, floorMat );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -1.5;
+    scene.add( floor );
+
+    const renderer = new WebGPURenderer( { antialias: true } );
+    renderer.setPixelRatio( window.devicePixelRatio );
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    renderer.setAnimationLoop( animate );
+    container.appendChild( renderer.domElement );
+
+    window.addEventListener( 'resize', onWindowResize );
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+
+    function animate() {
+        mesh.rotation.y += 0.01;
+        mesh.rotation.z += 0.005;
+        renderer.render( scene, camera );
+    }
+  </script>
+</body>
+</html>
+
