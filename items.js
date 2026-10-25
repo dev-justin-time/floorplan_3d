@@ -36,11 +36,19 @@ export class Item {
         // Mirror state set by flipping the piece; the 3D builder mirrors the
         // mesh on the flipped axis so the plan and the model agree.
         this.flipped = { x: false, z: false };
+        // Assemblies: pieces sharing a group id drag together.
+        this.groupId = null;
+        // Per-item override of the default mounting height (metres). null means
+        // "use metadata.mountHeight", 0 for floor units.
+        this.defaultBottom = null;
         this.modelUrl = null; // Support for custom 3D models
         // Metres the piece is lifted above its default height position (0 for
         // floor-standing pieces, which sit on the floor). Dragged up/down in
         // the elevation view.
         this.elevation = 0;
+        // Parametric cabinet configuration ({ doorStyle, doors, drawers,
+        // shelves, toeKick, counter }). null = use the line's fixed builder.
+        this.config = null;
     }
     
     setPosition(x, y) {
@@ -66,7 +74,10 @@ export class Item {
             locked: !!this.locked,
             lockedAxes: { x: Boolean(this.lockedAxes?.x), z: Boolean(this.lockedAxes?.z) },
             flipped: { x: Boolean(this.flipped?.x), z: Boolean(this.flipped?.z) },
-            size: this.size || null
+            groupId: this.groupId || null,
+            defaultBottom: typeof this.defaultBottom === 'number' ? this.defaultBottom : null,
+            size: this.size || null,
+            config: this.config ? { ...this.config } : null
         };
     }
 }
@@ -238,7 +249,10 @@ export class ItemFactory {
         if (json.flipped && typeof json.flipped === 'object') {
             item.flipped = { x: Boolean(json.flipped.x), z: Boolean(json.flipped.z) };
         }
+        if (typeof json.groupId === 'string' && json.groupId) item.groupId = json.groupId;
+        if (typeof json.defaultBottom === 'number') item.defaultBottom = json.defaultBottom;
         if (json.size && typeof json.size === 'object') item.size = { ...json.size };
+        if (json.config && typeof json.config === 'object') item.config = { ...json.config };
         return item;
     }
 }

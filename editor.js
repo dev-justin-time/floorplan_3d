@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import { ConversionEngine3D } from './3dConversionEngine.js';
 import { Wall, ItemFactory, itemDimensions } from './items.js';
 import { StateManager } from './state-manager.js';
@@ -45,6 +43,61 @@ import {
     disposeAnnotationGroup,
     createHeightReadout
 } from './features/index.js';
+import {
+    ADVANCED_FEATURES,
+    alignDepth,
+    snapToCorner,
+    validatePlacements,
+    baseOf,
+    setDefaultBottom,
+    groupRun,
+    ungroup as ungroupItems,
+    captureGroupOffsets,
+    applyGroupDelta,
+    copyItems as copyToClipboard,
+    pasteItems as pasteFromClipboard,
+    saveStateTagged,
+    migrateProject,
+    stampProject,
+    PROJECT_SCHEMA_VERSION,
+    createAutosave,
+    buildElevationDimensions,
+    createElevationDimensionGroup,
+    createSectionBox,
+    summarizeByRoom,
+    formatSummary,
+    previewDrag,
+    support as xrSupport,
+    startPlacement,
+    createWalkthrough,
+    exportScene,
+    downloadExport
+} from './features/advanced/index.js';
+import {
+    STUDIO_FEATURES,
+    roomSurfacesFromWalls,
+    FLOOR_TEXTURES,
+    storeyStack,
+    storeySummary,
+    engineStories,
+    syncActiveStorey,
+    activateStorey,
+    addStorey as addStoreyFeature,
+    removeStorey as removeStoreyFeature,
+    createRenderLoop,
+    listProjects,
+    saveNamedProject,
+    loadNamedProject,
+    deleteNamedProject,
+    createCollaboration,
+    cabinetConfigOf,
+    setCabinetConfig as applyCabinetConfig,
+    manufacturingPackage,
+    analyzeLayout,
+    formatAnalysis,
+    suggestRun,
+    drawStudioOverlays
+} from './features/studio/index.js';
 
 // Application State
 const AppState = {
@@ -86,6 +139,11 @@ const AppState = {
     roomLabels: [],
     metrics: null,
 
+    // Advanced kit: placement warnings, per-room summary, group drag members.
+    warnings: [],
+    summary: null,
+    groupDrag: null,
+
     // Background
     backgroundImage: null,
     backgroundScale: 1.0, // Added scale property
@@ -93,7 +151,20 @@ const AppState = {
     // Styles
     fixtureStyles: {},
     defaultWallTexture: null,
-    defaultFloorTexture: 'tile'
+    defaultFloorTexture: 'tile',
+
+    // Studio kit: storeys, per-room floors, comments and layout checks.
+    stories: [],
+    currentStoryIndex: 0,
+    roomMaterials: {},
+    rooms: [],
+    comments: [],
+    selectedCommentId: null,
+    layoutReport: null,
+    projects: [],
+    activeProjectId: null,
+    activeProjectName: null,
+    lastConvert: null
 };
 
 // Systems
@@ -110,6 +181,16 @@ let stateManager;
 // Elevation height annotations (feature kit) and the live drag readout.
 let elevationAnnotations = null;
 let heightReadout = null;
+// Advanced kit: autosave, clipping plane, walkthrough agent.
+let autosave = null;
+let sectionBox = null;
+let walkthrough = null;
+const walkthroughClock = new THREE.Clock();
+// Studio kit: dirty-flag render loop and the collaboration store.
+let renderLoop = null;
+let collaboration = null;
+
+const ACTIVE_PROJECT_KEY = 'floorplan3d_active_project';
 
 // Constants
 const SCALE = 30; // Pixels per meter approximation for internal logic
@@ -125,12 +206,27 @@ function init() {
     
     // Setup State Manager
     stateManager = new StateManager(AppState, restoreState);
-    
+
+    // Storeys sit above the legacy walls/fixtures arrays; the ground floor
+    // starts out owning them by reference.
+    ensureStoreyModel();
+
+    // Debounced, dirty-only autosave (feature 29).
+    autosave = createAutosave({
+        save: (payload) => StorageManager.saveProject('autosave', payload)
+    });
+    window.addEventListener('beforeunload', () => autosave?.flush());
+
     init2D();
     init3D();
     setupEventListeners();
     wireUploadModal(); // Initialize modal handlers
-    initAbilities(); // 49 scene abilities + their panel
+    initAbilities(); // Plan / 3D / advanced / studio abilities + their panel
+    initCollaboration();
+    refreshStoreyPanel();
+    refreshRoomFloorPanel();
+    refreshProjectsPanel();
+    refreshCommentsPanel();
     
     // Load Autosave
     const saved = StorageManager.loadProject('autosave');
@@ -174,19 +270,19 @@ function init() {
         const wall = selectedWall();
         if (!wall) return;
         setWallHeightValue(wall, parseFloat(value));
-        saveAndSync();
+        saveAndSync({ tag: 'inspector' });
     };
     window.setWallColor = (value) => {
         const wall = selectedWall();
         if (!wall) return;
         setWallFinish(AppState.fixtureStyles, wall.id, { color: value });
-        saveAndSync();
+        saveAndSync({ tag: 'inspector' });
     };
     window.setWallTexture = (value) => {
         const wall = selectedWall();
         if (!wall) return;
         setWallFinish(AppState.fixtureStyles, wall.id, { texture: value || null });
-        saveAndSync();
+        saveAndSync({ tag: 'inspector' });
     };
     window.setGridSize = (cm) => {
         AppState.gridSize = gridPixelsFromCm(cm);
@@ -215,14 +311,14 @@ function init() {
         if (!fixture || !Number.isFinite(metres) || metres <= 0) return;
         if (!fixture.size) fixture.size = {};
         fixture.size[key] = metres;
-        saveAndSync();
+        saveAndSync({ tag: 'inspector' });
     };
     window.setItemRotation = (value) => {
         const fixture = AppState.selectedFixture;
         const radians = (parseFloat(value) * Math.PI) / 180;
         if (!fixture || !Number.isFinite(radians)) return;
         fixture.rotation = radians;
-        saveAndSync();
+        saveAndSync({ tag: 'inspector' });
     };
     window.deleteSelectedWall = deleteSelectedWall;
     window.deleteSelected = deleteSelected;
@@ -244,6 +340,73 @@ function init() {
         saveAndSync();
         refreshGizmo();
     };
+    // --- Advanced kit actions ----------------------------------------
+    window.groupSelected = groupSelection;
+    window.ungroupSelected = ungroupSelection;
+    window.alignDepthSelected = alignDepthSelection;
+    window.snapCornerSelected = snapCornerSelection;
+    window.setItemBase = (value) => {
+        const fixture = AppState.selectedFixture;
+        if (!fixture) return;
+        setDefaultBottom(fixture, parseFloat(value));
+        saveAndSync({ tag: 'inspector' });
+    };
+    window.setSectionHeight = (value) => sectionBox?.setHeight(parseFloat(value));
+    window.startAR = startAR;
+    window.exportGLB = () => export3D('glb');
+    window.flushAutosave = () => autosave?.flush();
+    window.advancedKit = {
+        features: ADVANCED_FEATURES,
+        schemaVersion: PROJECT_SCHEMA_VERSION,
+        warnings: () => AppState.warnings,
+        summary: () => AppState.summary,
+        section: () => sectionBox,
+        walkthrough: () => walkthrough,
+        autosave: () => autosave?.stats,
+        historyDepth: () => stateManager?.history?.length || 0,
+        xr: () => xrSupport()
+    };
+
+    // --- Studio kit actions ------------------------------------------
+    window.addStorey = () => addNewStorey();
+    window.setStorey = (index) => setStorey(Number(index));
+    window.removeStorey = (index) => removeStoreyAt(Number(index));
+    window.toggleStoreyVisible = (index) => toggleStoreyVisible(Number(index));
+    window.setStoreyHeight = (value) => setActiveStoreyHeight(parseFloat(value));
+    window.setRoomFloor = (key, texture) => setRoomFloor(key, texture);
+    window.setCabinetConfig = (key, value) => updateCabinetConfig(key, value);
+    window.analyzeKitchen = () => analyzeKitchenLayout();
+    window.suggestKitchenRun = (count) => suggestKitchenRun(count ? Number(count) : 5);
+    window.exportManufacturing = (format) => exportManufacturing(format);
+    window.saveProjectAs = (name) => saveProjectAs(name);
+    window.openProject = (id) => openProject(id);
+    window.removeProject = (id) => removeProject(id);
+    window.refreshProjects = refreshProjectsPanel;
+    window.addCommentHere = () => addCommentAt(AppState.cursor || planCenter());
+    window.resolveComment = (id) => resolveComment(id);
+    window.selectComment = (id) => selectComment(id);
+    window.studioKit = {
+        features: STUDIO_FEATURES,
+        storeys: () => storeySummary(AppState),
+        stack: () => storeyStack(AppState.stories),
+        rooms: () => AppState.rooms,
+        layout: () => AppState.layoutReport,
+        projects: () => AppState.projects,
+        collaboration: () => collaboration?.status() || null,
+        render: () => renderLoop?.stats || null,
+        convert: () => AppState.lastConvert,
+        history: () => ({
+            index: stateManager?.historyIndex,
+            depth: stateManager?.history?.length || 0,
+            materials: (stateManager?.history || []).map((snapshot) => snapshot.roomMaterials),
+            stories: (stateManager?.history || []).map((snapshot) => ({
+                count: snapshot.stories?.length ?? null,
+                active: snapshot.currentStoryIndex
+            }))
+        }),
+        manufacturing: () => manufacturingPackage(AppState.fixtures)
+    };
+
     window.exportProject = exportProject;
     window.export3D = export3D;
     window.setBgScale = (val) => {
@@ -327,6 +490,13 @@ function onPointerDown(e) {
     const pos = getCanvasCoordinates(e);
     AppState.cursor = pos;
 
+    // Comment mode turns a plan click into a pin (or selects an existing pin).
+    if (abilitiesState().comments) {
+        addCommentAt(pos);
+        draw2D(pos);
+        return;
+    }
+
     // Ruler takes clicks ahead of the current tool: first click sets the start,
     // second the end, a third click begins a new measurement.
     if (abilitiesState().ruler) {
@@ -366,6 +536,8 @@ function onPointerDown(e) {
         // dragged until they are unlocked.
         const movable = fixture && !fixture.locked && fixture.visible !== false;
         AppState.drag = movable ? beginDrag(fixture, pos) : null;
+        // Group members keep their offsets from the grabbed piece (feature 25).
+        AppState.groupDrag = AppState.drag ? captureGroupOffsets(AppState.fixtures, fixture) : null;
         draw2D(pos);
         refreshGizmo();
         syncSelectionPanels();
@@ -422,13 +594,35 @@ function onPointerMove(e) {
     if (AppState.drag) {
         const dragPos = getCanvasCoordinates(e);
         const abilityState = abilitiesState();
+        const fixture = AppState.drag.fixture;
+
         dragTo(AppState.drag, dragPos, AppState.walls, {
             gridSize: abilityState.gridSnap === false ? 0 : AppState.gridSize,
             snapThreshold: 20 / AppState.scale,
             wallSnap: abilityState.wallSnap !== false
         });
+
+        // Advanced snapping rules (feature 20): depth plane + inside corner.
+        if (abilityState.alignDepth) alignDepth(fixture, AppState.fixtures, { threshold: 0.3 * SCALE });
+        if (abilityState.insideCorners) snapToCorner(fixture, AppState.walls, { toward: dragPos });
+
+        // Assemblies move as one (feature 25).
+        applyGroupDelta(AppState.groupDrag || [], fixture);
+
+        if (abilityState.livePreview !== false) {
+            // Move the built meshes directly; the CSG rebuild waits for drop (34).
+            previewDrag({
+                fixture,
+                members: AppState.groupDrag || [],
+                getObject: findItemObject,
+                view: { width: blueprintCanvas.width, height: blueprintCanvas.height }
+            });
+        } else {
+            scheduleDragUpdate();
+        }
+
         draw2D(dragPos);
-        scheduleDragUpdate();
+        renderLoop?.requestRender();
         return;
     }
 
@@ -456,6 +650,7 @@ function onPointerUp(e) {
         const dragged = AppState.drag.fixture;
         const snappedWall = AppState.drag.snappedWall;
         AppState.drag = null;
+        AppState.groupDrag = null;
 
         // "Turn to wall": align the piece with the wall it landed on.
         if (dragged && abilitiesState().autoRotateToWall) {
@@ -699,7 +894,8 @@ function syncSelectionPanels() {
     if (fixture) {
         setPanelText('sel-item-name', fixture.metadata?.label || fixture.type.replace(/_/g, ' '));
         setPanelText('sel-item-pos', `${(fixture.x / SCALE).toFixed(2)} , ${(fixture.y / SCALE).toFixed(2)} m`);
-        setPanelText('sel-item-elev', `${(fixture.elevation || 0).toFixed(2)} m`);
+        const base = baseOf(fixture);
+        setPanelText('sel-item-elev', `${base.bottom.toFixed(2)}–${base.top.toFixed(2)} m`);
         setPanelText('sel-item-visible', fixture.visible === false ? 'Show' : 'Hide');
         setPanelText('sel-item-lock', fixture.locked ? 'Unlock' : 'Lock');
 
@@ -718,6 +914,23 @@ function syncSelectionPanels() {
         });
         const rotation = document.getElementById('sel-item-rotation');
         if (rotation && document.activeElement !== rotation) rotation.value = Math.round((fixture.rotation * 180) / Math.PI);
+
+        // Parametric cabinet controls (studio feature 44). Any cabinet accepts
+        // a config; the first edit switches it off its fixed line builder.
+        const cabinetPane = document.getElementById('cabinet-config');
+        if (cabinetPane) {
+            const isCabinet = isCabinetType(fixture.type);
+            cabinetPane.classList.toggle('hidden', !isCabinet);
+            if (isCabinet) {
+                const config = cabinetConfigOf(fixture);
+                const style = document.getElementById('cabinet-door-style');
+                if (style && document.activeElement !== style) style.value = config.doorStyle;
+                ['doors', 'drawers', 'shelves'].forEach((key) => {
+                    const input = document.getElementById(`cabinet-${key}`);
+                    if (input && document.activeElement !== input) input.value = config[key];
+                });
+            }
+        }
     }
 
     if (wall) {
@@ -739,6 +952,8 @@ function syncSelectionPanels() {
         }
     }
 }
+
+const isCabinetType = (type) => /cabinet|pantry|island|sink_base|drawer_base|oven_tower/.test(String(type || ''));
 
 function duplicateSelected() {
     const fixture = AppState.selectedFixture;
@@ -799,9 +1014,20 @@ function refreshAbilities() {
         );
     }
 
-    // Height annotations are editor-side, so they follow the ability flag here.
-    refreshElevationAnnotations();
+    // Advanced view modes are renderer-level, so they follow the flags here.
+    if (sectionBox) sectionBox.setEnabled(Boolean(state.sectionBox));
+    if (walkthrough) walkthrough.setEnabled(Boolean(state.walkthrough));
+
+    // Height annotations and warning panels are editor-side, so they follow
+    // their ability flags here. Room floors change the geometry (per-room
+    // surfaces vs. the slab), so the rebuild happens after the derived plan
+    // data is fresh; the wall builder reuses the walls.
+    refreshPlanDerived();
+    if (conversionEngine) update3D();
+    else refreshElevationAnnotations();
     applyAbilityPanel();
+    if (blueprintCanvas) blueprintCanvas.style.cursor = state.comments ? 'copy' : 'crosshair';
+    renderLoop?.requestRender();
     draw2D();
 }
 
@@ -894,8 +1120,20 @@ function initAbilities() {
         flipSelection,
         repeatSelection,
         toggleAxisLock,
+        groupSelection,
+        ungroupSelection,
+        alignDepthSelection,
+        snapCornerSelection,
+        exportGLB: () => export3D('glb'),
+        startAR,
         savePreset: saveAbilityPreset,
-        loadPreset: loadAbilityPreset
+        loadPreset: loadAbilityPreset,
+        // Studio kit actions
+        addNewStorey: () => addNewStorey(),
+        analyzeKitchenLayout,
+        suggestKitchenRun,
+        exportManufacturing,
+        saveNamedProjectPrompt
     });
 
     renderAbilityPanel();
@@ -1049,6 +1287,477 @@ function exportCutList() {
     downloadCutList(buildCutList(AppState.fixtures));
 }
 
+// ------------------------------------------------------------------
+// Studio kit: storeys, room floors, projects, comments, layout
+// ------------------------------------------------------------------
+
+/** Ground floor starts out owning the legacy active arrays by reference. */
+function ensureStoreyModel() {
+    if (Array.isArray(AppState.stories) && AppState.stories.length > 0) return AppState.stories;
+    AppState.stories = [{
+        id: 'storey_ground',
+        name: 'Ground floor',
+        height: WALL_HEIGHT,
+        visible: true,
+        walls: AppState.walls,
+        fixtures: AppState.fixtures
+    }];
+    AppState.currentStoryIndex = 0;
+    return AppState.stories;
+}
+
+function escapeHtml(text) {
+    return String(text ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function planCenter() {
+    return { x: (blueprintCanvas?.width || 0) / 2, y: (blueprintCanvas?.height || 0) / 2 };
+}
+
+function setStorey(index) {
+    ensureStoreyModel();
+    if (!Number.isFinite(index) || index === AppState.currentStoryIndex) return;
+    activateStorey(AppState, index);
+    AppState.selectedFixture = null;
+    AppState.selectedWallId = null;
+    AppState.drag = null;
+    AppState.groupDrag = null;
+    refreshPlanDerived();
+    refreshStoreyPanel();
+    draw2D();
+    update3D();
+    syncSelectionPanels();
+    refreshGizmo();
+    saveToStorage();
+}
+
+function addNewStorey(options = {}) {
+    ensureStoreyModel();
+    const source = AppState.walls || [];
+    addStoreyFeature(AppState, options);
+    const story = AppState.stories[AppState.stories.length - 1];
+    // An upper floor repeats the shell of the storey below but starts empty,
+    // so stacking is visible before anything is drawn on it.
+    story.walls = source.map((wall) => new Wall(
+        wall.start.x, wall.start.y, wall.end.x, wall.end.y, wall.thickness, null, wall.height
+    ));
+    story.fixtures = [];
+    activateStorey(AppState, AppState.stories.length - 1);
+    AppState.selectedFixture = null;
+    AppState.selectedWallId = null;
+    refreshPlanDerived();
+    refreshStoreyPanel();
+    draw2D();
+    update3D();
+    syncSelectionPanels();
+    stateManager.saveState();
+    saveToStorage();
+    return story;
+}
+
+function removeStoreyAt(index) {
+    ensureStoreyModel();
+    if (AppState.stories.length <= 1) return false;
+    if (typeof window.confirm === 'function' && !window.confirm('Delete this storey and everything on it?')) return false;
+    const removed = removeStoreyFeature(AppState, index);
+    if (!removed) return false;
+    AppState.selectedFixture = null;
+    AppState.selectedWallId = null;
+    refreshPlanDerived();
+    refreshStoreyPanel();
+    draw2D();
+    update3D();
+    syncSelectionPanels();
+    stateManager.saveState();
+    saveToStorage();
+    return true;
+}
+
+function toggleStoreyVisible(index) {
+    const story = AppState.stories?.[index];
+    if (!story) return false;
+    story.visible = story.visible === false;
+    refreshStoreyPanel();
+    update3D();
+    saveToStorage();
+    return story.visible;
+}
+
+function setActiveStoreyHeight(metres) {
+    const story = AppState.stories?.[AppState.currentStoryIndex];
+    if (!story || !Number.isFinite(metres) || metres <= 0) return null;
+    story.height = Math.min(Math.max(metres, 1.8), 8);
+    refreshStoreyPanel();
+    update3D();
+    saveToStorage();
+    return story.height;
+}
+
+function refreshStoreyPanel() {
+    const list = document.getElementById('storeys-list');
+    if (!list) return;
+    const rows = storeySummary(AppState);
+
+    list.innerHTML = rows.map((story) => {
+        const active = story.active;
+        return `
+            <div class="px-2 py-1.5 rounded-lg border ${active ? 'border-primary bg-primary/5' : 'border-gray-200 dark:border-gray-700'} space-y-1">
+                <div class="flex items-center justify-between gap-1">
+                    <button onclick="window.setStorey(${story.index})" class="text-left text-xs font-bold ${active ? 'text-primary' : 'text-gray-700 dark:text-gray-200'} truncate" title="Edit this storey">
+                        ${escapeHtml(story.name)}
+                    </button>
+                    <div class="flex items-center gap-0.5">
+                        <button onclick="window.toggleStoreyVisible(${story.index})" class="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Show / hide this storey">
+                            <span class="material-symbols-outlined text-base ${story.visible ? 'text-gray-500' : 'text-gray-300'}">${story.visible ? 'visibility' : 'visibility_off'}</span>
+                        </button>
+                        <button onclick="window.removeStorey(${story.index})" class="p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete this storey">
+                            <span class="material-symbols-outlined text-base text-red-400">delete</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-gray-400 font-mono">
+                    <span>${story.elevation.toFixed(2)} m</span>
+                    <span>${story.walls} walls · ${story.fixtures} items</span>
+                </div>
+            </div>`;
+    }).join('');
+
+    const heightInput = document.getElementById('storey-height');
+    const activeStory = AppState.stories?.[AppState.currentStoryIndex];
+    if (heightInput && activeStory && document.activeElement !== heightInput) {
+        heightInput.value = Number(activeStory.height || WALL_HEIGHT).toFixed(1);
+    }
+}
+
+function refreshRoomFloorPanel() {
+    const list = document.getElementById('room-floors-list');
+    if (!list) return;
+
+    const rooms = AppState.rooms || [];
+    if (rooms.length === 0) {
+        list.innerHTML = '<p class="text-xs text-gray-400">Close a room with walls to give it a floor.</p>';
+        return;
+    }
+
+    list.innerHTML = rooms.map((room, index) => {
+        const key = room.key || `${AppState.currentStoryIndex}:${room.id}`;
+        const options = FLOOR_TEXTURES.map((texture) => (
+            `<option value="${texture}" ${texture === room.texture ? 'selected' : ''}>${texture}</option>`
+        )).join('');
+        return `
+            <div class="px-2 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50 space-y-1">
+                <div class="flex items-center justify-between text-[11px]">
+                    <span class="font-bold text-gray-700 dark:text-gray-200">Room ${index + 1}</span>
+                    <span class="font-mono text-gray-500">${room.area.toFixed(1)} m²</span>
+                </div>
+                <select onchange="window.setRoomFloor('${key}', this.value)" class="w-full text-[11px] p-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100">
+                    ${options}
+                </select>
+            </div>`;
+    }).join('');
+}
+
+function setRoomFloor(key, texture) {
+    if (!key) return null;
+    AppState.roomMaterials[key] = { ...(AppState.roomMaterials[key] || {}), texture };
+    saveAndSync();
+    renderKitchenCheck();
+    return AppState.roomMaterials[key];
+}
+
+function updateCabinetConfig(key, value) {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return null;
+    const numeric = ['doors', 'drawers', 'shelves'].includes(key);
+    const config = applyCabinetConfig(fixture, {
+        [key]: numeric ? Number(value) : value
+    });
+    saveAndSync({ tag: 'cabinet', coalesce: true });
+    syncSelectionPanels();
+    return config;
+}
+
+function activeProjectId() {
+    try {
+        return localStorage.getItem(ACTIVE_PROJECT_KEY) || 'local';
+    } catch {
+        return 'local';
+    }
+}
+
+function rememberActiveProject(id) {
+    try {
+        if (id) localStorage.setItem(ACTIVE_PROJECT_KEY, id);
+        else localStorage.removeItem(ACTIVE_PROJECT_KEY);
+    } catch {
+        /* private mode */
+    }
+}
+
+function initCollaboration(projectId = activeProjectId()) {
+    collaboration?.dispose?.();
+    collaboration = createCollaboration({ projectId, user: { name: 'You' } });
+    AppState.comments = collaboration.comments();
+    collaboration.subscribe(() => {
+        AppState.comments = collaboration.comments();
+        refreshCommentsPanel();
+        refreshPresence();
+        draw2D();
+    });
+    refreshPresence();
+    refreshCommentsPanel();
+    return collaboration;
+}
+
+function refreshProjectsPanel() {
+    const list = document.getElementById('projects-list');
+    if (!list) return;
+    AppState.projects = listProjects();
+
+    if (AppState.projects.length === 0) {
+        list.innerHTML = '<p class="text-xs text-gray-400">No saved projects yet.</p>';
+        return;
+    }
+
+    list.innerHTML = AppState.projects.map((project) => {
+        const active = project.id === AppState.activeProjectId;
+        return `
+            <div class="px-2 py-1.5 rounded-lg border ${active ? 'border-primary bg-primary/5' : 'border-gray-200 dark:border-gray-700'}">
+                <div class="flex items-center justify-between gap-1">
+                    <button onclick="window.openProject('${project.id}')" class="text-left text-xs font-bold ${active ? 'text-primary' : 'text-gray-700 dark:text-gray-200'} truncate" title="Open project">
+                        ${escapeHtml(project.name)}
+                    </button>
+                    <button onclick="window.removeProject('${project.id}')" class="p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete project">
+                        <span class="material-symbols-outlined text-base text-red-400">delete</span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-gray-400 font-mono">
+                    <span>${project.walls} walls · ${project.fixtures} items</span>
+                    <span>${new Date(project.updatedAt).toLocaleDateString()}</span>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function saveNamedProjectPrompt() {
+    const input = document.getElementById('project-name');
+    const suggested = AppState.activeProjectName || input?.value || 'My project';
+    const name = input?.value?.trim()
+        || (typeof window.prompt === 'function' ? window.prompt('Save project as', suggested) : suggested);
+    return saveProjectAs(name);
+}
+
+function saveProjectAs(name) {
+    const input = document.getElementById('project-name');
+    const resolved = String(name || input?.value || '').trim()
+        || `Project ${new Date().toLocaleDateString()}`;
+
+    const project = saveNamedProject(resolved, projectPayload(), { id: AppState.activeProjectId || null });
+    if (!project) return null;
+
+    AppState.activeProjectId = project.id;
+    AppState.activeProjectName = project.name;
+    rememberActiveProject(project.id);
+    if (input) input.value = project.name;
+    refreshProjectsPanel();
+    initCollaboration(project.id);
+    return project;
+}
+
+function openProject(id) {
+    const loaded = loadNamedProject(id);
+    if (!loaded) return null;
+
+    AppState.activeProjectId = id;
+    AppState.activeProjectName = loaded.meta?.name || 'Project';
+    rememberActiveProject(id);
+    restoreState(loaded.project);
+    initCollaboration(id);
+    refreshProjectsPanel();
+    const input = document.getElementById('project-name');
+    if (input) input.value = AppState.activeProjectName;
+    return loaded.project;
+}
+
+function removeProject(id) {
+    if (!id) return null;
+    if (typeof window.confirm === 'function' && !window.confirm('Delete this saved project?')) return null;
+    const entries = deleteNamedProject(id);
+    if (AppState.activeProjectId === id) {
+        AppState.activeProjectId = null;
+        AppState.activeProjectName = null;
+        rememberActiveProject(null);
+    }
+    AppState.projects = entries;
+    refreshProjectsPanel();
+    return entries;
+}
+
+function refreshPresence() {
+    const node = document.querySelector('[data-presence-count]');
+    if (!node) return;
+    const status = collaboration?.status();
+    node.textContent = status ? `${status.online} online · ${status.comments}` : 'offline';
+    node.title = status ? `Transport: ${status.transport}` : '';
+}
+
+function refreshCommentsPanel() {
+    const list = document.getElementById('comment-list');
+    if (!list) return;
+
+    const comments = collaboration?.comments() || AppState.comments || [];
+    AppState.comments = comments;
+    const open = comments.filter((comment) => !comment.resolved);
+
+    if (open.length === 0) {
+        list.innerHTML = '<p class="text-xs text-gray-400">No open comments.</p>';
+    } else {
+        list.innerHTML = open.map((comment) => `
+            <div class="px-2 py-1.5 rounded-lg border ${comment.id === AppState.selectedCommentId ? 'border-primary' : 'border-gray-200 dark:border-gray-700'} space-y-0.5">
+                <button onclick="window.selectComment('${comment.id}')" class="w-full text-left text-[11px] text-gray-700 dark:text-gray-200">
+                    ${escapeHtml(comment.text)}
+                </button>
+                <div class="flex items-center justify-between text-[10px] text-gray-400">
+                    <span>${escapeHtml(comment.author?.name || 'Guest')}</span>
+                    <button onclick="window.resolveComment('${comment.id}')" class="px-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-green-500">Resolve</button>
+                </div>
+            </div>`).join('');
+    }
+
+    refreshPresence();
+}
+
+function selectComment(id) {
+    const comment = (AppState.comments || []).find((entry) => entry.id === id);
+    if (!comment) return null;
+    AppState.selectedCommentId = id;
+    const input = document.getElementById('comment-text');
+    if (input && document.activeElement !== input) input.value = comment.text;
+    refreshCommentsPanel();
+    draw2D();
+    return comment;
+}
+
+function resolveComment(id) {
+    if (!collaboration) return null;
+    const comment = collaboration.resolveComment(id, true);
+    AppState.comments = collaboration.comments();
+    if (AppState.selectedCommentId === id) AppState.selectedCommentId = null;
+    refreshCommentsPanel();
+    draw2D();
+    return comment;
+}
+
+/** In comment mode a plan click drops a pin (or selects the nearest one). */
+function addCommentAt(pos) {
+    if (!collaboration) return null;
+    const point = pos || planCenter();
+    const input = document.getElementById('comment-text');
+    const text = String(input?.value || '').trim();
+
+    if (!text) {
+        const threshold = 20 / (AppState.scale || 1);
+        const nearest = (AppState.comments || [])
+            .filter((comment) => !comment.resolved)
+            .map((comment) => ({ comment, distance: Math.hypot(comment.x - point.x, comment.y - point.y) }))
+            .filter((entry) => entry.distance <= threshold)
+            .sort((a, b) => a.distance - b.distance)[0];
+        if (nearest) return selectComment(nearest.comment.id);
+        return null;
+    }
+
+    const comment = collaboration.addComment({ x: point.x, y: point.y, text });
+    if (comment) {
+        if (input) input.value = '';
+        AppState.selectedCommentId = comment.id;
+        AppState.comments = collaboration.comments();
+        refreshCommentsPanel();
+        draw2D();
+    }
+    return comment;
+}
+
+function renderKitchenCheck() {
+    const container = document.getElementById('kitchen-check');
+    const scoreNode = document.querySelector('[data-kitchen-score]');
+    if (!container) return null;
+
+    if (abilitiesState().layoutCheck === false) {
+        container.innerHTML = '<p class="text-xs text-gray-400">Kitchen checks are off.</p>';
+        if (scoreNode) scoreNode.textContent = 'off';
+        return AppState.layoutReport;
+    }
+
+    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const report = analyzeLayout({ fixtures: AppState.fixtures, view });
+    AppState.layoutReport = report;
+
+    if (scoreNode) scoreNode.textContent = `${report.score}`;
+    const lines = formatAnalysis(report).slice(1);
+    container.innerHTML = lines.length
+        ? lines.map((line) => {
+            const warning = line.startsWith('⚠');
+            return `<p class="text-[11px] ${warning ? 'text-amber-600' : 'text-gray-500 dark:text-gray-400'}">${escapeHtml(line)}</p>`;
+        }).join('')
+        : '<p class="text-xs text-green-600">Work triangle and clearances look good.</p>';
+
+    return report;
+}
+
+function analyzeKitchenLayout() {
+    const report = renderKitchenCheck();
+    return report?.score ?? null;
+}
+
+function suggestKitchenRun(count = 5) {
+    const placements = suggestRun({ walls: AppState.walls, count });
+    if (placements.length === 0) {
+        alert('Draw a longer wall first — the run needs room for the cabinets.');
+        return 0;
+    }
+
+    placements.forEach((placement) => {
+        const item = ItemFactory.create(placement.type, placement.x, placement.y);
+        item.rotation = placement.rotation;
+        if (!AppState.fixtureStyles[item.id]) {
+            AppState.fixtureStyles[item.id] = {
+                color: item.metadata?.color
+                    ? '#' + item.metadata.color.toString(16).padStart(6, '0')
+                    : '#13a4ec',
+                material: 'gloss'
+            };
+        }
+        AppState.fixtures.push(item);
+    });
+
+    saveAndSync();
+    return placements.length;
+}
+
+function exportManufacturing(format = 'csv') {
+    const pkg = manufacturingPackage(AppState.fixtures);
+    if (!pkg.parts.length) {
+        alert('No cabinets in the plan — add cabinetry first.');
+        return null;
+    }
+
+    if (format === 'dxf') {
+        downloadExport({ data: pkg.dxf, mime: 'application/dxf', extension: 'dxf' }, 'cutlist');
+    } else {
+        downloadExport({ data: pkg.csv, mime: 'text/csv', extension: 'csv' }, 'cutlist');
+    }
+
+    const stats = document.getElementById('manufacturing-stats');
+    if (stats) {
+        const sheets = pkg.sheets.length;
+        const parts = pkg.parts.reduce((total, part) => total + part.qty, 0);
+        stats.textContent = `${pkg.cabinets} cabinets · ${parts} parts · ${sheets} sheets`;
+    }
+    return pkg;
+}
+
 // --- More item/plan abilities ---------------------------------------
 
 let itemClipboard = null;
@@ -1088,25 +1797,122 @@ function toggleAxisLock(axis) {
     saveAndSync();
 }
 
+// --- Advanced kit actions -------------------------------------------
+
+/** Group the selection with the pieces chained along its run (feature 25). */
+function groupSelection() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return 0;
+    const members = groupRun(AppState.fixtures, fixture);
+    saveAndSync();
+    return members.length;
+}
+
+function ungroupSelection() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture?.groupId) return;
+    ungroupItems(AppState.fixtures, fixture.groupId);
+    saveAndSync();
+}
+
+/** Align the selected piece with its run's depth plane (feature 20). */
+function alignDepthSelection() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return null;
+    const result = alignDepth(fixture, AppState.fixtures, { threshold: 0.3 * SCALE });
+    if (result) saveAndSync();
+    return result;
+}
+
+/** Seat the selected piece in the nearest inside corner (feature 20). */
+function snapCornerSelection() {
+    const fixture = AppState.selectedFixture;
+    if (!fixture) return null;
+    const result = snapToCorner(fixture, AppState.walls);
+    if (result) saveAndSync();
+    return result;
+}
+
+async function startAR() {
+    const result = await startPlacement({
+        renderer: renderer3D,
+        scene: scene3D,
+        onPlace: (point) => {
+            const fixture = AppState.selectedFixture;
+            if (!fixture) return;
+            const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+            fixture.x = point.x * PIXELS_PER_METER + view.width / 2;
+            fixture.y = point.z * PIXELS_PER_METER + view.height / 2;
+            saveAndSync();
+        }
+    });
+
+    if (!result.ok) {
+        alert(result.reason || 'AR placement is not available on this device.');
+    }
+}
+
+/** Placement warnings panel (feature 22). */
+function renderWarnings() {
+    const list = document.getElementById('placement-warnings');
+    const count = document.querySelector('[data-warning-count]');
+    if (!list) return;
+
+    const warnings = AppState.warnings || [];
+    if (count) count.textContent = warnings.length ? `${warnings.length}` : '0';
+
+    if (warnings.length === 0) {
+        list.innerHTML = '<p class="text-xs text-gray-400">No placement issues.</p>';
+        return;
+    }
+
+    list.innerHTML = warnings.slice(0, 8).map((warning) => {
+        const color = warning.severity === 'error' ? 'text-red-600' : 'text-amber-600';
+        return `<p class="text-[11px] ${color}">• ${warning.message}</p>`;
+    }).join('') + (warnings.length > 8
+        ? `<p class="text-[10px] text-gray-400">+${warnings.length - 8} more…</p>`
+        : '');
+}
+
+/** Per-room count / cost summary (feature 33). */
+function renderSummary() {
+    const list = document.getElementById('room-summary');
+    const total = document.getElementById('room-summary-total');
+    if (!list) return;
+
+    const lines = formatSummary(AppState.summary);
+    list.innerHTML = lines.length
+        ? lines.map((line) => `<p class="text-[11px] text-gray-600 dark:text-gray-300">${line}</p>`).join('')
+        : '<p class="text-xs text-gray-400">Draw a closed room to see counts.</p>';
+
+    if (total) {
+        const value = AppState.summary?.totals;
+        total.textContent = value
+            ? `${value.count} items · $${Math.round(value.cost).toLocaleString('en-US')}`
+            : '—';
+    }
+}
+
 function copySelection() {
     const fixture = AppState.selectedFixture;
     if (!fixture) return;
-    itemClipboard = fixture.toJSON();
+    // Story-tagged snapshot (feature 26), so it can be pasted into another story.
+    itemClipboard = copyToClipboard([fixture], {
+        storyIndex: AppState.currentStoryIndex || 0,
+        styles: AppState.fixtureStyles
+    });
 }
 
 function pasteSelection() {
-    if (!itemClipboard) return;
+    const copies = pasteFromClipboard(itemClipboard, {
+        dx: 0.4,
+        dy: 0.4,
+        styles: AppState.fixtureStyles
+    });
+    if (copies.length === 0) return;
 
-    const data = {
-        ...itemClipboard,
-        x: itemClipboard.x + 0.4 * SCALE,
-        y: itemClipboard.y + 0.4 * SCALE
-    };
-    delete data.id;
-
-    const copy = ItemFactory.fromJSON(data);
-    AppState.fixtures.push(copy);
-    AppState.selectedFixture = copy;
+    AppState.fixtures.push(...copies);
+    AppState.selectedFixture = copies[0];
     AppState.selectedWallId = null;
     saveAndSync();
 }
@@ -1143,6 +1949,40 @@ function refreshPlanDerived() {
     AppState.roomLabels = roomLabelsFromWalls(AppState.walls, view, { wallHeight: WALL_HEIGHT });
     AppState.metrics = roomMetrics({ walls: AppState.walls, view, wallHeight: WALL_HEIGHT });
     setPanelText('plan-metrics', formatMetrics(AppState.metrics));
+
+    // Advanced kit: placement warnings (ability-gated) and the room summary.
+    AppState.warnings = abilitiesState().placementWarnings === false
+        ? []
+        : validatePlacements({ fixtures: AppState.fixtures, walls: AppState.walls, view });
+    AppState.summary = summarizeByRoom({
+        fixtures: AppState.fixtures,
+        walls: AppState.walls,
+        view,
+        pixelsPerMetre: PIXELS_PER_METER
+    });
+
+    // Room surfaces (studio feature 38): the same closed loops the 3D floor
+    // meshes use, keyed per storey so two floors can differ.
+    const storyIndex = AppState.currentStoryIndex || 0;
+    const scopedMaterials = {};
+    Object.entries(AppState.roomMaterials || {}).forEach(([key, value]) => {
+        const separator = key.indexOf(':');
+        if (separator === -1) scopedMaterials[key] = value;
+        else if (Number(key.slice(0, separator)) === storyIndex) scopedMaterials[key.slice(separator + 1)] = value;
+    });
+
+    AppState.rooms = roomSurfacesFromWalls(AppState.walls, view, {
+        materials: scopedMaterials,
+        defaultTexture: AppState.defaultFloorTexture
+    }).map((room) => ({
+        ...room,
+        key: `${storyIndex}:${room.id}`
+    }));
+
+    renderWarnings();
+    renderSummary();
+    refreshRoomFloorPanel();
+    renderKitchenCheck();
 }
 
 /**
@@ -1162,6 +2002,22 @@ function refreshElevationAnnotations() {
         getObject: findItemObject,
         height: WALL_HEIGHT
     });
+
+    // Width/gap dimension strings along the run (feature 31).
+    if (abilitiesState().elevationDims !== false) {
+        const dimensions = buildElevationDimensions({
+            THREE,
+            fixtures: AppState.fixtures,
+            getObject: findItemObject,
+            side: AppState.elevationSide
+        });
+        elevationAnnotations.add(createElevationDimensionGroup({
+            THREE,
+            dimensions,
+            axis: AppState.elevationSide === 'left' || AppState.elevationSide === 'right' ? 'z' : 'x'
+        }));
+    }
+
     scene3D.add(elevationAnnotations);
 }
 
@@ -1230,8 +2086,17 @@ function draw2D(cursorPos = null) {
         state: abilityState,
         roomLabels: AppState.roomLabels,
         snapGuide: currentSnapGuide(),
+        dragged: AppState.drag?.fixture || null,
         ruler: { ...(AppState.ruler || {}), cursor: AppState.cursor }
     });
+
+    // Collaboration comment pins (studio feature 43).
+    if (AppState.comments?.length) {
+        drawStudioOverlays(ctx, {
+            comments: AppState.comments,
+            selectedCommentId: AppState.selectedCommentId
+        });
+    }
 
     ctx.restore();
 
@@ -1401,9 +2266,21 @@ function init3D() {
     dir.castShadow = true;
     scene3D.add(dir);
     
+    // Section box / clipping plane (feature 32); off until its ability is on.
+    sectionBox = createSectionBox({ renderer: renderer3D });
+
     conversionEngine = new ConversionEngine3D(scene3D);
 
     initGizmo();
+
+    // Pathfinding walkthrough agent (feature 36).
+    walkthrough = createWalkthrough({
+        scene: scene3D,
+        camera: camera3D,
+        domElement: renderer3D.domElement,
+        getWalls: () => AppState.walls,
+        getView: () => ({ width: blueprintCanvas.width, height: blueprintCanvas.height })
+    });
 
     // Live bottom/top/height readout for elevation drags.
     heightReadout = createHeightReadout(document.getElementById('height-readout'));
@@ -1451,6 +2328,11 @@ function init3D() {
         if (elevationDrag && elevationDrag.dragging) return;
         if (itemGizmo && (itemGizmo.dragging || itemGizmo.controls.axis)) return;
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) return; // orbit, not a click
+        // Walkthrough mode turns a click into a destination, not a selection.
+        if (abilitiesState().walkthrough && walkthrough) {
+            walkthrough.walkToEvent(e);
+            return;
+        }
         selectItemAtPointer(e);
     });
     
@@ -1463,7 +2345,24 @@ function init3D() {
     axesHelper3D.visible = Boolean(abilitiesState().axes3D);
     scene3D.add(axesHelper3D);
 
-    animate3D();
+    // Studio feature 40: render only when something changed, unless an
+    // animation needs frames or "render every frame" is switched on. This is
+    // what keeps a drag at display rate without a CSG rebuild per pointer move.
+    renderLoop = createRenderLoop({
+        render: () => {
+            const controls = AppState.elevationSide ? orthoControls3D : controls3D;
+            if (controls) controls.update();
+            if (walkthrough) walkthrough.update(walkthroughClock.getDelta());
+            if (AppState.viewMode !== '3d') return;
+            renderer3D.render(scene3D, activeCamera());
+        },
+        continuous: () => abilitiesState().dirtyRender === false
+            || Boolean(abilitiesState().walkthrough || abilitiesState().turntable),
+        isActive: () => AppState.viewMode === '3d'
+    });
+    renderLoop.start();
+    controls3D.addEventListener('change', () => renderLoop?.requestRender());
+    orthoControls3D.addEventListener('change', () => renderLoop?.requestRender());
 }
 
 function initGizmo() {
@@ -1491,6 +2390,7 @@ function initGizmo() {
             }
 
             draw2D();
+            renderLoop?.requestRender();
         },
         onCommit: () => {
             const fixture = AppState.selectedFixture;
@@ -1685,20 +2585,28 @@ function update3D() {
     // The rebuild replaces the meshes, so drop the old gizmo target first.
     if (itemGizmo) itemGizmo.detach();
 
-    // The 3D preview is built from the same graph the 2D canvas edits, so wall
-    // ids, shared corners and the metre labels line up between both views.
+    // The active storey's arrays are the legacy AppState.walls/fixtures, so the
+    // graph the 2D canvas edits is also the graph the 3D view builds.
+    ensureStoreyModel();
+    syncActiveStorey(AppState);
+
     const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
-    const graph = graphFromWalls(AppState.walls, view, { snapPixels: 2 });
+    const stories = engineStories(AppState);
+    const activeIndex = Math.min(AppState.currentStoryIndex || 0, stories.length - 1);
+    const graph = graphFromWalls(stories[activeIndex]?.walls || [], view, { snapPixels: 2 });
     AppState.graph = graph;
-    const walls = graph.toCanvasWalls(view);
+
+    // Storeys stack by their heights; the engine also reads each one's visible
+    // flag (studio features 39-41).
+    if (stories[activeIndex]) {
+        stories[activeIndex] = { ...stories[activeIndex], walls: graph.toCanvasWalls(view) };
+    }
 
     const engineState = {
-        stories: [{
-            walls,
-            fixtures: AppState.fixtures,
-            height: WALL_HEIGHT
-        }],
-        currentStoryIndex: 0,
+        stories,
+        currentStoryIndex: activeIndex,
+        roomMaterials: AppState.roomMaterials,
+        roomFloors: abilitiesState().roomFloors !== false,
         measurements: measurePlan(graph),
         showMeasurements: AppState.showDimensions,
         fixtureStyles: AppState.fixtureStyles,
@@ -1708,13 +2616,15 @@ function update3D() {
         showCeiling: AppState.showCeiling,
         showRoof: AppState.showRoof,
         defaultWallTexture: AppState.defaultWallTexture,
-        defaultFloorTexture: AppState.defaultFloorTexture
+        defaultFloorTexture: AppState.defaultFloorTexture,
+        selectedWallId: AppState.selectedWallId,
+        selectedFixture: AppState.selectedFixture
     };
     
     // Pass canvas dimensions to center the model correctly
     // conversionEngine calculates: (x - width/2) / SCALE
     // So by passing blueprintCanvas.width, we align logical center to 3D origin
-    conversionEngine.convert(engineState, blueprintCanvas.width, blueprintCanvas.height);
+    AppState.lastConvert = conversionEngine.convert(engineState, blueprintCanvas.width, blueprintCanvas.height);
 
     // Frame the first non-empty plan, then leave the camera to the user.
     if (!AppState.hasFramed3D && graph.edges.length > 0 && camera3D && controls3D) {
@@ -1744,15 +2654,7 @@ function update3D() {
     // The rebuild replaced every mesh, so the height annotations anchored to
     // them are rebuilt too.
     refreshElevationAnnotations();
-}
-
-function animate3D() {
-    requestAnimationFrame(animate3D);
-    const controls = AppState.elevationSide ? orthoControls3D : controls3D;
-    if (controls) controls.update();
-    if (AppState.viewMode === '3d') {
-        renderer3D.render(scene3D, activeCamera());
-    }
+    renderLoop?.requestRender();
 }
 
 // ------------------------------------------------------------------
@@ -1965,6 +2867,7 @@ function wireUploadModal() {
 function setTool(tool) {
     AppState.currentTool = tool;
     AppState.drag = null;
+    AppState.groupDrag = null;
     AppState.selectedFixture = null;
     refreshGizmo();
     console.log('Tool set to:', tool);
@@ -1996,6 +2899,7 @@ function onResize() {
         // The ortho frustum is derived from the viewport, so it has to be
         // reframed whenever the size changes.
         if (AppState.elevationSide) updateElevationCamera();
+        renderLoop?.requestRender();
     }
 }
 
@@ -2005,27 +2909,81 @@ function toggleView() {
 }
 
 function restoreState(data) {
-    if (data.walls) AppState.walls = data.walls.map(w => Wall.fromJSON(w));
-    if (data.fixtures) AppState.fixtures = data.fixtures.map(f => ItemFactory.fromJSON(f));
-    if (data.fixtureStyles) AppState.fixtureStyles = data.fixtureStyles;
+    // Schema guard (feature 28): old files are migrated, newer ones refused.
+    const migration = migrateProject(data);
+    if (migration.error) {
+        console.warn('Project not restored:', migration.error);
+        return;
+    }
+    if (migration.migrated && data.version != null) {
+        console.info(`Project migrated from schema ${migration.from} to ${PROJECT_SCHEMA_VERSION}`);
+    }
+
+    const project = migration.project;
+
+    // Storeys (studio feature 41): older files and undo snapshots only carry
+    // the active arrays, which become the single ground floor.
+    const rawStories = Array.isArray(project.stories) && project.stories.length
+        ? project.stories
+        : null;
+
+    const stories = rawStories
+        ? rawStories.map((story, index) => ({
+            id: story.id || `storey_${index + 1}`,
+            name: story.name || `Floor ${index + 1}`,
+            height: typeof story.height === 'number' && story.height > 0 ? story.height : WALL_HEIGHT,
+            visible: story.visible !== false,
+            walls: (story.walls || []).map((wall) => Wall.fromJSON(wall)),
+            fixtures: (story.fixtures || []).map((fixture) => ItemFactory.fromJSON(fixture))
+        }))
+        : [{
+            id: 'storey_ground',
+            name: 'Ground floor',
+            height: WALL_HEIGHT,
+            visible: true,
+            walls: project.walls.map((wall) => Wall.fromJSON(wall)),
+            fixtures: project.fixtures.map((fixture) => ItemFactory.fromJSON(fixture))
+        }];
+
+    const storyIndex = Math.min(Math.max(Number(project.currentStoryIndex) || 0, 0), stories.length - 1);
+    AppState.stories = stories;
+    AppState.currentStoryIndex = storyIndex;
+    AppState.walls = stories[storyIndex].walls;
+    AppState.fixtures = stories[storyIndex].fixtures;
+    AppState.selectedFixture = null;
+    AppState.selectedWallId = null;
+    AppState.drag = null;
+    AppState.groupDrag = null;
+    // Clone the maps: a snapshot hands back its own objects, and undoing must
+    // not let later edits reach into the stored history.
+    AppState.fixtureStyles = JSON.parse(JSON.stringify(project.fixtureStyles || {}));
+    AppState.roomMaterials = JSON.parse(JSON.stringify(
+        project.roomMaterials && typeof project.roomMaterials === 'object' ? project.roomMaterials : {}
+    ));
 
     // Shell and grid settings ride along with the project.
-    if (typeof data.showCeiling === 'boolean') setCeiling(AppState, data.showCeiling);
-    if (typeof data.showRoof === 'boolean') setRoof(AppState, data.showRoof);
-    if (typeof data.gridSize === 'number') AppState.gridSize = data.gridSize;
+    setCeiling(AppState, project.showCeiling);
+    setRoof(AppState, project.showRoof);
+    AppState.gridSize = project.gridSize;
     syncShellToggles(document, AppState);
     const gridSelect = document.getElementById('grid-size-select');
     if (gridSelect) gridSelect.value = String(gridCmFromPixels(AppState.gridSize) || 0);
 
     refreshPlanDerived();
+    refreshStoreyPanel();
+    refreshRoomFloorPanel();
     stateManager.saveState(); // Reset history with new state
     draw2D();
     update3D();
+    refreshGizmo();
+    syncSelectionPanels();
 }
 
 function updateUI() {
+    refreshPlanDerived();
     draw2D();
     update3D();
+    syncSelectionPanels();
     saveToStorage();
 }
 
@@ -2040,8 +2998,11 @@ function scheduleDragUpdate() {
     }, 60);
 }
 
-function saveAndSync() {
-    stateManager.saveState();
+function saveAndSync({ tag = null, coalesce } = {}) {
+    // Tagged saves coalesce inspector/typing bursts into one undo step (27).
+    if (tag) saveStateTagged(stateManager, tag, coalesce ? { coalesce } : undefined);
+    else stateManager.saveState();
+
     // Room labels/metrics are derived from the plan, not stored in it.
     refreshPlanDerived();
     update3D();
@@ -2050,42 +3011,76 @@ function saveAndSync() {
     saveToStorage();
 }
 
-function saveToStorage() {
-    StorageManager.saveProject('autosave', {
+/** The full project payload, stamped with the current schema version. */
+function projectPayload() {
+    ensureStoreyModel();
+    syncActiveStorey(AppState);
+
+    return stampProject({
         walls: AppState.walls,
         fixtures: AppState.fixtures,
         fixtureStyles: AppState.fixtureStyles,
         showCeiling: AppState.showCeiling,
         showRoof: AppState.showRoof,
-        gridSize: AppState.gridSize
+        gridSize: AppState.gridSize,
+        // Studio features 41-42: every storey plus the floor finishes travel
+        // with the project, so the browser projects list restores them.
+        stories: AppState.stories.map((story) => ({
+            id: story.id,
+            name: story.name,
+            height: story.height,
+            visible: story.visible !== false,
+            walls: (story.walls || []).map((wall) => (wall.toJSON ? wall.toJSON() : wall)),
+            fixtures: (story.fixtures || []).map((fixture) => (fixture.toJSON ? fixture.toJSON() : fixture))
+        })),
+        currentStoryIndex: AppState.currentStoryIndex || 0,
+        roomMaterials: AppState.roomMaterials
     });
 }
 
+function saveToStorage() {
+    const payload = projectPayload();
+    if (!autosave) {
+        StorageManager.saveProject('autosave', payload);
+        return;
+    }
+    // Debounced + dirty-only (feature 29).
+    autosave.schedule(payload);
+}
+
 function clearProject() {
-    AppState.walls = [];
-    AppState.fixtures = [];
+    AppState.stories = [{
+        id: 'storey_ground',
+        name: 'Ground floor',
+        height: WALL_HEIGHT,
+        visible: true,
+        walls: [],
+        fixtures: []
+    }];
+    AppState.currentStoryIndex = 0;
+    AppState.walls = AppState.stories[0].walls;
+    AppState.fixtures = AppState.stories[0].fixtures;
+    AppState.roomMaterials = {};
+    AppState.selectedFixture = null;
+    AppState.selectedWallId = null;
     AppState.backgroundImage = null;
     AppState.fixtureStyles = {};
+    refreshStoreyPanel();
     saveAndSync();
 }
 
 function exportProject() {
-    const data = {
-        walls: AppState.walls,
-        fixtures: AppState.fixtures
-    };
-    StorageManager.exportProject(data);
+    StorageManager.exportProject(projectPayload());
 }
 
-function export3D(format) {
+async function export3D(format) {
     if (!scene3D) return;
-    const exporter = format === 'gltf' ? new GLTFExporter() : new OBJExporter();
-    exporter.parse(scene3D, (result) => {
-        const blob = new Blob([format === 'gltf' ? JSON.stringify(result) : result], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `project.${format}`;
-        a.click();
-    });
+    try {
+        // One exporter for glTF, GLB and OBJ (feature 37).
+        const result = await exportScene(scene3D, format);
+        downloadExport(result, 'project');
+    } catch (error) {
+        console.error('Scene export failed', error);
+        alert(`Export failed: ${error?.message || error}`);
+    }
 }

@@ -2,6 +2,7 @@ import { PIXELS_PER_METER as SCALE } from './world-space.js';
 import { itemDimensions } from './items.js';
 import { drawFeatureOverlays } from './features/index.js';
 import { drawNorthArrow, drawScaleBar } from './features/annotations.js';
+import { drawAdvancedOverlays } from './features/advanced/index.js';
 
 const metres = (pixels) => pixels / SCALE;
 const label = (metresValue, digits = 2) => `${metresValue.toFixed(digits)} m`;
@@ -35,7 +36,8 @@ export function drawPlanOverlays(ctx, model) {
         selectedWallId = null,
         ruler = null,
         roomLabels = [],
-        snapGuide = null
+        snapGuide = null,
+        dragged = null
     } = model;
 
     // Wall hatching: a second, inset line makes thin walls read as solid.
@@ -224,6 +226,9 @@ export function drawPlanOverlays(ctx, model) {
     // Feature kit overlays: dimension chains, room labels, lift markers and
     // snap guides. They live in features/ so the editor stays a shell.
     drawFeatureOverlays(ctx, { walls, fixtures, state, roomLabels, snapGuide });
+
+    // Advanced kit: collision boxes around overlapping footprints.
+    drawAdvancedOverlays(ctx, { fixtures, state, dragged });
 }
 
 /**

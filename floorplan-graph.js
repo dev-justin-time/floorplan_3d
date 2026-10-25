@@ -122,7 +122,10 @@ export class FloorPlanGraph {
             id: edge.id,
             start: this.toCanvas(edge.a, view),
             end: this.toCanvas(edge.b, view),
-            thickness: edge.thickness
+            thickness: edge.thickness,
+            // Per-wall height rides through the graph so the 3D wall builder
+            // still sees half walls and gables.
+            height: edge.height ?? null
         }));
     }
 }
@@ -136,7 +139,10 @@ export function graphFromWalls(walls, view, options = {}) {
     for (const wall of walls || []) {
         if (!wall?.start || !wall?.end) continue;
         const edge = graph.addWall(wall.start, wall.end, view);
-        if (edge && wall.id != null) edge.id = wall.id;
+        if (edge) {
+            if (wall.id != null) edge.id = wall.id;
+            if (typeof wall.height === 'number') edge.height = wall.height;
+        }
     }
     return graph;
 }

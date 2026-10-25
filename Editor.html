@@ -133,19 +133,110 @@
                             <span id="plan-metrics" class="text-xs font-mono text-gray-700 dark:text-gray-200">—</span>
                         </div>
 
+                        <!-- Per-room item count and cost (features/advanced/summary.js) -->
+                        <div class="px-2 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium text-gray-500">Items · cost</label>
+                                <span id="room-summary-total" class="text-[10px] font-mono text-gray-500">—</span>
+                            </div>
+                            <div id="room-summary" class="space-y-0.5"><p class="text-xs text-gray-400">—</p></div>
+                        </div>
+
                         <button onclick="window.exportProject()" class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left text-sm font-medium">
                             <span class="material-symbols-outlined text-green-500">download</span>
                             Save Project
                         </button>
                         
-                        <div class="grid grid-cols-2 gap-2 mt-2">
+                        <div class="grid grid-cols-3 gap-2 mt-2">
                             <button onclick="window.export3D('obj')" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-xs font-bold">
                                 .OBJ
                             </button>
                             <button onclick="window.export3D('gltf')" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-xs font-bold">
                                 .GLTF
                             </button>
+                            <button onclick="window.exportGLB()" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-xs font-bold" title="Binary glTF with embedded textures">
+                                .GLB
+                            </button>
                         </div>
+
+                        <!-- Manufacturing output (features/studio/manufacturing.js) -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="window.exportManufacturing('csv')" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-[11px] font-bold" title="Panel cut list, grouped by size">
+                                CSV cut list
+                            </button>
+                            <button onclick="window.exportManufacturing('dxf')" class="flex items-center justify-center gap-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors text-[11px] font-bold" title="Nested parts DXF on 2440 x 1220 sheets">
+                                Nested DXF
+                            </button>
+                        </div>
+                        <p id="manufacturing-stats" class="text-[10px] font-mono text-gray-500 px-1"></p>
+                    </div>
+                </div>
+
+                <!-- Named browser projects (features/studio/projects.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Projects</h3>
+                        <button onclick="window.refreshProjects()" class="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Refresh saved projects">
+                            <span class="material-symbols-outlined text-base text-gray-400">refresh</span>
+                        </button>
+                    </div>
+                    <div class="mt-2 space-y-2">
+                        <div class="flex gap-1">
+                            <input id="project-name" type="text" placeholder="Project name" class="flex-1 min-w-0 text-[11px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-800 dark:text-gray-100">
+                            <button onclick="window.saveProjectAs()" class="px-2 py-1 rounded-lg bg-primary text-white text-[11px] font-bold" title="Save this project in the browser">Save</button>
+                        </div>
+                        <div id="projects-list" class="space-y-1 max-h-40 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+
+                <!-- Storeys (features/studio/storeys.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Storeys</h3>
+                        <button onclick="window.addStorey()" class="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Add a storey above this one">
+                            <span class="material-symbols-outlined text-base text-primary">add</span>
+                        </button>
+                    </div>
+                    <div id="storeys-list" class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1"></div>
+                    <label class="block text-[10px] uppercase text-gray-400 mt-2">Storey height (m)
+                        <input id="storey-height" type="number" min="1.8" max="8" step="0.1" value="2.7" oninput="window.setStoreyHeight(this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
+                    </label>
+                </div>
+
+                <!-- Per-room floor materials (features/studio/room-surfaces.js) -->
+                <div class="item-category">
+                    <div class="item-category-header py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Room floors</h3>
+                    </div>
+                    <div id="room-floors-list" class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- NKBA layout solver (features/studio/layout-solver.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Kitchen check</h3>
+                        <span data-kitchen-score class="text-[10px] font-mono text-gray-400">—</span>
+                    </div>
+                    <div id="kitchen-check" class="mt-2 max-h-36 overflow-y-auto space-y-0.5 pr-1"></div>
+                    <div class="grid grid-cols-2 gap-1 mt-2">
+                        <button onclick="window.analyzeKitchen()" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-[11px] font-bold" title="Re-run the NKBA clearance checks">Analyze</button>
+                        <button onclick="window.suggestKitchenRun(5)" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-[11px] font-bold" title="Place five base cabinets along the longest wall">Suggest run</button>
+                    </div>
+                </div>
+
+                <!-- Presence and comments (features/studio/collaboration.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Comments</h3>
+                        <span data-presence-count class="text-[10px] font-mono text-gray-400">offline</span>
+                    </div>
+                    <div class="mt-2 space-y-1">
+                        <div class="flex gap-1">
+                            <input id="comment-text" type="text" placeholder="Add a comment…" class="flex-1 min-w-0 text-[11px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-800 dark:text-gray-100">
+                            <button onclick="window.addCommentHere()" class="px-2 py-1 rounded-lg bg-primary text-white text-[11px] font-bold" title="Pin a comment at the cursor">Add</button>
+                        </div>
+                        <p class="text-[10px] text-gray-400">Turn on “Comment pins” in Abilities, then click the plan to place one.</p>
+                        <div id="comment-list" class="space-y-1 max-h-40 overflow-y-auto pr-1"></div>
                     </div>
                 </div>
 
@@ -219,6 +310,29 @@
                                 <label class="block text-[10px] uppercase text-gray-400">H cm
                                     <input id="sel-item-height" type="number" min="5" step="1" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100" oninput="window.setItemSize('height', this.value)">
                                 </label>
+                            </div>
+                            <!-- Parametric cabinet configurator (features/studio/parametric.js) -->
+                            <div id="cabinet-config" class="hidden space-y-1 rounded-lg bg-gray-50 dark:bg-gray-800/50 p-2">
+                                <span class="text-[10px] uppercase tracking-wide text-gray-400">Parametric cabinet</span>
+                                <div class="grid grid-cols-2 gap-1">
+                                    <label class="block text-[10px] uppercase text-gray-400">Door style
+                                        <select id="cabinet-door-style" onchange="window.setCabinetConfig('doorStyle', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100">
+                                            <option value="slab">Slab</option>
+                                            <option value="shaker">Shaker</option>
+                                            <option value="glass">Glass</option>
+                                            <option value="open">Open</option>
+                                        </select>
+                                    </label>
+                                    <label class="block text-[10px] uppercase text-gray-400">Doors
+                                        <input id="cabinet-doors" type="number" min="0" max="4" step="1" oninput="window.setCabinetConfig('doors', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
+                                    </label>
+                                    <label class="block text-[10px] uppercase text-gray-400">Drawers
+                                        <input id="cabinet-drawers" type="number" min="0" max="4" step="1" oninput="window.setCabinetConfig('drawers', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
+                                    </label>
+                                    <label class="block text-[10px] uppercase text-gray-400">Shelves
+                                        <input id="cabinet-shelves" type="number" min="0" max="6" step="1" oninput="window.setCabinetConfig('shelves', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
+                                    </label>
+                                </div>
                             </div>
                             <label class="block text-[10px] uppercase text-gray-400">Rotation °
                                 <input id="sel-item-rotation" type="number" step="15" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100" oninput="window.setItemRotation(this.value)">
@@ -301,6 +415,17 @@
                     <div id="abilities-list" class="mt-1 max-h-72 overflow-y-auto pr-1"></div>
                 </div>
 
+                <!-- Placement checks (features/advanced/placement-rules.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Checks</h3>
+                        <span data-warning-count class="text-[10px] text-gray-400">0</span>
+                    </div>
+                    <div id="placement-warnings" class="mt-2 max-h-40 overflow-y-auto space-y-0.5 pr-1">
+                        <p class="text-xs text-gray-400">No placement issues.</p>
+                    </div>
+                </div>
+
                 <!-- Structures -->
                 <div class="item-category">
                     <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="toggleCategory('structure-items')">
@@ -319,6 +444,10 @@
                         <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="round_window">
                             <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">circle</span>
                             <span class="text-[10px] mt-1 text-center">Round</span>
+                        </button>
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="stair" title="Cuts a stair opening in the storey above">
+                            <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">stairs</span>
+                            <span class="text-[10px] mt-1 text-center">Stair</span>
                         </button>
                     </div>
                 </div>

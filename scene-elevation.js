@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { PIXELS_PER_METER, WALL_HEIGHT } from './world-space.js';
 import { pickItemId } from './scene-gizmo.js';
-import { inSameRun, snapAlongAxis, snapVertically, ELEVATION_SNAP } from './elevation-snap.js';
+import { inSameRun, ELEVATION_SNAP } from './elevation-snap.js';
+import { runSnap, verticalSnap } from './features/advanced/snapping.js';
 import { constrainToLocks } from './features/transforms.js';
 
 /**
@@ -225,7 +226,7 @@ export function createElevationDrag({
         fixture.y = drag.startY + axes.axis.y * alongDelta * PIXELS_PER_METER;
 
         const runFixtures = drag.others.map((other) => other.fixture);
-        const joint = snapAlongAxis(fixture, runFixtures, axes.axis, { threshold });
+        const joint = runSnap(fixture, runFixtures, axes.axis, { threshold });
         if (joint.snapped) {
             fixture.x += axes.axis.x * joint.delta * PIXELS_PER_METER;
             fixture.y += axes.axis.y * joint.delta * PIXELS_PER_METER;
@@ -238,7 +239,7 @@ export function createElevationDrag({
 
         // Screen-vertical -> height off the floor
         let bottom = Math.max(0, drag.startBottom + (hit.y - start.y));
-        const stack = snapVertically(
+        const stack = verticalSnap(
             { bottom, top: bottom + drag.height },
             drag.others,
             { threshold, floor: 0 }

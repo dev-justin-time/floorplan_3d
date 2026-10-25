@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { TEXTURES, GLOBAL_CONFIG } from './metadata.js';
-import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
@@ -8,10 +7,19 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { FurnitureFactory, buildDefaultBox } from './furnitureBuilders.js';
 import { toWireframe } from './wireframe.js';
 import { formatLength } from './measurements.js';
-import { wallFinishOf } from './features/wall-finish.js';
 import { createRoomLabelSprite } from './features/room-labels.js';
-
-import { WINDOW_SILL_HEIGHT } from './world-space.js';
+import { resolveItemStyle } from './features/advanced/materials.js';
+import { defaultBottomOf } from './features/advanced/cabinet-base.js';
+import {
+    WallBuilder,
+    roomSurfacesFromWalls,
+    stairOpenings,
+    openingCorners,
+    openingsForRoom,
+    floorTextureUrl,
+    buildParametricCabinet,
+    buildStairObject
+} from './features/studio/index.js';
 
 const SCALE = GLOBAL_CONFIG.pixelsPerMeter;
 const ROOM_HEIGHT = GLOBAL_CONFIG.wallHeight;
@@ -105,10 +113,7 @@ export class ConversionEngine3D {
         this.scene = scene;
         this.meshes = [];
         
-        // FIX 2: Instantiate Evaluator once in constructor to avoid expensive rebuilds
-        this.evaluator = new Evaluator();
-        
-        // FIX 3: Track pending async loads to prevent ghost meshes on rapid deletion
+        // Track pending async loads to prevent ghost meshes on rapid deletion
         this.pendingLoads = new Set();
 
         this.gltfLoader = new GLTFLoader();
@@ -116,16 +121,40 @@ export class ConversionEngine3D {
         this.dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
         this.gltfLoader.setDRACOLoader(this.dracoLoader);
         this.loadedModels = new Map();
+
+        // Studio feature 39: walls live in their own root. A rebuild replaces
+        // floors, items and labels, but the wall builder keeps the CSG meshes of
+        // walls whose signature did not change.
+        this.root = new THREE.Group();
+        this.root.name = 'engine-root';
+        this.content = new THREE.Group();
+        this.content.name = 'engine-content';
+        this.wallRoot = new THREE.Group();
+        this.wallRoot.name = 'engine-walls';
+        this.root.add(this.content, this.wallRoot);
+        this.scene.add(this.root);
+
+        this.wallBuilder = new WallBuilder({ scene: this.wallRoot, loadTexture });
+        this.wallMaterial = null;
+        this.wallTextureKey = undefined;
+        this.lastConvert = null;
     }
 
     // FIX 4: Recursive disposal to prevent massive memory leaks
     clear() {
+        this.clearContent();
+        this.wallBuilder?.clearAll();
+        this.lastConvert = null;
+    }
+
+    /** Remove the non-wall half of the scene; cached wall meshes survive. */
+    clearContent() {
         // Abort pending loads to prevent callbacks firing on disposed scenes
         this.pendingLoads.clear();
-        
-        this.meshes.forEach(mesh => {
-            this.scene.remove(mesh);
-            this.disposeObject(mesh);
+
+        [...this.content.children].forEach(child => {
+            this.content.remove(child);
+            this.disposeObject(child);
         });
         this.meshes = [];
     }
@@ -143,30 +172,78 @@ export class ConversionEngine3D {
     }
 
     convert(appState, canvasWidth, canvasHeight) {
-        this.clear();
+        const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.clearContent();
         this.addLighting();
         
-        const stories = appState.stories || [{ 
-            walls: appState.walls, fixtures: appState.fixtures, height: ROOM_HEIGHT, id: 'default' 
-        }];
+        const stories = Array.isArray(appState.stories) && appState.stories.length
+            ? appState.stories
+            : [{ walls: appState.walls, fixtures: appState.fixtures, height: ROOM_HEIGHT, id: 'default', visible: true }];
+        const view = { width: canvasWidth, height: canvasHeight };
+        const roomMaterials = appState.roomMaterials || {};
+        const roomFloors = appState.roomFloors !== false;
+
+        // A default-texture change is a signature change for every wall, so a
+        // fresh base material is safe (and the old one is released below).
+        const wallTextureKey = String(appState.defaultWallTexture || '');
+        const previousWallMaterial = this.wallMaterial;
+        if (!this.wallMaterial || this.wallTextureKey !== wallTextureKey) {
+            this.wallMaterial = this.createWallMaterial(appState.defaultWallTexture);
+            this.wallTextureKey = wallTextureKey;
+        }
 
         let currentElevation = 0;
+        let roomCount = 0;
+        let openingCount = 0;
+        const wallStats = { built: 0, reused: 0, removed: 0 };
+
         stories.forEach((story, index) => {
             const isTopStory = index === stories.length - 1;
             const storyHeight = story.height || ROOM_HEIGHT;
+            const visible = story.visible !== false;
             
             const storyGroup = new THREE.Group();
+            storyGroup.name = `story-${index}`;
             storyGroup.position.y = currentElevation;
-            this.scene.add(storyGroup);
+            storyGroup.visible = visible;
+            this.content.add(storyGroup);
             this.meshes.push(storyGroup);
 
-            this.addFloorToGroup(storyGroup, appState.defaultFloorTexture);
+            // Feature 38/41: one floor surface per room, with the stair from
+            // the storey below cut out of the storey above it.
+            const floorStats = this.addFloorsToGroup(storyGroup, story, {
+                view,
+                defaultFloorTexture: appState.defaultFloorTexture,
+                roomMaterials,
+                roomFloors,
+                storeyIndex: index,
+                stories
+            });
+            roomCount += floorStats.rooms;
+            openingCount += floorStats.openings;
             
             if (appState.showCeiling || !isTopStory) {
                 this.addCeilingToGroup(storyGroup, storyHeight);
             }
 
-            this.addWallsToGroup(storyGroup, story.walls, appState.defaultWallTexture, canvasWidth, canvasHeight, story.fixtures, storyHeight, appState.selectedWallId, appState.fixtureStyles);
+            // Feature 39: dirty walls only.
+            const stats = this.wallBuilder.update(index, {
+                walls: story.walls || [],
+                fixtures: story.fixtures || [],
+                canvasWidth,
+                canvasHeight,
+                wallHeight: storyHeight,
+                wallStyles: appState.fixtureStyles,
+                defaultTexture: appState.defaultWallTexture,
+                selectedWallId: appState.selectedWallId,
+                baseMaterial: this.wallMaterial,
+                elevation: currentElevation,
+                visible
+            });
+            wallStats.built += stats.built;
+            wallStats.reused += stats.reused;
+            wallStats.removed += stats.removed;
+
             this.addItemsToGroup(storyGroup, story.fixtures, appState.fixtureStyles, canvasWidth, canvasHeight, appState.selectedFixture?.id);
 
             // Labels only on the ground floor, from the same measurement data
@@ -186,6 +263,35 @@ export class ConversionEngine3D {
             }
 
             currentElevation += storyHeight;
+        });
+
+        this.wallBuilder.prune(stories.length);
+
+        if (previousWallMaterial && previousWallMaterial !== this.wallMaterial) {
+            // The signature includes the default texture, so every wall was
+            // rebuilt above and no mesh still references the old material.
+            previousWallMaterial.dispose();
+        }
+
+        const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.lastConvert = {
+            stories: stories.length,
+            rooms: roomCount,
+            openings: openingCount,
+            walls: wallStats,
+            ms: Math.round((finishedAt - startedAt) * 10) / 10
+        };
+        return this.lastConvert;
+    }
+
+    /** Shared base wall material for the current default texture. */
+    createWallMaterial(textureId) {
+        const texture = textureId && TEXTURES.walls[textureId] ? loadTexture(TEXTURES.walls[textureId]) : null;
+        return new THREE.MeshStandardMaterial({
+            color: 0xe0e0e0,
+            roughness: 0.7,
+            metalness: 0.1,
+            map: texture
         });
     }
 
@@ -225,17 +331,17 @@ export class ConversionEngine3D {
         roof.castShadow = true;
         roof.receiveShadow = true;
         
-        this.scene.add(roof);
+        this.content.add(roof);
         this.meshes.push(roof);
     }
 
     addLighting() {
         const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-        this.scene.add(ambient); this.meshes.push(ambient);
+        this.content.add(ambient); this.meshes.push(ambient);
 
         const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
         hemi.position.set(0, 20, 0);
-        this.scene.add(hemi); this.meshes.push(hemi);
+        this.content.add(hemi); this.meshes.push(hemi);
 
         const dir = new THREE.DirectionalLight(0xffffff, 0.8);
         dir.position.set(10, 15, 10);
@@ -252,7 +358,88 @@ export class ConversionEngine3D {
         dir.shadow.camera.updateProjectionMatrix();
         dir.shadow.bias = -0.0005;
         dir.shadow.normalBias = 0.02;
-        this.scene.add(dir); this.meshes.push(dir);
+        this.content.add(dir); this.meshes.push(dir);
+    }
+
+    /**
+     * Floors for one storey (studio features 38 + 41): a surface per closed
+     * room with its own material, and stair openings cut out of the storey
+     * above. A plan with no closed room still gets the old slab so an empty
+     * canvas renders a ground plane.
+     */
+    addFloorsToGroup(group, story, { view, defaultFloorTexture, roomMaterials, roomFloors, storeyIndex, stories }) {
+        // Room ids repeat per storey, so finishes are keyed "storey:room".
+        // Unprefixed keys stay valid for a single-storey plan.
+        const scopedMaterials = {};
+        Object.entries(roomMaterials || {}).forEach(([key, value]) => {
+            const separator = key.indexOf(':');
+            if (separator === -1) {
+                if (storeyIndex === 0) scopedMaterials[key] = value;
+            } else if (Number(key.slice(0, separator)) === storeyIndex) {
+                scopedMaterials[key.slice(separator + 1)] = value;
+            }
+        });
+
+        const rooms = roomFloors
+            ? roomSurfacesFromWalls(story.walls || [], view, {
+                materials: scopedMaterials,
+                defaultTexture: defaultFloorTexture
+            })
+            : [];
+        const openings = roomFloors && storeyIndex > 0
+            ? stairOpenings(stories[storeyIndex - 1]?.fixtures || [], view)
+            : [];
+
+        if (rooms.length === 0) {
+            this.addFloorToGroup(group, defaultFloorTexture);
+            return { rooms: 0, openings: 0 };
+        }
+
+        let cut = 0;
+        rooms.forEach(room => {
+            const roomHoles = openingsForRoom(room, openings);
+            cut += roomHoles.length;
+            group.add(this.createRoomFloor(room, roomHoles));
+        });
+        return { rooms: rooms.length, openings: cut };
+    }
+
+    /** One room's floor surface, with stair holes in world-space rectangles. */
+    createRoomFloor(room, openings = []) {
+        const shape = new THREE.Shape();
+        room.vertices.forEach((point, index) => {
+            if (index === 0) shape.moveTo(point.x, point.z);
+            else shape.lineTo(point.x, point.z);
+        });
+        shape.closePath();
+
+        openings.forEach(opening => {
+            const hole = new THREE.Path();
+            openingCorners(opening).forEach((corner, index) => {
+                if (index === 0) hole.moveTo(corner.x, corner.z);
+                else hole.lineTo(corner.x, corner.z);
+            });
+            hole.closePath();
+            shape.holes.push(hole);
+        });
+
+        const geometry = new THREE.ShapeGeometry(shape);
+        // Shape points are (x, z); laying the shape flat maps them to world x/z.
+        geometry.rotateX(Math.PI / 2);
+
+        const textureUrl = floorTextureUrl(room.texture);
+        const material = new THREE.MeshStandardMaterial({
+            color: room.color || 0xf5f5f5,
+            side: THREE.DoubleSide,
+            roughness: 0.8,
+            metalness: 0.2,
+            map: textureUrl ? loadTexture(textureUrl) : null
+        });
+
+        const floor = new THREE.Mesh(geometry, material);
+        floor.receiveShadow = true;
+        floor.userData = { type: 'floor-room', roomId: room.id, texture: room.texture, area: room.area };
+        return floor;
     }
 
     addFloorToGroup(group, textureId) {
@@ -262,6 +449,7 @@ export class ConversionEngine3D {
         const floor = new THREE.Mesh(geometry, material);
         floor.rotation.x = -Math.PI / 2;
         floor.receiveShadow = true;
+        floor.userData = { type: 'floor-slab' };
         group.add(floor);
     }
 
@@ -270,7 +458,9 @@ export class ConversionEngine3D {
         const material = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 1.0 });
         const ceiling = new THREE.Mesh(geometry, material);
         ceiling.rotation.x = Math.PI / 2;
-        ceiling.position.y = height;
+        // A hair below the storey top so the next storey's floor wins the
+        // depth test instead of z-fighting with it.
+        ceiling.position.y = height - 0.005;
         ceiling.receiveShadow = true;
         group.add(ceiling);
     }
@@ -281,7 +471,9 @@ export class ConversionEngine3D {
             // Hidden pieces stay in the model so they can be brought back, but
             // they are not built into the scene.
             if (fixture.visible === false) return;
-            const style = (fixtureStyles && fixtureStyles[fixture.id]) || {};
+            // Per-item style wins, then the product line's palette (feature 30),
+            // then the item metadata colour.
+            const style = resolveItemStyle(fixture, fixtureStyles);
             // A resized item overrides the type's dimensions, so every builder
             // (and the GLB path) sees the effective size.
             const sized = fixture.size
@@ -295,7 +487,12 @@ export class ConversionEngine3D {
                 // mounted); `elevation` is the extra lift set by elevation-view
                 // dragging, so it is added on top without touching the builders.
                 const lift = fixture.elevation || 0;
-                mesh.position.set(x, mesh.position.y + lift, z);
+                // The builder bakes the metadata mount height into position.y;
+                // swap in the effective default bottom (feature 24) so a
+                // per-item base override moves the whole piece.
+                const metadataBottom = typeof fixture.metadata?.mountHeight === 'number' ? fixture.metadata.mountHeight : 0;
+                const baseOffset = defaultBottomOf(fixture) - metadataBottom;
+                mesh.position.set(x, mesh.position.y + lift + baseOffset, z);
                 mesh.rotation.y = -fixture.rotation;
                 // A flipped piece is mirrored about its own centre so its
                 // handles/doors face the other way without moving in plan.
@@ -321,127 +518,32 @@ export class ConversionEngine3D {
     }
 
     // --- Legacy single-story adapters -------------------------------------
-    // Kept so older callers that used the pre story-group API keep working.
+    // Kept so older callers that used the pre story-group API keep working;
+    // they now go through the same content root and wall builder.
     addFloor(textureId) {
         const group = new THREE.Group();
-        this.scene.add(group);
+        this.content.add(group);
         this.meshes.push(group);
         this.addFloorToGroup(group, textureId);
     }
 
     addCeiling(height = ROOM_HEIGHT) {
         const group = new THREE.Group();
-        this.scene.add(group);
+        this.content.add(group);
         this.meshes.push(group);
         this.addCeilingToGroup(group, height);
     }
 
     addWalls(walls, textureId, canvasWidth, canvasHeight, fixtures = []) {
-        const group = new THREE.Group();
-        this.scene.add(group);
-        this.meshes.push(group);
-        this.addWallsToGroup(group, walls, textureId, canvasWidth, canvasHeight, fixtures, ROOM_HEIGHT, null);
-    }
-
-    addWallsToGroup(group, walls, textureId, canvasWidth, canvasHeight, fixtures, wallHeight, selectedWallId, wallStyles = null) {
-        const texture = textureId && TEXTURES.walls[textureId] ? loadTexture(TEXTURES.walls[textureId]) : null;
-        const material = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.7, metalness: 0.1, map: texture });
-
-        const wallMeshes = [];
-        walls.forEach(wall => {
-            const dx = (wall.end.x - wall.start.x) / SCALE;
-            const dy = (wall.end.y - wall.start.y) / SCALE;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const angle = Math.atan2(dy, dx);
-
-            // A wall can carry its own height (half walls, gables); otherwise it
-            // rises with the storey.
-            const height = typeof wall.height === 'number' && wall.height > 0 ? wall.height : wallHeight;
-
-            const wallGeo = new THREE.BoxGeometry(length, height, WALL_THICKNESS);
-            const cx = ((wall.start.x + wall.end.x) / 2 - canvasWidth / 2) / SCALE;
-            const cz = ((wall.start.y + wall.end.y) / 2 - canvasHeight / 2) / SCALE;
-
-            // Per-wall finish from the shared style map, keyed by wall id.
-            const finish = wallFinishOf(wall, wallStyles, textureId);
-            let wallMaterial = material;
-            if (finish.color || finish.textureUrl) {
-                wallMaterial = material.clone();
-                if (finish.color) wallMaterial.color.set(finish.color);
-                if (finish.textureUrl) {
-                    wallMaterial.map = loadTexture(finish.textureUrl);
-                    wallMaterial.needsUpdate = true;
-                }
-            }
-            if (wall.id === selectedWallId) {
-                wallMaterial = wallMaterial.clone();
-                wallMaterial.color.set(0xf59e0b);
-            }
-            
-            const wallBrush = new Brush(wallGeo, wallMaterial);
-            wallBrush.userData = { id: wall.id, type: 'wall' };
-            wallBrush.position.set(cx, height / 2, cz);
-            wallBrush.rotation.y = -angle;
-            wallBrush.updateMatrixWorld();
-
-            const holes = fixtures.filter(f => f.boundToWallId === wall.id && ['window', 'round_window', 'door'].includes(f.type));
-
-            if (holes.length > 0) {
-                let resultBrush = wallBrush;
-                holes.forEach(hole => {
-                    const w = hole.metadata?.width || 1.0;
-                    const h = hole.metadata?.height || 1.0;
-                    const d = WALL_THICKNESS * 1.2;
-
-                    let holeGeo = hole.metadata?.shape === 'circle' 
-                        ? new THREE.CylinderGeometry(w / 2, w / 2, d, 32).rotateX(Math.PI / 2)
-                        : new THREE.BoxGeometry(w, h, d);
-
-                    const holeBrush = new Brush(holeGeo);
-                    const hx = (hole.x - canvasWidth / 2) / SCALE;
-                    const hz = (hole.y - canvasHeight / 2) / SCALE;
-                    
-                    // Windows are positioned by sill height (floor to bottom edge),
-                    // so the hole centre is sill + half the opening height. Doors
-                    // sit on the floor. The hole is rebuilt from the fixture's
-                    // current x/y every conversion, so dragging the window along
-                    // the wall moves the opening with it.
-                    let hy = h / 2;
-                    if (hole.type === 'window' || hole.type === 'round_window') {
-                        const sill = hole.metadata?.sillHeight ?? hole.metadata?.altitude ?? WINDOW_SILL_HEIGHT;
-                        hy = sill + h / 2;
-                    } else if (hole.type === 'door') {
-                        hy = h / 2 + 0.01;
-                    }
-
-                    holeBrush.position.set(hx, hy, hz);
-                    holeBrush.rotation.y = -hole.rotation;
-                    holeBrush.updateMatrixWorld();
-
-                    // FIX 2 Applied: Reusing this.evaluator
-                    resultBrush = this.evaluator.evaluate(resultBrush, holeBrush, SUBTRACTION);
-                });
-
-                resultBrush.castShadow = true;
-                resultBrush.receiveShadow = true;
-                resultBrush.userData = { id: wall.id, type: 'wall' };
-                wallMeshes.push(resultBrush);
-            } else {
-                const mesh = new THREE.Mesh(wallGeo, wallMaterial);
-                mesh.userData = { id: wall.id, type: 'wall' };
-                mesh.position.copy(wallBrush.position);
-                mesh.rotation.copy(wallBrush.rotation);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                wallMeshes.push(mesh);
-            }
+        this.wallBuilder.update(0, {
+            walls,
+            fixtures,
+            canvasWidth,
+            canvasHeight,
+            wallHeight: ROOM_HEIGHT,
+            defaultTexture: textureId,
+            baseMaterial: this.wallMaterial || this.createWallMaterial(textureId)
         });
-
-        if (wallMeshes.length > 0) {
-            const g = new THREE.Group();
-            wallMeshes.forEach(mesh => g.add(mesh));
-            group.add(g);
-        }
     }
 
     /**
@@ -533,9 +635,31 @@ export class ConversionEngine3D {
             return placeholder;
         }
 
-        // Delegate to the factory registry, fallback to default box builder
-        const builder = FurnitureFactory[fixture.type] || buildDefaultBox;
-        const mesh = builder(width, height, depth, material, fixture);
+        // A configured cabinet (studio feature 44) is built from its parts
+        // model instead of the line's fixed builder, so doors, drawers and
+        // shelves follow the inspector.
+        let mesh;
+        if (fixture.type === 'stair') {
+            mesh = buildStairObject(THREE, { width, depth, height, material });
+            mesh.userData = { type: 'item', id: fixture.id };
+        } else if (fixture.config) {
+            mesh = buildParametricCabinet({
+                THREE,
+                width,
+                height,
+                depth,
+                material,
+                config: fixture.config,
+                fixture
+            });
+            // The parts model sits on y = 0; a wall cabinet keeps its mount.
+            mesh.position.y = fixture.metadata?.mountHeight || 0;
+            mesh.userData = { type: 'item', id: fixture.id, config: { ...fixture.config } };
+        } else {
+            // Delegate to the factory registry, fallback to default box builder
+            const builder = FurnitureFactory[fixture.type] || buildDefaultBox;
+            mesh = builder(width, height, depth, material, fixture);
+        }
 
         // Lines-only lines (e.g. the shaker cabinetry) keep the built geometry
         // but render it as edges, so the construction stays readable.

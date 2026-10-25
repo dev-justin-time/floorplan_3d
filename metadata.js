@@ -20,6 +20,8 @@ export const TEXTURES = {
 export const ITEM_METADATA = {
     // Structural
     door: { type: 'in_wall_floor', width: 1.0, depth: 0.15, height: 2.1, color: 0x8b4513 },
+    // A stair cuts an opening in the floor of the storey above it (studio 41).
+    stair: { type: 'floor', width: 1.0, depth: 2.6, height: 2.7, color: 0x9ca3af, label: 'Stair' },
     // sillHeight = floor to the bottom edge of the unit.
     window: { type: 'in_wall', width: 1.2, depth: 0.15, height: 1.2, color: 0x87ceeb, sillHeight: WINDOW_SILL_HEIGHT, altitude: WINDOW_SILL_HEIGHT },
     round_window: { type: 'in_wall', width: 1.0, depth: 0.15, height: 1.0, color: 0x87ceeb, sillHeight: 1.5, altitude: 1.5, shape: 'circle' },

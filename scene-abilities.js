@@ -47,7 +47,21 @@ export const ABILITY_DEFAULTS = {
     roomLabels: true,
     liftMarkers: true,
     snapGuides: true,
-    elevationHeights: true
+    elevationHeights: true,
+    // Advanced kit (features/advanced)
+    collisionDetect: true,
+    placementWarnings: true,
+    livePreview: true,
+    elevationDims: true,
+    alignDepth: false,
+    insideCorners: false,
+    sectionBox: false,
+    walkthrough: false,
+    // Studio kit (features/studio)
+    roomFloors: true,
+    comments: false,
+    dirtyRender: true,
+    layoutCheck: true
 };
 
 const PLAN_GROUP = 'Plan overlays';
@@ -56,6 +70,8 @@ const ITEM_GROUP = 'Item actions';
 const PLAN_ACTIONS = 'Plan actions';
 const THREE_GROUP = '3D & export';
 const FEATURE_GROUP = 'Feature kit';
+const ADVANCED_GROUP = 'Advanced';
+const STUDIO_GROUP = 'Studio';
 
 /** Small helper so a toggle entry is one line. */
 const toggleAbility = (id, label, group, key = id) => ({
@@ -154,7 +170,35 @@ export function createAbilityList() {
         toggleAbility('roomLabels', 'Room labels', FEATURE_GROUP),
         toggleAbility('liftMarkers', 'Lifted-piece markers', FEATURE_GROUP),
         toggleAbility('snapGuides', 'Snap guides', FEATURE_GROUP),
-        toggleAbility('elevationHeights', 'Elevation heights', FEATURE_GROUP)
+        toggleAbility('elevationHeights', 'Elevation heights', FEATURE_GROUP),
+
+        // --- Advanced kit ---------------------------------------------------
+        toggleAbility('collisionDetect', 'Collision detection', ADVANCED_GROUP),
+        toggleAbility('placementWarnings', 'Placement warnings', ADVANCED_GROUP),
+        toggleAbility('livePreview', 'Live 3D drag preview', ADVANCED_GROUP),
+        toggleAbility('elevationDims', 'Elevation dimensions', ADVANCED_GROUP),
+        toggleAbility('alignDepth', 'Snap depth to run', ADVANCED_GROUP),
+        toggleAbility('insideCorners', 'Snap to inside corners', ADVANCED_GROUP),
+        toggleAbility('sectionBox', 'Section box', ADVANCED_GROUP),
+        toggleAbility('walkthrough', 'Walkthrough agent', ADVANCED_GROUP),
+        actionAbility('groupRun', 'Group run', ADVANCED_GROUP, (state, host) => host.groupSelection()),
+        actionAbility('ungroupRun', 'Ungroup', ADVANCED_GROUP, (state, host) => host.ungroupSelection()),
+        actionAbility('alignDepthAction', 'Align depth now', ADVANCED_GROUP, (state, host) => host.alignDepthSelection()),
+        actionAbility('cornerAction', 'Seat in corner', ADVANCED_GROUP, (state, host) => host.snapCornerSelection()),
+        actionAbility('exportGLBAction', 'Export GLB', ADVANCED_GROUP, (state, host) => host.exportGLB()),
+        actionAbility('startARAction', 'Place in AR', ADVANCED_GROUP, (state, host) => host.startAR()),
+
+        // --- Studio kit -----------------------------------------------------
+        toggleAbility('roomFloors', 'Per-room floor materials', STUDIO_GROUP),
+        toggleAbility('comments', 'Comment pins', STUDIO_GROUP),
+        toggleAbility('dirtyRender', 'Dirty-flag rendering', STUDIO_GROUP),
+        toggleAbility('layoutCheck', 'NKBA kitchen checks', STUDIO_GROUP),
+        actionAbility('newStoreyAction', 'Add storey', STUDIO_GROUP, (state, host) => host.addNewStorey()),
+        actionAbility('analyzeKitchenAction', 'Check kitchen layout', STUDIO_GROUP, (state, host) => host.analyzeKitchenLayout()),
+        actionAbility('suggestRunAction', 'Suggest cabinet run', STUDIO_GROUP, (state, host) => host.suggestKitchenRun()),
+        actionAbility('manufacturingCSVAction', 'Manufacturing CSV', STUDIO_GROUP, (state, host) => host.exportManufacturing('csv')),
+        actionAbility('manufacturingDXFAction', 'Manufacturing DXF', STUDIO_GROUP, (state, host) => host.exportManufacturing('dxf')),
+        actionAbility('saveNamedProjectAction', 'Save named project', STUDIO_GROUP, (state, host) => host.saveNamedProjectPrompt())
     ];
 
     return list;

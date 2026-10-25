@@ -1,6 +1,6 @@
 import { PIXELS_PER_METER } from './world-space.js';
-import { snapToWalls } from './wall-snap.js';
 import { constrainToLocks } from './features/transforms.js';
+import { gridSnap, wallSnap } from './features/advanced/snapping.js';
 
 /**
  * Dragging for plan objects (fixtures, windows, doors).
@@ -52,17 +52,15 @@ export function beginDrag(fixture, point) {
  * wall: in-wall items ride the centreline (which updates the wall id used for
  * cutting the opening), floor items sit flush against the wall face.
  */
-export function dragTo(drag, point, walls, { gridSize = 0, snapThreshold = 20, wallSnap = true } = {}) {
+export function dragTo(drag, point, walls, { gridSize = 0, snapThreshold = 20, wallSnap: snapToWall = true } = {}) {
     if (!drag || !drag.fixture) return null;
     const { fixture, offset } = drag;
 
     let x = point.x - offset.x;
     let y = point.y - offset.y;
 
-    if (gridSize > 0) {
-        x = Math.round(x / gridSize) * gridSize;
-        y = Math.round(y / gridSize) * gridSize;
-    }
+    // Grid rounding goes through the unified snapping module (feature 19).
+    ({ x, y } = gridSnap({ x, y }, gridSize));
 
     if (typeof fixture.setPosition === 'function') {
         fixture.setPosition(x, y);
@@ -76,9 +74,9 @@ export function dragTo(drag, point, walls, { gridSize = 0, snapThreshold = 20, w
         if (typeof fixture.snapToWall === 'function') {
             fixture.snapToWall(walls, snapThreshold);
         }
-    } else if (wallSnap) {
+    } else if (snapToWall) {
         // Flush against the nearest wall, width along the wall
-        const snapped = snapToWalls(fixture, walls, { threshold: snapThreshold });
+        const snapped = wallSnap(fixture, walls, { threshold: snapThreshold });
         drag.snappedWall = snapped ? snapped.wall : null;
     }
 
