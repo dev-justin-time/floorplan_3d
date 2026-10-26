@@ -1232,6 +1232,115 @@ async function main() {
         check('editor roof panel summarises the area', /sq/.test(roofEditor.summary || ''), roofEditor.summary);
         check('editor builds the roof from the draft', roofEditor.roofBuilt === true && roofEditor.builtStyle === 'hip', `${roofEditor.builtStyle}`);
 
+        console.log('\nWall suite');
+        await load(BASE + '/wall-designer.html');
+        check('wall suite boots', await waitFor('Boolean(window.wallSuite && window.wallSuite.design)'));
+        const wallPage = await cdp.evaluate(`(() => {
+            const design = window.wallSuite.design;
+            const canvas = document.getElementById('elevation');
+            const ctx = canvas.getContext('2d');
+            let painted = 0;
+            const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            for (let i = 3; i < pixels.length; i += 4) if (pixels[i] > 0) painted += 1;
+            return {
+                coverings: document.querySelectorAll('#covering option').length,
+                colours: document.querySelectorAll('#colour-grid [data-colour]').length,
+                schemes: document.querySelectorAll('#scheme-swatches > div').length,
+                rows: document.querySelectorAll('#takeoff-body tr').length,
+                checks: document.querySelectorAll('#checks li').length,
+                terms: document.querySelectorAll('#glossary dt').length,
+                formulas: document.querySelectorAll('#formulas tr').length,
+                palette: document.querySelectorAll('#palette-table tbody tr').length,
+                canvases: document.querySelectorAll('#stage canvas').length,
+                area: document.getElementById('net-area').textContent,
+                cost: document.getElementById('total-cost').textContent,
+                finish: document.getElementById('finish-qty').textContent,
+                painted,
+                csv: window.wallSuite.csv().includes('"Summary","Total"')
+            };
+        })()`);
+        check('wall suite lists coverings', wallPage.coverings >= 30, `${wallPage.coverings} options`);
+        check('wall suite lists the paint palette', wallPage.colours >= 20 && wallPage.palette >= 20, `${wallPage.colours} swatches`);
+        check('wall suite builds a colour scheme', wallPage.schemes === 4, `${wallPage.schemes} swatches`);
+        check('wall result card is filled', /m²/.test(wallPage.area) && /\$/.test(wallPage.cost), `${wallPage.area} · ${wallPage.cost}`);
+        check('wall suite reports litres', /L/.test(wallPage.finish), wallPage.finish);
+        check('wall takeoff table is populated', wallPage.rows >= 3, `${wallPage.rows} rows`);
+        check('wall checks are listed', wallPage.checks >= 6, `${wallPage.checks} checks`);
+        check('wall glossary renders every term', wallPage.terms >= 60, `${wallPage.terms} terms`);
+        check('wall formulas are listed', wallPage.formulas >= 10, `${wallPage.formulas} formulas`);
+        check('wall 3D canvas present', wallPage.canvases === 1, `${wallPage.canvases} canvas`);
+        check('wall elevation is drawn', wallPage.painted > 5000, `${wallPage.painted} painted pixels`);
+        check('wall CSV carries the summary', wallPage.csv === true);
+
+        const wallFlow = await cdp.evaluate(`(() => {
+            document.getElementById('exposure-exterior').click();
+            const exterior = window.wallSuite.design;
+            const exteriorOptions = [...document.querySelectorAll('#covering option')].map((option) => option.value);
+            const select = document.getElementById('covering');
+            select.value = 'stucco-3coat';
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            const stucco = window.wallSuite.design;
+            const wrb = document.getElementById('wrb');
+            wrb.checked = false;
+            wrb.dispatchEvent(new Event('change', { bubbles: true }));
+            const noWrb = window.wallSuite.design;
+            const grade = document.getElementById('grade');
+            grade.value = '50';
+            grade.dispatchEvent(new Event('input', { bubbles: true }));
+            const lowGrade = window.wallSuite.design;
+            wrb.checked = true;
+            wrb.dispatchEvent(new Event('change', { bubbles: true }));
+            document.getElementById('exposure-interior').click();
+            const interior = window.wallSuite.design;
+            document.querySelector('#colour-grid [data-colour="sage"]').click();
+            const sage = window.wallSuite.design;
+            const sheen = document.getElementById('sheen');
+            sheen.value = 'satin';
+            sheen.dispatchEvent(new Event('change', { bubbles: true }));
+            const satin = window.wallSuite.design;
+            return {
+                exteriorCovering: exterior.covering.id,
+                exteriorInOptions: exteriorOptions.includes(exterior.covering.id),
+                exteriorSubstrate: exterior.substrate.id,
+                stuccoCovering: stucco.covering.id,
+                stuccoErrors: stucco.checks.filter((entry) => entry.severity === 'error').length,
+                wrbError: noWrb.checks.some((entry) => entry.id === 'wrb' && entry.severity === 'error'),
+                gradeError: lowGrade.checks.some((entry) => entry.id === 'grade' && entry.severity === 'error'),
+                interiorCovering: interior.covering.id,
+                sageColour: sage.colour.id,
+                sageHex: sage.colour.hex,
+                satinSheen: satin.sheen.id,
+                satinChecked: document.getElementById('sheen').value,
+                errorShown: document.querySelectorAll('#checks .severity-error').length
+            };
+        })()`);
+        check('exterior mode switches to an exterior covering', wallFlow.exteriorCovering === 'paint-exterior-acrylic' && wallFlow.exteriorInOptions, wallFlow.exteriorCovering);
+        check('exterior mode switches the substrate', wallFlow.exteriorSubstrate === 'wood-primed', wallFlow.exteriorSubstrate);
+        check('stucco selects and prices', wallFlow.stuccoCovering === 'stucco-3coat' && wallFlow.stuccoErrors === 0, `${wallFlow.stuccoErrors} errors`);
+        check('switching the WRB off raises an error', wallFlow.wrbError === true, `${wallFlow.errorShown} errors shown`);
+        check('lowering grade clearance raises an error', wallFlow.gradeError === true);
+        check('interior mode returns to an interior covering', wallFlow.interiorCovering === 'paint-eggshell', wallFlow.interiorCovering);
+        check('colour swatch repaints the scheme', wallFlow.sageColour === 'sage' && wallFlow.sageHex === '#A9B6A2', wallFlow.sageHex);
+        check('sheen select changes the paint', wallFlow.satinSheen === 'satin' && wallFlow.satinChecked === 'satin');
+
+        await cdp.evaluate(`document.getElementById('send-editor').click()`);
+        await sleep(3200);
+        const wallEditor = await cdp.evaluate(`(() => ({
+            path: location.pathname,
+            covering: window.wallKit?.covering(),
+            options: document.querySelectorAll('#wall-covering-select option').length,
+            selected: document.getElementById('wall-covering-select')?.value,
+            status: document.getElementById('wall-covering-status')?.textContent,
+            designCost: window.wallKit?.design()?.costs?.total ?? null,
+            draftCleared: localStorage.getItem('wall-editor-draft') === null
+        }))()`);
+        check('designer hands the covering to the editor', wallEditor.path.endsWith('/Editor.html'), wallEditor.path);
+        check('editor keeps the designed covering', wallEditor.covering === 'paint-satin', wallEditor.covering);
+        check('editor covering select shows it', wallEditor.selected === 'paint-satin', wallEditor.selected);
+        check('editor lists every covering', wallEditor.options >= 30, `${wallEditor.options} options`);
+        check('editor prices the covering', Number(wallEditor.designCost) > 0, String(wallEditor.designCost));
+        check('designer draft is consumed once', wallEditor.draftCleared === true);
+
         const errors = cdp.errors().filter((error) => !error.includes('textures/') && !error.includes('favicon'));
         check('no uncaught runtime errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 

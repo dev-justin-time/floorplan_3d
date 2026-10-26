@@ -90,6 +90,7 @@ export const HARMONIES = [
 export const SUBSTRATES = [
     { id: 'gypsum-new', label: 'New gypsum board', group: 'Interior', porous: true, primer: true, moistureMax: 0, cureDays: 0 },
     { id: 'gypsum-painted', label: 'Painted gypsum', group: 'Interior', porous: false, primer: true, moistureMax: 0, cureDays: 0 },
+    { id: 'gypsum-wet', label: 'Water-resistant gypsum', group: 'Interior', porous: false, primer: true, moistureMax: 0, cureDays: 0 },
     { id: 'plaster-new', label: 'New plaster', group: 'Interior', porous: true, primer: true, moistureMax: 0, cureDays: 28 },
     { id: 'plaster-painted', label: 'Painted plaster', group: 'Interior', porous: false, primer: true, moistureMax: 0, cureDays: 0 },
     { id: 'concrete-new', label: 'New concrete', group: 'Masonry', porous: true, primer: true, moistureMax: 4, cureDays: 28 },
@@ -103,10 +104,9 @@ export const SUBSTRATES = [
     { id: 'wallpaper', label: 'Existing wallpaper', group: 'Interior', porous: false, primer: true, moistureMax: 0, cureDays: 0 }
 ];
 
-const ALL_INTERIOR = ['gypsum-new', 'gypsum-painted', 'plaster-new', 'plaster-painted', 'concrete-new', 'concrete-cured', 'masonry', 'wood-bare', 'wood-primed', 'fiber-cement', 'wallpaper'];
-const ALL_EXTERIOR = ['wood-bare', 'wood-primed', 'fiber-cement', 'masonry', 'concrete-new', 'concrete-cured', 'metal', 'vinyl'];
 const MASONRY_ONLY = ['masonry', 'concrete-new', 'concrete-cured', 'plaster-new', 'plaster-painted'];
-const PAINT_SURFACES = ['gypsum-new', 'gypsum-painted', 'plaster-new', 'plaster-painted', 'concrete-cured', 'masonry', 'wood-primed', 'fiber-cement', 'metal'];
+const INTERIOR_PAINT_SURFACES = ['gypsum-new', 'gypsum-painted', 'plaster-new', 'plaster-painted', 'concrete-cured', 'masonry', 'wood-primed', 'fiber-cement', 'metal'];
+const EXTERIOR_PAINT_SURFACES = ['wood-primed', 'fiber-cement', 'masonry', 'concrete-cured', 'concrete-new', 'metal', 'vinyl'];
 
 const paint = ({ id, label, exposure, sheen, colour, coverage, primerCoverage = 10, paintCost, primerCost = 48, labour, life, maintenance, voc, minTemp = 10, note, code }) => ({
     id,
@@ -115,7 +115,7 @@ const paint = ({ id, label, exposure, sheen, colour, coverage, primerCoverage = 
     exposure,
     sheen,
     colour,
-    substrates: PAINT_SURFACES,
+    substrates: exposure === 'exterior' ? EXTERIOR_PAINT_SURFACES : INTERIOR_PAINT_SURFACES,
     unit: 'can',
     coats: 2,
     primer: 'recommended',
@@ -139,7 +139,7 @@ const paint = ({ id, label, exposure, sheen, colour, coverage, primerCoverage = 
     texture: 'paint',
     defaultColour: colour,
     components: [
-        can('Primer', primerCoverage, primerCost, 'Preparation', { primer: true }),
+        can('Primer', primerCoverage, primerCost, 'Preparation', { primer: true, coverageRate: primerCoverage }),
         can('Finish paint', coverage, paintCost, 'Finish', { perCoat: true, coverageRate: coverage }),
         pack('Painter’s tape', 'roll', 50, 8, 'Accessories', { basis: 'perimeter' }),
         pack('Drop cloth', 'pack', 50, 12, 'Accessories')
@@ -202,13 +202,6 @@ export const WALL_COVERINGS = [
         note: 'Maximum sheen and washability for doors, trim and joinery.',
         code: 'IRC R702.1. Surface preparation controls adhesion; do not apply over chalky or glossy paint.'
     }),
-    paint({
-        id: 'primer-interior', label: 'Interior primer and sealer', exposure: 'interior', sheen: 'matte',
-        colour: 'chalk-white', coverage: 10, primerCoverage: 10, paintCost: 48, primerCost: 48,
-        labour: 5, life: 5, maintenance: 5, voc: 45,
-        note: 'Bonding primer for new board, patches and colour changes; not a finish coat.',
-        code: 'IRC R702.1; ASTM C557 for adhesive, C1396 for gypsum board.'
-    }),
     {
         id: 'limewash', label: 'Limewash · mineral paint', family: 'paint', exposure: 'interior',
         sheen: 'masonry-flat', colour: 'bone', substrates: MASONRY_ONLY, unit: 'tub',
@@ -235,7 +228,6 @@ export const WALL_COVERINGS = [
             pack('Bonding agent', '3.78 L can', 30, 48, 'Preparation'),
             pack('Joint tape', '50 m roll', 50, 8, 'Accessories', { basis: 'perimeter' })
         ],
-        perimetreComponents: [],
         labour: 35, waste: 0.15, life: 40, maintenance: 15, fireClass: 'A', vapourClass: 'III',
         weight: 2.5, thickness: 2, voc: 0, minTemp: 5, recoatHours: 24, cureDays: 7,
         wetAreaOk: false, texture: 'paint', colour: 'chalk-white',
@@ -398,7 +390,7 @@ export const WALL_COVERINGS = [
     }),
     system({
         id: 'tile-ceramic', label: 'Ceramic wall tile', family: 'tile', exposure: 'interior',
-        substrates: ['gypsum-new', 'gypsum-painted', 'plaster-new', 'plaster-painted', 'fiber-cement'],
+        substrates: ['gypsum-new', 'gypsum-painted', 'gypsum-wet', 'plaster-new', 'plaster-painted', 'fiber-cement'],
         unit: 'box', coats: 1, primer: 'required',
         components: [
             pack('Ceramic tile', 'box (1.2 m²)', 1.2, 45, 'Finish'),
@@ -416,7 +408,7 @@ export const WALL_COVERINGS = [
     }),
     system({
         id: 'tile-porcelain', label: 'Porcelain tile · large format', family: 'tile', exposure: 'interior',
-        substrates: ['gypsum-new', 'plaster-new', 'fiber-cement', 'concrete-cured'],
+        substrates: ['gypsum-new', 'gypsum-wet', 'plaster-new', 'fiber-cement', 'concrete-cured'],
         unit: 'box', coats: 1, primer: 'required',
         components: [
             pack('Porcelain tile', 'box (1.44 m²)', 1.44, 70, 'Finish'),
@@ -704,11 +696,11 @@ export function coveringsByFamily({ exposure = 'interior' } = {}) {
 /** The patch the editor writes into a wall's style map. */
 export function finishPatchFor(coveringId, colourId = null) {
     const covering = coveringById(coveringId);
-    const colour = colourById(colourId);
+    const colour = colourById(colourId) || colourById(covering.defaultColour);
     return {
         covering: covering.id,
         texture: covering.texture || null,
-        color: covering.family === 'paint' && colour ? colour.hex : (covering.defaultColour || null)
+        color: colour ? colour.hex : null
     };
 }
 
@@ -846,7 +838,11 @@ export function buildColourScheme(baseId, harmony = 'monochrome') {
             : base.hex;
     const accent = harmony === 'neutral'
         ? (PAINT_COLOURS.find((entry) => entry.family === 'neutral' && lrvOf(entry.hex) < wallLrv - 12) || colourById('mushroom'))
-        : { ...nearestColour(accentHue), hex: accentHue };
+        : {
+            id: `accent-${harmony}`,
+            label: harmony === 'complementary' ? `${base.label} complement` : `${base.label} neighbour`,
+            hex: accentHue
+        };
     const accentLrv = lrvOf(accent.hex);
     const trim = wallLrv >= 60
         ? PAINT_COLOURS.find((entry) => entry.family === 'white' && lrvOf(entry.hex) >= Math.min(wallLrv + 18, 96)) || colourById('chalk-white')

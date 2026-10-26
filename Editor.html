@@ -292,7 +292,10 @@
                         <input id="finish-upload" type="file" accept="image/*" class="mt-0.5 block w-full text-[10px] text-gray-500 dark:text-gray-400">
                     </label>
                     <p id="finish-status" class="text-[10px] font-mono text-gray-400 mt-1">Walls · default</p>
-                    <p class="text-[10px] text-gray-400 leading-snug mt-1">No wall selected applies the texture to every wall; a selected wall takes its own finish.</p>
+                    <p class="text-[10px] uppercase text-gray-400 mt-2">Covering</p>
+                    <select id="wall-covering-select" onchange="window.applyWallCovering(this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[10px]"></select>
+                    <p id="wall-covering-status" class="text-[10px] font-mono text-gray-400 mt-1">—</p>
+                    <p class="text-[10px] text-gray-400 leading-snug mt-1">No wall selected applies the covering to every wall. <a href="wall-designer.html" class="text-primary underline hover:text-sky-700">Wall suite</a> designs paint, plaster, wallpaper, panels, tile and exterior cladding.</p>
                 </div>
 
                 <!-- NKBA layout solver (features/studio/layout-solver.js) -->

@@ -167,6 +167,13 @@ import {
     POOL_SHAPE_LABELS,
     createLandscapePanel
 } from './features/landscape/index.js';
+import {
+    WALL_COVERINGS,
+    coveringById,
+    finishPatchFor,
+    computeWallDesign,
+    wallAreaFromPlan
+} from './features/wall/index.js';
 
 // Application State
 const AppState = {
@@ -223,6 +230,8 @@ const AppState = {
     // Styles
     fixtureStyles: {},
     defaultWallTexture: null,
+    // The covering the Finishes panel falls back to when no wall is selected.
+    defaultWallCovering: 'paint-eggshell',
     defaultFloorTexture: 'tile',
     // Finishes palette: which surface the texture buttons apply to.
     finishTarget: 'wall',
@@ -357,6 +366,7 @@ function init() {
     initRoofPanel();
     refreshPlanTextPanel();
     refreshFinishPanel();
+    initWallCoveringPanel();
     refreshProjectsPanel();
     refreshCommentsPanel();
     refreshStairPanel();
@@ -374,7 +384,11 @@ function init() {
     // the autosave's roof options, then the top storey rebuilds with it.
     const roofDraft = applyRoofEditorDraft();
     refreshRoofPanel();
-    if (roofDraft) update3D();
+    // A wall covering designed in wall-designer.html arrives the same way and
+    // paints every wall on the plan, so the editor opens on the chosen finish.
+    const wallDraft = applyWallEditorDraft();
+    refreshWallCoveringPanel();
+    if (roofDraft || wallDraft) update3D();
 
     // Initial Draw
     onResize();
@@ -493,6 +507,13 @@ function init() {
             return size ? computeRoofDesign({ ...AppState.roofConfig, ...size }) : null;
         }
     };
+    // Wall covering handle: what the Finishes panel shows and prices.
+    window.wallKit = {
+        coverings: () => WALL_COVERINGS.map((entry) => ({ id: entry.id, label: entry.label, exposure: entry.exposure })),
+        covering: () => activeWallCoveringId(),
+        area: () => planWallArea(),
+        design: () => wallCoveringDesign()
+    };
     // The whole feature kit on one handle, for debugging and the panel.
     window.featureKit = {
         features: FEATURES,
@@ -571,6 +592,8 @@ function init() {
     window.setFinishTarget = (target) => setFinishTarget(target);
     window.applyFinishTexture = (texture) => applyFinishTexture(texture);
     window.applyFinishColour = (colour) => applyFinishColour(colour);
+    window.applyWallCovering = (id) => applyWallCovering(id);
+    window.refreshWallCoverings = refreshWallCoveringPanel;
     window.refreshFinishes = refreshFinishPanel;
     window.selectOpening = (id) => selectOpening(id);
     window.deleteOpening = (id) => deleteOpening(id);
@@ -643,7 +666,8 @@ function init() {
             target: AppState.finishTarget,
             wallTexture: AppState.defaultWallTexture,
             floorTexture: AppState.defaultFloorTexture,
-            wall: selectedWall() ? wallFinishOf(selectedWall(), AppState.fixtureStyles, AppState.defaultWallTexture) : null
+            wall: selectedWall() ? wallFinishOf(selectedWall(), AppState.fixtureStyles, AppState.defaultWallTexture) : null,
+            covering: activeWallCoveringId()
         }),
         rooms: () => AppState.rooms,
         layout: () => AppState.layoutReport,
@@ -1267,6 +1291,7 @@ function syncSelectionPanels() {
 
     // The finishes palette follows the selected wall (if any).
     refreshFinishPanel();
+    refreshWallCoveringPanel();
 }
 
 const isCabinetType = (type) => /cabinet|pantry|island|sink_base|drawer_base|oven_tower/.test(String(type || ''));
@@ -2112,6 +2137,129 @@ function refreshFinishPanel() {
             : (selectedWall() ? 'Selected wall' : 'Walls');
         status.textContent = `${subject} · ${finishLabel(active)}`;
     }
+}
+
+// --- Wall covering suite (features/wall) ----------------------------
+
+/** Net wall area of the active storey, deducting its cutouts. */
+function planWallArea() {
+    const story = AppState.stories?.[AppState.currentStoryIndex];
+    const height = storeyConstruction(story).wallHeight;
+    const openings = activeOpenings().map((opening) => ({
+        width: opening.width,
+        height: opening.height,
+        area: Number.isFinite(opening.area) ? opening.area : undefined
+    }));
+    return wallAreaFromPlan(AppState.walls, { wallHeight: height, openings });
+}
+
+/** The covering on the selected wall, or the storey default. */
+function activeWallCoveringId() {
+    const wall = selectedWall();
+    const style = wall ? AppState.fixtureStyles[wall.id] || {} : null;
+    return style?.covering || AppState.defaultWallCovering || 'paint-eggshell';
+}
+
+function wallCoveringDesign() {
+    const area = planWallArea();
+    const covering = coveringById(activeWallCoveringId());
+    return computeWallDesign({
+        covering: covering.id,
+        colour: covering.defaultColour,
+        exposure: covering.exposure === 'exterior' ? 'exterior' : 'interior',
+        substrate: covering.exposure === 'exterior' ? 'wood-primed' : 'gypsum-painted',
+        condition: 'repaint',
+        area: Math.max(area.net, 0.1),
+        length: Math.max(area.length, 0.1),
+        height: area.height,
+        perimeter: Math.max(area.length, 0.1),
+        waste: 0.05
+    });
+}
+
+function initWallCoveringPanel() {
+    const select = document.getElementById('wall-covering-select');
+    if (!select) return;
+    const groups = [
+        { label: 'Interior', entries: WALL_COVERINGS.filter((entry) => entry.exposure === 'interior') },
+        { label: 'Exterior', entries: WALL_COVERINGS.filter((entry) => entry.exposure === 'exterior') },
+        { label: 'Interior or exterior', entries: WALL_COVERINGS.filter((entry) => entry.exposure === 'both') }
+    ];
+    select.innerHTML = '<option value="default">Storey default (no covering)</option>' + groups
+        .filter((group) => group.entries.length)
+        .map((group) => `<optgroup label="${group.label}">${group.entries
+            .map((entry) => `<option value="${entry.id}">${entry.label}</option>`)
+            .join('')}</optgroup>`)
+        .join('');
+    refreshWallCoveringPanel();
+}
+
+function refreshWallCoveringPanel() {
+    const select = document.getElementById('wall-covering-select');
+    if (!select) return;
+    const wall = selectedWall();
+    const style = wall ? AppState.fixtureStyles[wall.id] || {} : null;
+    const active = style?.covering || AppState.defaultWallCovering;
+    select.value = active && WALL_COVERINGS.some((entry) => entry.id === active) ? active : 'default';
+
+    const status = document.getElementById('wall-covering-status');
+    if (!status) return;
+    const area = planWallArea();
+    if (area.net <= 0) {
+        status.textContent = 'No walls on this storey yet.';
+        status.title = 'Draw a wall to price a covering.';
+        return;
+    }
+    const design = wallCoveringDesign();
+    const packs = design.rows.reduce((sum, row) => sum + row.qty, 0);
+    const quantity = design.paint ? `${design.paint.litres} L + ${design.paint.primerLitres} L primer` : `${packs} packs`;
+    status.textContent = `${area.net.toFixed(1)} m² · ${quantity} · $${design.costs.total.toFixed(0)}`;
+    status.title = `${design.covering.label} · ${design.costs.perM2.toFixed(2)} $/m² · ${design.checks.filter((check) => check.severity === 'error').length} errors`;
+}
+
+/**
+ * Apply a covering to the selected wall, or to every wall on the storey when
+ * nothing is selected. The texture preset and colour the 3D builder reads go
+ * into the same per-wall style map as the other finishes.
+ */
+function applyWallCovering(coveringId) {
+    const wall = selectedWall();
+    const isDefault = !coveringId || coveringId === 'default';
+    const covering = isDefault ? null : WALL_COVERINGS.find((entry) => entry.id === coveringId);
+    const patch = covering
+        ? finishPatchFor(covering.id, covering.defaultColour)
+        : { covering: null, texture: null, color: null };
+
+    if (wall) {
+        setWallFinish(AppState.fixtureStyles, wall.id, patch);
+    } else {
+        AppState.defaultWallCovering = covering ? covering.id : '';
+        AppState.defaultWallTexture = patch.texture;
+        AppState.walls.forEach((entry) => setWallFinish(AppState.fixtureStyles, entry.id, patch));
+    }
+
+    saveAndSync();
+    refreshFinishPanel();
+    refreshWallCoveringPanel();
+    return covering ? covering.id : null;
+}
+
+/** A covering designed in wall-designer.html wins over the autosave. */
+function applyWallEditorDraft() {
+    let draft = null;
+    try {
+        draft = JSON.parse(localStorage.getItem('wall-editor-draft') || 'null');
+        if (draft) localStorage.removeItem('wall-editor-draft');
+    } catch (error) {
+        return false;
+    }
+    if (!draft || !WALL_COVERINGS.some((entry) => entry.id === draft.covering)) return false;
+    const covering = coveringById(draft.covering);
+    const patch = finishPatchFor(covering.id, draft.colour);
+    AppState.defaultWallCovering = covering.id;
+    AppState.defaultWallTexture = patch.texture;
+    AppState.walls.forEach((wall) => setWallFinish(AppState.fixtureStyles, wall.id, patch));
+    return true;
 }
 
 // --- Roof suite panel (features/roof) --------------------------------
@@ -4074,6 +4222,8 @@ function restoreState(data) {
     refreshPlanDerived();
     refreshStoreyPanel();
     refreshRoomFloorPanel();
+    refreshFinishPanel();
+    refreshWallCoveringPanel();
     stateManager.saveState(); // Reset history with new state
     draw2D();
     update3D();
