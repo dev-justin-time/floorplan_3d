@@ -1,5 +1,5 @@
-import { PIXELS_PER_METER, WALL_THICKNESS, WINDOW_SILL_HEIGHT } from '../../world-space.js';
-import { itemDimensions } from '../../items.js';
+import { PIXELS_PER_METER, WALL_THICKNESS, WINDOW_SILL_HEIGHT } from '../../core/world-space.js';
+import { itemDimensions } from '../../core/items.js';
 import { findOverlaps } from './collision.js';
 
 /**

@@ -1,6 +1,6 @@
-import { PIXELS_PER_METER, WALL_THICKNESS } from '../world-space.js';
-import { itemDimensions } from '../items.js';
-import { wallNormal, extentAlong } from '../wall-snap.js';
+import { PIXELS_PER_METER, WALL_THICKNESS } from '../core/world-space.js';
+import { itemDimensions } from '../core/items.js';
+import { wallNormal, extentAlong } from '../core/wall-snap.js';
 
 /**
  * Plan markers for two things the plan could not show before:

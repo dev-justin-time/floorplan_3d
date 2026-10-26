@@ -63,7 +63,6 @@
             <div class="hidden md:flex flex-1 justify-center gap-8">
                 <a class="text-sm font-medium hover:text-primary transition-colors" href="features.html">Features</a>
                 <a class="text-sm font-medium hover:text-primary transition-colors" href="pricing.html">Pricing</a>
-                <a class="text-sm font-medium hover:text-primary transition-colors" href="labs.html">Labs <span class="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">New</span></a>
                 <a class="text-sm font-medium hover:text-primary transition-colors" href="Editor.html">Studio</a>
             </div>
             <div class="flex gap-2">
@@ -128,11 +127,18 @@
                             <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Interactive Conversion Pipeline</h2>
                             <p class="text-gray-600 dark:text-gray-400 mt-1">Upload a 2D blueprint to instantly generate a navigable 3D space and panorama.</p>
                         </div>
-                        <label class="flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold cursor-pointer transition-all shadow-lg shadow-primary/20">
-                            <span class="material-symbols-outlined">upload_file</span>
-                            <span>Upload Floorplan</span>
-                            <input type="file" id="floorplan-upload" accept="image/png, image/jpeg" class="hidden" />
-                        </label>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <!-- Appears once a plan converts: takes the walls into the studio editor. -->
+                            <button id="edit-in-studio" type="button" class="hidden items-center gap-2 px-5 py-3 rounded-lg font-bold border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Open the converted plan in the studio to add walls, openings and items">
+                                <span class="material-symbols-outlined">edit_square</span>
+                                <span>Edit in Studio</span>
+                            </button>
+                            <label class="flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold cursor-pointer transition-all shadow-lg shadow-primary/20">
+                                <span class="material-symbols-outlined">upload_file</span>
+                                <span>Upload Floorplan</span>
+                                <input type="file" id="floorplan-upload" accept="image/png, image/jpeg" class="hidden" />
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Processing State (Hidden by default) -->
@@ -294,10 +300,6 @@
                     <span class="material-symbols-outlined text-primary">draw</span>
                     <span class="text-gray-900 dark:text-white font-medium">Blueprint Editor</span>
                 </a>
-                <a href="labs.html" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group">
-                    <span class="material-symbols-outlined text-primary">science</span>
-                    <span class="text-gray-900 dark:text-white font-medium">Experimental Labs</span>
-                </a>
             </nav>
         </div>
     </div>
@@ -315,8 +317,8 @@
 
     <!-- Core Application Logic -->
     <script type="module">
-        import { SharedViewer } from '../SharedViewer.js';
-        import { processFloorPlan } from '../floorPlanProcessor.js';
+        import { SharedViewer } from '../scene/SharedViewer.js';
+        import { processFloorPlan } from '../engine/floorPlanProcessor.js';
 
         document.addEventListener('DOMContentLoaded', () => {
             const uploadInput = document.getElementById('floorplan-upload');
@@ -327,8 +329,40 @@
             const statsWalls = document.getElementById('stats-walls');
             const statsTime = document.getElementById('stats-time');
             const viewerToggle = document.getElementById('viewer-toggle');
+            const editInStudio = document.getElementById('edit-in-studio');
 
             let viewerInstance = null;
+            // Last converted plan, kept so it can be handed to the studio editor.
+            let lastPlan = null;
+
+            const showEditInStudio = (visible) => {
+                editInStudio.classList.toggle('hidden', !visible);
+                editInStudio.classList.toggle('flex', visible);
+            };
+
+            // The studio reads this draft on load and becomes the editable plan:
+            // the same walls plus its openings, items and 3D tools.
+            editInStudio.addEventListener('click', () => {
+                if (!lastPlan) return;
+                try {
+                    localStorage.setItem('floorplan-editor-draft', JSON.stringify({
+                        source: 'floorplan-upload',
+                        width: lastPlan.width,
+                        height: lastPlan.height,
+                        walls: lastPlan.walls.map((wall) => ({
+                            start: { x: wall.start.x, y: wall.start.y },
+                            end: { x: wall.end.x, y: wall.end.y }
+                        })),
+                        rooms: lastPlan.rooms || [],
+                        createdAt: Date.now()
+                    }));
+                } catch (error) {
+                    console.error('Could not hand the plan to the studio:', error);
+                    window.showToast("Could not open the studio. The browser storage is full.", "error");
+                    return;
+                }
+                window.location.href = 'Editor.html';
+            });
 
             // Handle Floorplan Upload
             uploadInput.addEventListener('change', async (e) => {
@@ -336,6 +370,8 @@
                 if (!file) return;
 
                 // 1. Show Processing State
+                showEditInStudio(false);
+                lastPlan = null;
                 viewerPlaceholder.classList.add('hidden');
                 viewerContainer.classList.add('hidden');
                 processingState.classList.remove('hidden');
@@ -356,7 +392,8 @@
                     const duration = Math.round(performance.now() - startTime);
 
                     // 4. Update Stats Overlay
-                    statsWalls.textContent = `${result.walls.length} Walls Detected`;
+                    const roomCount = result.rooms?.length || 0;
+                    statsWalls.textContent = `${result.walls.length} Walls${roomCount ? ` · ${roomCount} Rooms` : ''}`;
                     statsTime.textContent = `${duration}ms Processing`;
 
                     // 5. Show Viewer
@@ -364,25 +401,40 @@
                     processingState.classList.remove('flex');
                     viewerContainer.classList.remove('hidden');
 
-                    // 6. Initialize SharedViewer if not already done
+                    // 6. Initialize SharedViewer if not already done. The viewer
+                    // owns the panorama/3D toggle, so the page does not add a
+                    // second listener (two listeners cancel each other out).
                     if (!viewerInstance) {
                         viewerInstance = new SharedViewer();
                         await viewerInstance.init('shared-viewer-container');
-                        
-                        // Wire up the panorama/3d toggle
-                        viewerToggle.addEventListener('change', () => {
-                            viewerInstance.toggleView();
-                        });
+                        // Same handle the other scene pages expose, for the
+                        // overlay stats and headless checks.
+                        window.sharedViewer = viewerInstance;
                     }
-                    
+
+                    // 7. Push the extracted plan into the live scene and switch
+                    // to the 3D view (updateFloorplan does both).
+                    const shown = viewerInstance.updateFloorplan(result);
+                    if (!shown) {
+                        throw new Error('No usable walls in the uploaded plan');
+                    }
+                    viewerToggle.checked = true;
+                    lastPlan = result;
+                    showEditInStudio(true);
+
                     window.showToast("Floorplan converted to 3D successfully!", "success");
 
                 } catch (error) {
                     console.error("Processing failed:", error);
                     processingState.classList.add('hidden');
                     processingState.classList.remove('flex');
+                    viewerContainer.classList.add('hidden');
                     viewerPlaceholder.classList.remove('hidden');
+                    showEditInStudio(false);
                     window.showToast("Failed to process image. Please try a clearer blueprint.", "error");
+                } finally {
+                    // Let the same file be picked again after a failed attempt.
+                    uploadInput.value = '';
                 }
             });
 

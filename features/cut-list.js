@@ -1,4 +1,4 @@
-import { itemDimensions } from '../items.js';
+import { itemDimensions } from '../core/items.js';
 
 /**
  * Cut-list export.

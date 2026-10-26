@@ -1,7 +1,7 @@
-import { planToWorld, PIXELS_PER_METER, WALL_HEIGHT } from '../../world-space.js';
-import { graphFromWalls } from '../../floorplan-graph.js';
-import { findRooms, polygonCentroid } from '../../measurements.js';
-import { TEXTURES, textureUrlFor } from '../../metadata.js';
+import { planToWorld, PIXELS_PER_METER, WALL_HEIGHT } from '../../core/world-space.js';
+import { graphFromWalls } from '../../core/floorplan-graph.js';
+import { findRooms, polygonCentroid } from '../../core/measurements.js';
+import { TEXTURES, textureUrlFor } from '../../core/metadata.js';
 
 /**
  * Studio feature 38 - room surfaces.

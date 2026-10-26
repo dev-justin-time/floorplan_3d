@@ -1,4 +1,4 @@
-import { WALL_HEIGHT, PIXELS_PER_METER } from '../../world-space.js';
+import { WALL_HEIGHT, PIXELS_PER_METER } from '../../core/world-space.js';
 import { computeStairDesign, IN, FT } from './design.js';
 import { computeOutdoorStair, getOutdoorSystem } from './outdoor.js';
 

@@ -1,4 +1,4 @@
-import { PIXELS_PER_METER, ROOF_OVERHANG } from '../../world-space.js';
+import { PIXELS_PER_METER, ROOF_OVERHANG } from '../../core/world-space.js';
 import { TRUSS_SPACING_M, TRUSS_MEMBER_M, JOIST_DEPTH_M } from './construction.js';
 import {
     roofStyle,

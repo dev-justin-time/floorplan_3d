@@ -1,4 +1,4 @@
-import { WALL_HEIGHT } from '../../world-space.js';
+import { WALL_HEIGHT } from '../../core/world-space.js';
 import { stairOpenings } from './room-surfaces.js';
 import { constructionOptions, storeyConstruction, WALL_HEIGHT_M, JOIST_DEPTH_M } from './construction.js';
 

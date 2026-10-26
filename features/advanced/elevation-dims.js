@@ -1,4 +1,4 @@
-import { formatLength } from '../../measurements.js';
+import { formatLength } from '../../core/measurements.js';
 
 /**
  * Advanced feature 31 - annotated elevation dimension strings.

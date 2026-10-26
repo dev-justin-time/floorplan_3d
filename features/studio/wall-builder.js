@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
-import { TEXTURES } from '../../metadata.js';
-import { PIXELS_PER_METER, WALL_THICKNESS } from '../../world-space.js';
+import { TEXTURES } from '../../core/metadata.js';
+import { PIXELS_PER_METER, WALL_THICKNESS } from '../../core/world-space.js';
 import { wallFinishOf } from '../wall-finish.js';
 import { openingsForWall } from '../advanced/openings.js';
 

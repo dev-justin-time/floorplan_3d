@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { INCH, canvasToPlan } from '../../world-space.js';
+import { INCH, canvasToPlan } from '../../core/world-space.js';
 import { openingsForWall } from '../advanced/openings.js';
 import { computeFramingDesign } from './engine.js';
 import { FRAMING_DEFAULTS, studDepthM } from './catalog.js';

@@ -1,4 +1,4 @@
-import { itemDimensions } from '../../items.js';
+import { itemDimensions } from '../../core/items.js';
 
 /**
  * Advanced feature 24 - a cabinet base, not an elevation special case.

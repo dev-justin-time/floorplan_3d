@@ -1,6 +1,6 @@
-import { PIXELS_PER_METER, WALL_HEIGHT, planToCanvas, planToWorld } from '../world-space.js';
-import { graphFromWalls } from '../floorplan-graph.js';
-import { findRooms, formatArea, polygonCentroid } from '../measurements.js';
+import { PIXELS_PER_METER, WALL_HEIGHT, planToCanvas, planToWorld } from '../core/world-space.js';
+import { graphFromWalls } from '../core/floorplan-graph.js';
+import { findRooms, formatArea, polygonCentroid } from '../core/measurements.js';
 
 /**
  * Room labels.

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PIXELS_PER_METER, WALL_THICKNESS } from '../../world-space.js';
+import { PIXELS_PER_METER, WALL_THICKNESS } from '../../core/world-space.js';
 import { deckOutline } from './engine.js';
 import { sectionProps } from './materials.js';
 

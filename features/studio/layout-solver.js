@@ -1,5 +1,5 @@
-import { PIXELS_PER_METER, WALL_THICKNESS } from '../../world-space.js';
-import { itemDimensions } from '../../items.js';
+import { PIXELS_PER_METER, WALL_THICKNESS } from '../../core/world-space.js';
+import { itemDimensions } from '../../core/items.js';
 
 /**
  * Studio feature 46 - kitchen layout solver.

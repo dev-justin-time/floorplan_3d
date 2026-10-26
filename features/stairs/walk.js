@@ -1,4 +1,4 @@
-import { PIXELS_PER_METER, WALL_HEIGHT } from '../../world-space.js';
+import { PIXELS_PER_METER, WALL_HEIGHT } from '../../core/world-space.js';
 import { isStairItem, stairDesignForItem, stairSurfaceAt } from './design.js';
 import { storeyStack } from '../studio/storeys.js';
 

@@ -5,13 +5,13 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import nipplejs from 'nipplejs';
 import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
-import { FloorPlanProcessor } from '../../floorPlanProcessor.js';
-import { ConversionEngine3D } from '../../3dConversionEngine.js';
-import { Wall, ItemFactory } from '../../items.js';
-import { TEXTURES, GLOBAL_CONFIG } from '../../metadata.js';
-import { StorageManager } from '../../storage.js';
-import { StateManager } from '../../state-manager.js';
-import { MOCK_DATA as TEST_DATA } from '../../test-data.js';
+import { FloorPlanProcessor } from '../../engine/floorPlanProcessor.js';
+import { ConversionEngine3D } from '../../engine/3dConversionEngine.js';
+import { Wall, ItemFactory } from '../../core/items.js';
+import { TEXTURES, GLOBAL_CONFIG } from '../../core/metadata.js';
+import { StorageManager } from '../../core/storage.js';
+import { StateManager } from '../../core/state-manager.js';
+import { MOCK_DATA as TEST_DATA } from '../../demo/test-data.js';
 
 // Core Application State
 const AppState = {
@@ -428,7 +428,7 @@ async function initPanorama() {
 
     const loader = new THREE.TextureLoader();
     return new Promise(resolve => {
-        loader.load('/sc-bp-bath.png', texture => {
+        loader.load('/assets/sc-bp-bath.png', texture => {
             texture.mapping = THREE.EquirectangularReflectionMapping;
             const geo = new THREE.SphereGeometry(500, 60, 40);
             geo.scale(-1, 1, 1);
@@ -456,7 +456,7 @@ function initBlueprint() {
     
     blueprintImage = new Image();
     blueprintImage.crossOrigin = 'anonymous';
-    blueprintImage.src = '/blueprint.png';
+    blueprintImage.src = '/assets/blueprint.png';
     blueprintImage.onload = () => drawBlueprint();
     blueprintImage.onerror = () => drawBlueprint();
 }

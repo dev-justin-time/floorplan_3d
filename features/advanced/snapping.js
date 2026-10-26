@@ -1,5 +1,5 @@
-import { snapToWalls } from '../../wall-snap.js';
-import { snapAlongAxis, snapVertically } from '../../elevation-snap.js';
+import { snapToWalls } from '../../core/wall-snap.js';
+import { snapAlongAxis, snapVertically } from '../../core/elevation-snap.js';
 
 /**
  * Advanced feature 19 - one snapping entry point.

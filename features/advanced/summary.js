@@ -1,6 +1,6 @@
-import { graphFromWalls } from '../../floorplan-graph.js';
-import { findRooms, polygonCentroid } from '../../measurements.js';
-import { itemDimensions } from '../../items.js';
+import { graphFromWalls } from '../../core/floorplan-graph.js';
+import { findRooms, polygonCentroid } from '../../core/measurements.js';
+import { itemDimensions } from '../../core/items.js';
 
 /**
  * Advanced feature 33 - item count and cost summary per room.

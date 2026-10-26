@@ -1,5 +1,5 @@
-import { PIXELS_PER_METER } from '../../world-space.js';
-import { ItemFactory } from '../../items.js';
+import { PIXELS_PER_METER } from '../../core/world-space.js';
+import { ItemFactory } from '../../core/items.js';
 
 /**
  * Advanced feature 26 - copy/paste between stories.

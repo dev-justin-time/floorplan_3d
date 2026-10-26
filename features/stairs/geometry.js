@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PIXELS_PER_METER } from '../../world-space.js';
+import { PIXELS_PER_METER } from '../../core/world-space.js';
 import { stairDesignForItem } from './design.js';
 import { buildStairAssembly } from './assembly.js';
 import { getOutdoorSystem } from './outdoor.js';

@@ -1,4 +1,4 @@
-import { PIXELS_PER_METER } from '../world-space.js';
+import { PIXELS_PER_METER } from '../core/world-space.js';
 
 /**
  * Plan annotations that live in screen space: a north arrow and a scale bar.

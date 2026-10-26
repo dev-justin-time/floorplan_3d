@@ -1,5 +1,5 @@
-import { PIXELS_PER_METER } from '../../world-space.js';
-import { itemDimensions } from '../../items.js';
+import { PIXELS_PER_METER } from '../../core/world-space.js';
+import { itemDimensions } from '../../core/items.js';
 
 /**
  * Advanced feature 21 - collision / overlap detection.

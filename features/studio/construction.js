@@ -1,4 +1,4 @@
-import { INCH } from '../../world-space.js';
+import { INCH } from '../../core/world-space.js';
 
 /**
  * Storey construction (studio feature 41).

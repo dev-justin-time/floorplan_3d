@@ -1,4 +1,4 @@
-import { PIXELS_PER_METER } from '../../world-space.js';
+import { PIXELS_PER_METER } from '../../core/world-space.js';
 import { roomSurfacesFromWalls, pointInRoom } from './room-surfaces.js';
 
 /**

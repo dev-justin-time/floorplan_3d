@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PIXELS_PER_METER } from '../../world-space.js';
+import { PIXELS_PER_METER } from '../../core/world-space.js';
 
 /**
  * Advanced feature 36 - pathfinding walkthrough.

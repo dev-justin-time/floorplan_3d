@@ -1,4 +1,4 @@
-import { WALL_HEIGHT } from '../../world-space.js';
+import { WALL_HEIGHT } from '../../core/world-space.js';
 import { STAIR_TYPE_LABELS, STAIR_CODES, stairDesignForItem, stairLocalToPlanPoint, computeStairDesign, isStairItem } from './design.js';
 import { modelsByCategory, applyModelToConfig, computeStairModel, stairModelSummary, modelTakeoffCsv } from './models.js';
 import { OUTDOOR_SYSTEMS, outdoorStairConfig, computeOutdoorStair, outdoorSummary, outdoorBomCsv } from './outdoor.js';

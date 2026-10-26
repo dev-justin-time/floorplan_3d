@@ -1,4 +1,4 @@
-import { PIXELS_PER_METER, planToWorld } from '../../world-space.js';
+import { PIXELS_PER_METER, planToWorld } from '../../core/world-space.js';
 
 /**
  * Floor openings drawn on the plan (the cutout tool).

@@ -1,4 +1,4 @@
-import { WALL_HEIGHT } from '../world-space.js';
+import { WALL_HEIGHT } from '../core/world-space.js';
 import { isVisible } from './visibility.js';
 
 /**

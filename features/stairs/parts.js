@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { toWireframe } from '../../wireframe.js';
+import { toWireframe } from '../../engine/wireframe.js';
 
 /**
  * Stair parts library.

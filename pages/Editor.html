@@ -9,7 +9,7 @@
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../assets/style.css">
 
     <style>
         .material-symbols-outlined {
@@ -546,6 +546,29 @@
                     <div id="abilities-list" class="mt-1 max-h-72 overflow-y-auto pr-1"></div>
                 </div>
 
+                <!-- Lab kit controls (features/lab/kit.js) -->
+                <div class="item-category">
+                    <div class="item-category-header cursor-pointer flex justify-between items-center py-2" onclick="const el = document.getElementById('lab-controls'); el.classList.toggle('hidden'); document.getElementById('lab-controls-icon').textContent = el.classList.contains('hidden') ? 'chevron_right' : 'expand_more';">
+                        <h3 class="text-sm font-bold text-gray-900 dark:text-white">Lab</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-gray-400">post FX · product</span>
+                            <span class="material-symbols-outlined text-gray-400" id="lab-controls-icon">expand_more</span>
+                        </div>
+                    </div>
+                    <div id="lab-controls" class="mt-2 space-y-3">
+                        <label class="block text-[10px] uppercase tracking-wide text-gray-400">Instance count <span id="lab-instance-value" class="text-gray-500 dark:text-gray-300">40</span>
+                            <input id="lab-instance-count" type="range" min="0" max="300" step="10" value="40" oninput="window.setLabInstances(this.value)" class="mt-1 w-full accent-sky-500">
+                        </label>
+                        <label class="block text-[10px] uppercase tracking-wide text-gray-400">Shake intensity <span id="lab-shake-value" class="text-gray-500 dark:text-gray-300">50%</span>
+                            <input id="lab-shake" type="range" min="0" max="1" step="0.1" value="0.5" oninput="window.setLabShake(this.value)" class="mt-1 w-full accent-purple-500">
+                        </label>
+                        <label class="block text-[10px] uppercase tracking-wide text-gray-400">Placed-product scale <span id="lab-scale-value" class="text-gray-500 dark:text-gray-300">100%</span>
+                            <input id="lab-scale" type="range" min="0.4" max="2" step="0.1" value="1" oninput="window.setLabScale(this.value)" class="mt-1 w-full accent-emerald-500">
+                        </label>
+                        <p class="text-[10px] leading-snug text-gray-400">Place the Shaker model from Decor &amp; 3D. The Lab abilities above add post FX, spring selection, the GPU prop field, auto-rotate and shake to placed models. WebGPU opens a preview overlay.</p>
+                    </div>
+                </div>
+
                 <!-- Placement checks (features/advanced/placement-rules.js) -->
                 <div class="item-category">
                     <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
@@ -801,9 +824,9 @@
                         <span class="material-symbols-outlined text-gray-400" id="decor-items-icon">expand_more</span>
                     </div>
                     <div id="decor-items" class="grid grid-cols-3 gap-2 mt-1">
-                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="shaker">
+                        <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="shaker" title="Place the DRACO-loaded shaker product model">
                             <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">deployed_code</span>
-                            <span class="text-[10px] mt-1 text-center">3D Shaker</span>
+                            <span class="text-[10px] mt-1 text-center">Shaker model</span>
                         </button>
                         <button class="item-button flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" data-item="rug_round">
                             <span class="material-symbols-outlined text-gray-600 dark:text-gray-300">all_out</span>
@@ -957,6 +980,6 @@
         }
     }
     </script>
-    <script type="module" src="../editor.js"></script>
+    <script type="module" src="../editor/editor.js"></script>
 </body>
 </html>

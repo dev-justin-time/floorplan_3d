@@ -1,7 +1,7 @@
-import { PIXELS_PER_METER } from '../world-space.js';
-import { ItemFactory } from '../items.js';
-import { extentAlong } from '../wall-snap.js';
-import { snapAlongAxis } from '../elevation-snap.js';
+import { PIXELS_PER_METER } from '../core/world-space.js';
+import { ItemFactory } from '../core/items.js';
+import { extentAlong } from '../core/wall-snap.js';
+import { snapAlongAxis } from '../core/elevation-snap.js';
 
 /**
  * Item transforms: per-axis locks, cloning, linear repeat and flips.

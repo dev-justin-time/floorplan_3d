@@ -1,5 +1,5 @@
-import { WALL_HEIGHT } from '../world-space.js';
-import { textureUrlFor } from '../metadata.js';
+import { WALL_HEIGHT } from '../core/world-space.js';
+import { textureUrlFor } from '../core/metadata.js';
 
 /**
  * Per-wall height and finish.

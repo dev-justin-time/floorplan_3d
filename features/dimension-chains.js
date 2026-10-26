@@ -1,5 +1,5 @@
-import { PIXELS_PER_METER } from '../world-space.js';
-import { formatLength } from '../measurements.js';
+import { PIXELS_PER_METER } from '../core/world-space.js';
+import { formatLength } from '../core/measurements.js';
 
 /**
  * Dimension chains.

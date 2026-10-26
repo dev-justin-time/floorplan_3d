@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PIXELS_PER_METER } from '../../world-space.js';
+import { PIXELS_PER_METER } from '../../core/world-space.js';
 
 /**
  * Plan walk mode - the first-person walk the legacy `app.html` toolbar had.

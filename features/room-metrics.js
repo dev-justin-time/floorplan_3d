@@ -1,6 +1,6 @@
-import { WALL_HEIGHT } from '../world-space.js';
-import { graphFromWalls } from '../floorplan-graph.js';
-import { findRooms, polygonArea } from '../measurements.js';
+import { WALL_HEIGHT } from '../core/world-space.js';
+import { graphFromWalls } from '../core/floorplan-graph.js';
+import { findRooms, polygonArea } from '../core/measurements.js';
 import { wallHeightOf } from './wall-finish.js';
 
 /**

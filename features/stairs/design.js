@@ -1,4 +1,4 @@
-import { PIXELS_PER_METER, WALL_HEIGHT } from '../../world-space.js';
+import { PIXELS_PER_METER, WALL_HEIGHT } from '../../core/world-space.js';
 
 /**
  * Stair design suite — code-driven sizing for US stairs and fire poles.

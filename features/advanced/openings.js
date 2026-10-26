@@ -1,4 +1,4 @@
-import { PIXELS_PER_METER, WINDOW_SILL_HEIGHT } from '../../world-space.js';
+import { PIXELS_PER_METER, WINDOW_SILL_HEIGHT } from '../../core/world-space.js';
 
 /**
  * Advanced feature 23 - openings per wall with cut validation.
