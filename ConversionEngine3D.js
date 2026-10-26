@@ -279,7 +279,14 @@ export class ConversionEngine3D {
 
             if (isTopStory && appState.showRoof) {
                 // Last storey: 8 in ceiling/joist space, then the truss roof.
-                roofStats = this.addRoof(story.walls, currentElevation + wallHeight, canvasWidth, canvasHeight, floorDepth) || null;
+                roofStats = this.addRoof(
+                    story.walls,
+                    currentElevation + wallHeight,
+                    canvasWidth,
+                    canvasHeight,
+                    floorDepth,
+                    appState.roofConfig
+                ) || null;
             }
 
             currentElevation += construction.pitch;
@@ -321,7 +328,7 @@ export class ConversionEngine3D {
      * Last storey: an 8 in ceiling/joist band, trusses at 24 in o.c. and the
      * roof planes, all generated from the wall footprint (studio feature 41).
      */
-    addRoof(walls, elevation, canvasWidth, canvasHeight, floorDepth) {
+    addRoof(walls, elevation, canvasWidth, canvasHeight, floorDepth, roofConfig = {}) {
         if (!walls || walls.length === 0) return null;
         const view = { width: canvasWidth, height: canvasHeight };
         // The roof follows the exterior shell: interior partitions would
@@ -334,7 +341,13 @@ export class ConversionEngine3D {
             walls: shell,
             view,
             joistDepth: floorDepth,
-            overhang: GLOBAL_CONFIG.roofOverhang || 0.5
+            overhang: Number(roofConfig?.overhang) || GLOBAL_CONFIG.roofOverhang || 0.5,
+            style: roofConfig?.style,
+            pitch: roofConfig?.pitch,
+            covering: roofConfig?.covering,
+            gutter: roofConfig?.gutter,
+            gutters: roofConfig?.gutters,
+            ridgeVent: roofConfig?.ridgeVent
         });
         roof.position.y = elevation;
         this.content.add(roof);

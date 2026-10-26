@@ -75,6 +75,9 @@ import {
     exportScene,
     downloadExport
 } from './features/advanced/index.js';
+import { ROOF_STYLES } from './features/roof/styles.js';
+import { COVERINGS, GUTTER_SYSTEMS } from './features/roof/materials.js';
+import { computeRoofDesign } from './features/roof/design.js';
 import {
     STUDIO_FEATURES,
     roomSurfacesFromWalls,
@@ -214,6 +217,17 @@ const AppState = {
     defaultFloorTexture: 'tile',
     // Finishes palette: which surface the texture buttons apply to.
     finishTarget: 'wall',
+    // Roof suite: the style, pitch, covering and rain gutter used by the top
+    // storey preview (features/studio/roof.js).
+    roofConfig: {
+        style: 'gable-king',
+        pitch: 6,
+        overhang: 0.5,
+        covering: 'asphalt-arch',
+        gutter: 'k5-alum',
+        gutters: true,
+        ridgeVent: true
+    },
 
     // Studio kit: storeys, per-room floors, comments and layout checks.
     stories: [],
@@ -331,6 +345,7 @@ function init() {
     initCollaboration();
     refreshStoreyPanel();
     refreshRoomFloorPanel();
+    initRoofPanel();
     refreshFinishPanel();
     refreshProjectsPanel();
     refreshCommentsPanel();
@@ -344,6 +359,12 @@ function init() {
         restoreState(saved);
         console.log('Restored from autosave');
     }
+
+    // A roof designed in roof-designer.html arrives as a draft and wins over
+    // the autosave's roof options, then the top storey rebuilds with it.
+    const roofDraft = applyRoofEditorDraft();
+    refreshRoofPanel();
+    if (roofDraft) update3D();
 
     // Initial Draw
     onResize();
@@ -407,6 +428,17 @@ function init() {
         setWallFinish(AppState.fixtureStyles, wall.id, { texture: value || null });
         saveAndSync({ tag: 'inspector' });
     };
+    window.setRoofOption = (key, value) => {
+        if (!key) return;
+        const numeric = key === 'pitch' || key === 'overhang';
+        AppState.roofConfig = {
+            ...AppState.roofConfig,
+            [key]: numeric ? Number(value) : value
+        };
+        refreshRoofPanel();
+        saveToStorage();
+        update3D();
+    };
     window.setGridSize = (cm) => {
         AppState.gridSize = gridPixelsFromCm(cm);
         const select = document.getElementById('grid-size-select');
@@ -418,6 +450,15 @@ function init() {
     window.repeatSelected = repeatSelection;
     window.toggleAxisLock = toggleAxisLock;
     window.exportCutList = exportCutList;
+    // Roof suite handle: the editor's roof options and the takeoff they compute.
+    window.roofKit = {
+        config: () => ({ ...AppState.roofConfig }),
+        size: () => roofPlanSize(),
+        design: () => {
+            const size = roofPlanSize();
+            return size ? computeRoofDesign({ ...AppState.roofConfig, ...size }) : null;
+        }
+    };
     // The whole feature kit on one handle, for debugging and the panel.
     window.featureKit = {
         features: FEATURES,
@@ -2039,6 +2080,113 @@ function refreshFinishPanel() {
     }
 }
 
+// --- Roof suite panel (features/roof) --------------------------------
+
+/**
+ * The editor's roof options: the same style, pitch, covering and gutter the
+ * roof designer prices. The footprint is taken from the top storey, which is
+ * what buildTrussRoof sees, so the panel's area matches the 3D roof.
+ */
+function roofPlanSize() {
+    const stories = engineStories(AppState);
+    const story = stories[stories.length - 1] || { walls: AppState.walls };
+    const walls = story?.walls || [];
+    if (!walls.length) return null;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    walls.forEach((wall) => {
+        [wall.start, wall.end].forEach((point) => {
+            if (!point) return;
+            minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+            minZ = Math.min(minZ, point.y); maxZ = Math.max(maxZ, point.y);
+        });
+    });
+    if (!Number.isFinite(minX)) return null;
+    const width = (maxX - minX) / PIXELS_PER_METER;
+    const depth = (maxZ - minZ) / PIXELS_PER_METER;
+    if (width < 0.3 || depth < 0.3) return null;
+    return { span: Math.min(width, depth), length: Math.max(width, depth) };
+}
+
+function applyRoofEditorDraft() {
+    let draft = null;
+    try {
+        draft = JSON.parse(localStorage.getItem('roof-editor-draft') || 'null');
+        if (draft) localStorage.removeItem('roof-editor-draft');
+    } catch (error) {
+        return false;
+    }
+    if (!draft || typeof draft !== 'object') return false;
+    AppState.roofConfig = {
+        ...AppState.roofConfig,
+        ...['style', 'covering', 'gutter'].reduce((result, key) => {
+            if (typeof draft[key] === 'string') result[key] = draft[key];
+            return result;
+        }, {}),
+        ...(Number.isFinite(Number(draft.pitch)) ? { pitch: Number(draft.pitch) } : {}),
+        ...(Number.isFinite(Number(draft.overhang)) ? { overhang: Number(draft.overhang) } : {}),
+        ...(typeof draft.gutters === 'boolean' ? { gutters: draft.gutters } : {}),
+        ...(typeof draft.ridgeVent === 'boolean' ? { ridgeVent: draft.ridgeVent } : {})
+    };
+    // A roof sent from the designer is meant to be seen.
+    setRoof(AppState, true);
+    return true;
+}
+
+function initRoofPanel() {
+    const styleSelect = document.getElementById('roof-style-select');
+    if (styleSelect && !styleSelect.options.length) {
+        styleSelect.innerHTML = ROOF_STYLES
+            .map((style) => `<option value="${style.key}">${style.name}</option>`)
+            .join('');
+    }
+    const coveringSelect = document.getElementById('roof-covering-select');
+    if (coveringSelect && !coveringSelect.options.length) {
+        coveringSelect.innerHTML = COVERINGS
+            .map((entry) => `<option value="${entry.id}">${entry.label}</option>`)
+            .join('');
+    }
+    const gutterSelect = document.getElementById('roof-gutter-select');
+    if (gutterSelect && !gutterSelect.options.length) {
+        gutterSelect.innerHTML = GUTTER_SYSTEMS
+            .map((entry) => `<option value="${entry.id}">${entry.label}</option>`)
+            .join('');
+    }
+    refreshRoofPanel();
+}
+
+function refreshRoofPanel() {
+    const config = AppState.roofConfig || {};
+    const styleSelect = document.getElementById('roof-style-select');
+    if (!styleSelect) return;
+    styleSelect.value = config.style || 'gable-king';
+    const coveringSelect = document.getElementById('roof-covering-select');
+    if (coveringSelect) coveringSelect.value = config.covering || 'asphalt-arch';
+    const gutterSelect = document.getElementById('roof-gutter-select');
+    if (gutterSelect) gutterSelect.value = config.gutter || 'k5-alum';
+    const pitchInput = document.getElementById('roof-pitch');
+    if (pitchInput) pitchInput.value = String(config.pitch ?? 6);
+    const overhangInput = document.getElementById('roof-overhang');
+    if (overhangInput) overhangInput.value = String(config.overhang ?? 0.5);
+    const guttersInput = document.getElementById('roof-gutters');
+    if (guttersInput) guttersInput.checked = config.gutters !== false;
+    const ridgeInput = document.getElementById('roof-ridge-vent');
+    if (ridgeInput) ridgeInput.checked = config.ridgeVent !== false;
+
+    const summary = document.getElementById('roof-summary');
+    if (!summary) return;
+    const size = roofPlanSize();
+    if (!size) {
+        summary.textContent = '—';
+        return;
+    }
+    const design = computeRoofDesign({ ...config, span: size.span, length: size.length });
+    summary.textContent = `${design.areas.squares} sq · $${(design.costs.total / 1000).toFixed(1)}k`;
+    summary.title = `${design.areas.roof} m² · ${design.trussCount} trusses · ${design.gutterPackage.gutterLf} m gutter`;
+}
+
 function updateCabinetConfig(key, value) {
     const fixture = AppState.selectedFixture;
     if (!fixture) return null;
@@ -3252,6 +3400,7 @@ function update3D() {
         showRoomLabels: abilitiesState().roomLabels !== false,
         showCeiling: AppState.showCeiling,
         showRoof: AppState.showRoof,
+        roofConfig: AppState.roofConfig,
         defaultWallTexture: AppState.defaultWallTexture,
         defaultFloorTexture: AppState.defaultFloorTexture,
         selectedWallId: AppState.selectedWallId,
@@ -3644,6 +3793,10 @@ function restoreState(data) {
     // Shell and grid settings ride along with the project.
     setCeiling(AppState, project.showCeiling);
     setRoof(AppState, project.showRoof);
+    AppState.roofConfig = {
+        ...AppState.roofConfig,
+        ...(project.roofConfig && typeof project.roofConfig === 'object' ? project.roofConfig : {})
+    };
     AppState.gridSize = project.gridSize;
     syncShellToggles(document, AppState);
     const gridSelect = document.getElementById('grid-size-select');
@@ -3702,6 +3855,7 @@ function projectPayload() {
         fixtureStyles: AppState.fixtureStyles,
         showCeiling: AppState.showCeiling,
         showRoof: AppState.showRoof,
+        roofConfig: { ...AppState.roofConfig },
         gridSize: AppState.gridSize,
         // Studio features 41-42: every storey plus the floor finishes travel
         // with the project, so the browser projects list restores them.

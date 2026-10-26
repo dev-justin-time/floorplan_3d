@@ -1015,6 +1015,135 @@ async function main() {
         check('presets persist across reloads', persisted.before === 1, persisted.text);
         check('preset removal clears the palette', persisted.after === 0 && persisted.stored === 0 && persisted.empty.includes('bookmark'), persisted.empty.slice(0, 50));
 
+        console.log('\nRoof suite');
+        await load(BASE + '/roof-designer.html');
+        check('roof suite boots', await waitFor('Boolean(window.roofSuite && window.roofSuite.design)'));
+        const roofPage = await cdp.evaluate(`(() => {
+            const design = window.roofSuite.design;
+            const canvas = document.getElementById('elevation');
+            const ctx = canvas.getContext('2d');
+            let painted = 0;
+            const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            for (let i = 3; i < pixels.length; i += 4) if (pixels[i] > 0) painted += 1;
+            return {
+                cards: document.querySelectorAll('#roof-style-grid [data-style]').length,
+                style: design.style.key,
+                area: design.areas.roof,
+                squares: design.areas.squares,
+                planes: design.geometry.planes.length,
+                rows: document.querySelectorAll('#roof-takeoff-body tr').length,
+                checks: document.querySelectorAll('#roof-checks li').length,
+                terms: document.querySelectorAll('#roof-glossary dt').length,
+                formulas: document.querySelectorAll('#roof-formulas tr').length,
+                canvases: document.querySelectorAll('#stage canvas').length,
+                cost: document.getElementById('roof-cost').textContent,
+                results: document.getElementById('roof-area').textContent,
+                painted,
+                csv: window.roofSuite.csv().includes('"Summary","Total"')
+            };
+        })()`);
+        check('roof suite lists ten styles', roofPage.cards === 10, `${roofPage.cards} cards`);
+        check('roof suite computes the default gable', roofPage.style === 'gable-king' && roofPage.area > 100, `${roofPage.area} m²`);
+        check('roof result card is filled', /m²/.test(roofPage.results) && /\$/.test(roofPage.cost), `${roofPage.results} · ${roofPage.cost}`);
+        check('roof takeoff table is populated', roofPage.rows >= 18, `${roofPage.rows} rows`);
+        check('roof checks are listed', roofPage.checks >= 8, `${roofPage.checks} checks`);
+        check('roof glossary renders every term', roofPage.terms >= 60, `${roofPage.terms} terms`);
+        check('roof formulas are listed', roofPage.formulas >= 8, `${roofPage.formulas} formulas`);
+        check('roof 3D canvas present', roofPage.canvases === 1, `${roofPage.canvases} canvas`);
+        check('roof elevation is drawn', roofPage.painted > 5000, `${roofPage.painted} painted pixels`);
+        check('roof CSV carries the summary', roofPage.csv === true);
+
+        const roofFlow = await cdp.evaluate(`(async () => {
+            document.querySelector('#roof-style-grid [data-style="hip"]').click();
+            const hip = window.roofSuite.design;
+            const select = (id, value) => {
+                const element = document.getElementById(id);
+                element.value = value;
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+            select('covering', 'clay-tile');
+            select('spacing', '0.4');
+            const tile = window.roofSuite.design;
+            select('spacing', '0.61');
+            const tileError = window.roofSuite.design.checks.some((entry) => entry.id === 'truss-spacing' && entry.severity === 'error');
+            select('spacing', '0.4');
+            const gutters = document.getElementById('gutters');
+            gutters.checked = false;
+            gutters.dispatchEvent(new Event('change', { bubbles: true }));
+            const noGutters = window.roofSuite.design;
+            gutters.checked = true;
+            gutters.dispatchEvent(new Event('change', { bubbles: true }));
+            const pitch = document.getElementById('pitch-number');
+            pitch.value = '1';
+            pitch.dispatchEvent(new Event('input', { bubbles: true }));
+            select('covering', 'asphalt-arch');
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const low = window.roofSuite.design;
+            return {
+                hipPlanes: hip.geometry.planes.length,
+                hipStyle: hip.style.key,
+                tileUnit: tile.layers.coveringUnit,
+                tileUnits: tile.layers.coveringUnits,
+                tileError,
+                noGutters: { lf: noGutters.gutterPackage.gutterLf, downspouts: noGutters.gutterPackage.downspouts },
+                lowError: low.checks.some((entry) => entry.id === 'pitch-covering' && entry.severity === 'error'),
+                errorCount: document.querySelectorAll('#roof-checks .severity-error').length,
+                hipCards: document.querySelectorAll('#roof-style-grid .style-card.active').length
+            };
+        })()`);
+        check('style card switches to the hip', roofFlow.hipStyle === 'hip' && roofFlow.hipPlanes === 4, `${roofFlow.hipPlanes} planes`);
+        check('one active style card', roofFlow.hipCards === 1, `${roofFlow.hipCards} active`);
+        check('tile is counted in pieces', roofFlow.tileUnit === 'tile' && roofFlow.tileUnits > 500, `${roofFlow.tileUnits} tiles`);
+        check('tile at 24 in spacing raises an error', roofFlow.tileError === true);
+        check('gutter toggle removes the package', roofFlow.noGutters.lf === 0 && roofFlow.noGutters.downspouts === 0);
+        check('low pitch shingle raises an error', roofFlow.lowError === true, `${roofFlow.errorCount} errors shown`);
+
+        const glossarySearch = await cdp.evaluate(`(() => {
+            const input = document.getElementById('glossary-search');
+            input.value = 'valley';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const hits = [...document.querySelectorAll('#roof-glossary dt')].map((dt) => dt.textContent);
+            input.value = '';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            return { hits, after: document.querySelectorAll('#roof-glossary dt').length };
+        })()`);
+        check('glossary search filters the terms',
+            glossarySearch.hits.length > 0 && glossarySearch.hits.length < 10
+            && glossarySearch.hits.some((text) => /valley/i.test(text)),
+            glossarySearch.hits.join(', ').slice(0, 80));
+        check('clearing the search restores every term', glossarySearch.after >= 60, `${glossarySearch.after} terms`);
+
+        await cdp.evaluate(`document.getElementById('send-editor').click()`);
+        await sleep(3200);
+        const roofEditor = await cdp.evaluate(`(() => {
+            const config = window.roofKit?.config() || {};
+            const design = window.roofKit?.design();
+            const convert = window.studioKit?.convert();
+            return {
+                path: location.pathname,
+                config,
+                styleSelect: document.getElementById('roof-style-select')?.value,
+                coveringSelect: document.getElementById('roof-covering-select')?.value,
+                gutterSelect: document.getElementById('roof-gutter-select')?.value,
+                pitch: document.getElementById('roof-pitch')?.value,
+                gutters: document.getElementById('roof-gutters')?.checked,
+                roofOn: document.getElementById('roof-toggle')?.checked,
+                summary: document.getElementById('roof-summary')?.textContent,
+                area: design?.areas?.roof ?? null,
+                roofBuilt: Boolean(convert?.roof),
+                builtStyle: convert?.roof?.style || null,
+                planes: document.querySelectorAll('#scene-3d').length
+            };
+        })()`);
+        check('designer hands the roof to the editor', roofEditor.path.endsWith('/Editor.html'), roofEditor.path);
+        check('editor keeps the designed style', roofEditor.config.style === 'hip' && roofEditor.styleSelect === 'hip', roofEditor.styleSelect);
+        check('editor keeps the covering and gutter', roofEditor.config.covering === 'asphalt-arch' && roofEditor.coveringSelect === 'asphalt-arch'
+            && roofEditor.gutterSelect === 'k5-alum', `${roofEditor.coveringSelect} / ${roofEditor.gutterSelect}`);
+        check('editor keeps the designed pitch', Number(roofEditor.config.pitch) === 1 && roofEditor.pitch === '1', `${roofEditor.pitch}:12`);
+        check('editor switches the roof on for the draft', roofEditor.roofOn === true);
+        check('editor roof panel summarises the area', /sq/.test(roofEditor.summary || ''), roofEditor.summary);
+        check('editor builds the roof from the draft', roofEditor.roofBuilt === true && roofEditor.builtStyle === 'hip', `${roofEditor.builtStyle}`);
+
         const errors = cdp.errors().filter((error) => !error.includes('textures/') && !error.includes('favicon'));
         check('no uncaught runtime errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 

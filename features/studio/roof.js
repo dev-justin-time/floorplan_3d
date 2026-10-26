@@ -216,7 +216,7 @@ export function buildTrussRoof(THREE, {
     // Everything above the joist space is generated in the roof's local frame
     // (x across the span, z along the ridge) and then turned onto the plan.
     const local = new THREE.Group();
-    local.position.set(centre.x, joistDepth, centre.z);
+    local.position.set(centre.x, 0, centre.z);
     if (ridgeAlongX) local.rotation.y = Math.PI / 2;
     local.name = 'roof-frame';
 
@@ -227,24 +227,26 @@ export function buildTrussRoof(THREE, {
         const along = -length / 2 + t * length;
 
         const ceiling = box(THREE, span, 0.038, 0.14, joistMaterial);
-        ceiling.position.set(0, -joistDepth / 2, along);
+        ceiling.position.set(0, joistDepth / 2, along);
         ceiling.name = 'roof-ceiling-joist';
         local.add(ceiling);
         joists += 1;
 
         const frame = trussMesh(THREE, members, trussMaterial);
-        frame.position.set(0, 0, along);
+        frame.position.set(0, joistDepth, along);
         local.add(frame);
     }
 
     geometry.planes.forEach((plane) => {
-        local.add(planeMeshes(THREE, plane, deckMaterial, coveringMaterial));
+        const meshes = planeMeshes(THREE, plane, deckMaterial, coveringMaterial);
+        meshes.position.y = joistDepth;
+        local.add(meshes);
     });
 
     // Ridge cap, plus hip caps where the style has hips.
     ridgeSegments(geometry).forEach((segment) => {
-        const from = { x: segment.x1, y: (segment.y ?? geometry.rise) + 0.04, z: segment.z1 };
-        const to = { x: segment.x2 ?? segment.x1, y: (segment.y2 ?? segment.y ?? geometry.rise) + 0.04, z: segment.z2 };
+        const from = { x: segment.x1, y: (segment.y ?? geometry.rise) + 0.04 + joistDepth, z: segment.z1 };
+        const to = { x: segment.x2 ?? segment.x1, y: (segment.y2 ?? segment.y ?? geometry.rise) + 0.04 + joistDepth, z: segment.z2 };
         const cap = beam(THREE, from, to, 0.3, 0.06, capMaterial);
         cap.name = 'roof-ridge-cap';
         local.add(cap);
@@ -257,8 +259,8 @@ export function buildTrussRoof(THREE, {
     hipSegments(geometry).forEach((segment) => {
         const cap = beam(
             THREE,
-            { x: segment.x1, y: geometry.rise + 0.04, z: segment.z1 },
-            { x: segment.x2, y: segment.y2 ?? 0, z: segment.z2 },
+            { x: segment.x1, y: geometry.rise + 0.04 + joistDepth, z: segment.z1 },
+            { x: segment.x2, y: (segment.y2 ?? 0) + joistDepth, z: segment.z2 },
             0.3, 0.06, capMaterial
         );
         cap.name = 'roof-hip-cap';
@@ -279,20 +281,20 @@ export function buildTrussRoof(THREE, {
         const rotation = -Math.atan2(dz, dx);
 
         const fascia = box(THREE, runLength, 0.18, 0.04, rimMaterial);
-        fascia.position.set(mid.x, run.y - 0.09, mid.z);
+        fascia.position.set(mid.x, run.y + joistDepth - 0.09, mid.z);
         fascia.rotation.y = rotation;
         fascia.name = 'roof-fascia';
         local.add(fascia);
 
         const drip = box(THREE, runLength, 0.09, 0.03, gutterMaterial);
-        drip.position.set(mid.x + nx * outward * 0.02, run.y + 0.02, mid.z + nz * outward * 0.02);
+        drip.position.set(mid.x + nx * outward * 0.02, run.y + joistDepth + 0.02, mid.z + nz * outward * 0.02);
         drip.rotation.y = rotation;
         drip.name = 'roof-drip-edge';
         local.add(drip);
 
         if (!gutters) return;
         const trough = box(THREE, runLength, 0.1, 0.13, gutterMaterial);
-        trough.position.set(mid.x + nx * outward * 0.08, run.y - 0.12, mid.z + nz * outward * 0.08);
+        trough.position.set(mid.x + nx * outward * 0.08, run.y + joistDepth - 0.12, mid.z + nz * outward * 0.08);
         trough.rotation.y = rotation;
         trough.name = 'roof-gutter';
         local.add(trough);
@@ -306,7 +308,7 @@ export function buildTrussRoof(THREE, {
                 new THREE.CylinderGeometry(0.045, 0.045, 2.2, 8),
                 gutterMaterial
             );
-            pipe.position.set(x, run.y - 1.2, z);
+            pipe.position.set(x, run.y + joistDepth - 1.2, z);
             pipe.castShadow = true;
             pipe.name = 'roof-downspout';
             local.add(pipe);

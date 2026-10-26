@@ -218,6 +218,38 @@
                     </div>
                 </div>
 
+                <!-- Roof suite (features/studio/roof.js + features/roof) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Roof</h3>
+                        <span id="roof-summary" class="text-[10px] font-mono text-gray-400" title="Roof area for the top storey">—</span>
+                    </div>
+                    <div class="mt-2 space-y-2">
+                        <label class="block text-[10px] uppercase text-gray-400">Truss style
+                            <select id="roof-style-select" onchange="window.setRoofOption('style', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100"></select>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="block text-[10px] uppercase text-gray-400">Pitch (x:12)
+                                <input id="roof-pitch" type="number" min="0.5" max="16" step="0.25" value="6" oninput="window.setRoofOption('pitch', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
+                            </label>
+                            <label class="block text-[10px] uppercase text-gray-400">Overhang (m)
+                                <input id="roof-overhang" type="number" min="0" max="1.5" step="0.05" value="0.5" oninput="window.setRoofOption('overhang', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
+                            </label>
+                        </div>
+                        <label class="block text-[10px] uppercase text-gray-400">Covering
+                            <select id="roof-covering-select" onchange="window.setRoofOption('covering', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100"></select>
+                        </label>
+                        <label class="block text-[10px] uppercase text-gray-400">Rain gutter
+                            <select id="roof-gutter-select" onchange="window.setRoofOption('gutter', this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] text-gray-800 dark:text-gray-100"></select>
+                        </label>
+                        <div class="flex items-center justify-between gap-2 text-[11px] text-gray-600 dark:text-gray-300">
+                            <label class="flex items-center gap-1.5"><input type="checkbox" id="roof-gutters" checked onchange="window.setRoofOption('gutters', this.checked)"> Gutters</label>
+                            <label class="flex items-center gap-1.5"><input type="checkbox" id="roof-ridge-vent" checked onchange="window.setRoofOption('ridgeVent', this.checked)"> Ridge vent</label>
+                        </div>
+                        <p class="text-[10px] text-gray-400 leading-snug">The header Roof switch shows the top storey roof. <a href="roof-designer.html" class="text-primary underline hover:text-sky-700">Roof suite</a> designs it, with the full takeoff and glossary.</p>
+                    </div>
+                </div>
+
                 <!-- Per-room floor materials (features/studio/room-surfaces.js) -->
                 <div class="item-category">
                     <div class="item-category-header py-2 border-b border-gray-100 dark:border-gray-700">

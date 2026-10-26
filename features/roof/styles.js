@@ -163,7 +163,7 @@ export function roofGeometry({
     const definition = roofStyle(style);
     const safeSpan = Math.max(span, 1.2);
     const safeLength = Math.max(length, 1.2);
-    const safePitch = Math.max(pitch, 0.25);
+    const safePitch = Math.max(pitch, 0.1);
     const run = safePitch / 12;
     const half = safeSpan / 2;
     const over = Math.max(overhang, 0);

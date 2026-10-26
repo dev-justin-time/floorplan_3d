@@ -256,7 +256,9 @@ export function computeRoofDesign(options = {}) {
         providedNfvaM2,
         valleyM,
         ridgeVentM,
-        soffitVentM
+        soffitVentM,
+        iceShieldM2,
+        sheets
     });
 
     const summary = {
@@ -358,7 +360,9 @@ function buildChecks({
     providedNfvaM2,
     valleyM,
     ridgeVentM,
-    soffitVentM
+    soffitVentM,
+    iceShieldM2,
+    sheets
 }) {
     const checks = [];
     const push = (id, severity, label, detail = '') => checks.push({ id, severity, label, detail });
@@ -388,24 +392,34 @@ function buildChecks({
         push('ponding', 'error', 'Ponding risk', 'A pitch below 0.25:12 will hold water; add tapered insulation or drains.');
     }
 
+    push('deck', 'ok', 'Deck and sheathing',
+        `${sheets} sheets of ${sheathing.label} at ${sheathing.nailSpacingMm} mm nail spacing.`);
+
     if (covering.weightKgM2 >= 40) {
         push('dead-load', covering.weightKgM2 >= 55 ? 'warn' : 'info',
             'Heavy covering',
             `${covering.label} adds ${covering.weightKgM2} kg/m²; confirm the truss design and use battens.`);
+    } else {
+        push('dead-load', 'ok', 'Dead load',
+            `${covering.label} adds ${covering.weightKgM2} kg/m², inside the standard truss allowance.`);
     }
 
-    if (spacing > 0.61 && covering.family === 'tile') {
+    if (spacing > 0.45 && covering.family === 'tile') {
         push('truss-spacing', 'error', 'Tile needs tighter truss spacing',
-            `Tile at 24 in o.c. over ${sheathing.label} is too flexible; use 16 in o.c. or a thicker deck.`);
-    } else if (spacing > 0.61) {
-        push('truss-spacing', 'info', 'Truss spacing', `${round(spacing * 1000)} mm o.c. with ${sheathing.label}.`);
+            `Tile at ${Math.round(spacing * 1000)} mm o.c. over ${sheathing.label} is too flexible; use 16 in o.c. (406 mm) or a thicker deck.`);
+    } else {
+        push('truss-spacing', 'info', 'Truss spacing',
+            `${round(spacing * 1000)} mm o.c. with ${sheathing.label} and ${covering.label}.`);
     }
 
     if (config.climate === 'cold' && !config.iceShield) {
         push('ice-dam', 'error', 'Ice dam protection missing',
             'Cold climates need an ice and water shield at least 900 mm up from the eave.');
-    } else if (config.climate === 'cold') {
-        push('ice-dam', 'ok', 'Ice dam protection', `${round(geometry.eaveLength * 0.9, 1)} m² of eave membrane specified.`);
+    } else if (config.iceShield) {
+        push('ice-dam', 'ok', 'Ice and water shield',
+            `${round(iceShieldM2, 1)} m² of self-adhering membrane at the eaves.`);
+    } else {
+        push('ice-dam', 'info', 'No eave membrane', 'Eaves rely on the underlayment and a clean drip edge.');
     }
 
     if (!ridgeVentM && !soffitVentM) {
@@ -436,6 +450,9 @@ function buildChecks({
     if (underlayment.minPitch > pitch) {
         push('underlayment', 'warn', 'Underlayment below its slope minimum',
             `${underlayment.label} is rated from ${underlayment.minPitch}:12.`);
+    } else {
+        push('underlayment', 'ok', 'Underlayment suits the slope',
+            `${underlayment.label} covers ${underlayment.rollCoverageM2} m² per roll from ${underlayment.minPitch}:12.`);
     }
 
     if (valleyM > 0) {
