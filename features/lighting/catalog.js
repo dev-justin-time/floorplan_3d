@@ -158,7 +158,7 @@ export const LUMINAIRES = [
     }),
     luminaire({
         id: 'step-light', label: 'Step light', category: 'accent', mount: 'wall',
-        watts: 3, lumens: 150, beamAngle: 60, spacingRatio: 0.8, wet: true, damp: true,
+        watts: 3, lumens: 210, beamAngle: 60, spacingRatio: 0.8, wet: true, damp: true,
         cost: 55, weightKg: 0.4,
         notes: 'Low-level marker for stairs and paths; needs a wet-location box and gasket.'
     }),

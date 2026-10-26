@@ -358,7 +358,7 @@ function enrichLuminaire(device) {
         lumens: type.lumens,
         watts: type.watts,
         efficacy: type.efficacy,
-        cct: type.cct,
+        cct: device.cct ?? type.cct,
         cri: type.cri,
         beamAngle: type.beamAngle,
         spacingRatio: type.spacingRatio,
@@ -479,7 +479,7 @@ function buildChecks(design, plan, preset) {
     design.circuits.forEach((circuit) => {
         if (circuit.load.amps > circuit.breakerA) {
             push('error', 'circuit-overload', `${circuit.name} draws ${circuit.load.amps} A on a ${circuit.breakerA} A breaker.`, 'Split the circuit or move devices to another branch before this is built.');
-        } else if (circuit.load.percent > 80) {
+        } else if (circuit.load.percent > 80 && circuit.type !== 'dedicated') {
             push('warn', 'circuit-80', `${circuit.name} is at ${circuit.load.percent}% of its breaker.`, 'Continuous loads above 80% leave no headroom; split the circuit.');
         }
     });

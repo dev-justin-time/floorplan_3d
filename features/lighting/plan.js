@@ -5,7 +5,7 @@ import {
     roomPresetById,
     circuitTypeById
 } from './catalog.js';
-import { spacingFor } from './photometry.js';
+import { spacingFor, lumenMethod } from './photometry.js';
 
 /**
  * The interactive plan model.
@@ -51,6 +51,7 @@ export function createPlan({
         depth: round(d),
         height: round(h),
         mountingHeight: round(clamp(Number(mountingHeight) || h - 0.3, 1.8, h - 0.1)),
+        cct: preset.cct,
         entry: { x: round(w * 0.42), y: round(d) },
         panel: { x: 0.35, y: round(d - 0.35) },
         socketSpacing: preset.socketSpacing,
@@ -82,6 +83,7 @@ export function normalizePlan(raw) {
     plan.depth = clamp(Number(plan.depth) || 4.2, 2, 30);
     plan.height = clamp(Number(plan.height) || 2.7, 2.2, 6);
     plan.mountingHeight = clamp(Number(plan.mountingHeight) || plan.height - 0.3, 1.8, plan.height - 0.1);
+    plan.cct = clamp(Number(plan.cct) || roomPresetById(plan.roomType).cct, 2200, 6500);
     plan.entry = { x: clamp(Number(plan.entry.x) || plan.width * 0.42, 0, plan.width), y: clamp(Number(plan.entry.y) || plan.depth, 0, plan.depth) };
     plan.panel = { x: clamp(Number(plan.panel.x) || 0.35, 0, plan.width), y: clamp(Number(plan.panel.y) || plan.depth - 0.35, 0, plan.depth) };
     plan.socketSpacing = clamp(Number(plan.socketSpacing) || 3.66, 1.2, 6);
@@ -155,10 +157,18 @@ export function addDevice(plan, { kind, typeId, x = plan.width / 2, y = plan.dep
     const hasX = Number.isFinite(Number(x));
     const hasY = Number.isFinite(Number(y));
     if (kind === 'luminaire') {
-        device.x = round(clamp(hasX ? Number(x) : plan.width / 2, 0.05, plan.width - 0.05));
-        device.y = round(clamp(hasY ? Number(y) : plan.depth / 2, 0.05, plan.depth - 0.05));
-        device.wall = null;
-        device.mountHeight = type.mount === 'wall' ? 1.8 : plan.mountingHeight;
+        if (type.mount === 'wall') {
+            Object.assign(device, snapToWall(plan, 'socket',
+                hasX ? Number(x) : plan.width / 2,
+                hasY ? Number(y) : plan.depth / 2));
+            device.mountHeight = 1.8;
+        } else {
+            device.x = round(clamp(hasX ? Number(x) : plan.width / 2, 0.05, plan.width - 0.05));
+            device.y = round(clamp(hasY ? Number(y) : plan.depth / 2, 0.05, plan.depth - 0.05));
+            device.wall = null;
+            device.mountHeight = plan.mountingHeight;
+        }
+        device.cct = plan.cct;
     } else {
         Object.assign(device, snapToWall(plan, kind,
             hasX ? Number(x) : plan.width / 2,
@@ -184,10 +194,17 @@ export function moveDevice(plan, id, x, y) {
     const device = deviceById(plan, id);
     if (!device) return null;
     if (device.kind === 'luminaire') {
-        device.x = round(clamp(Number.isFinite(Number(x)) ? Number(x) : device.x, 0.05, plan.width - 0.05));
-        device.y = round(clamp(Number.isFinite(Number(y)) ? Number(y) : device.y, 0.05, plan.depth - 0.05));
         const type = luminaireById(device.typeId);
-        device.mountHeight = type.mount === 'wall' ? 1.8 : plan.mountingHeight;
+        if (type.mount === 'wall') {
+            Object.assign(device, snapToWall(plan, 'socket',
+                Number.isFinite(Number(x)) ? Number(x) : device.x,
+                Number.isFinite(Number(y)) ? Number(y) : device.y));
+            device.mountHeight = 1.8;
+        } else {
+            device.x = round(clamp(Number.isFinite(Number(x)) ? Number(x) : device.x, 0.05, plan.width - 0.05));
+            device.y = round(clamp(Number.isFinite(Number(y)) ? Number(y) : device.y, 0.05, plan.depth - 0.05));
+            device.mountHeight = plan.mountingHeight;
+        }
     } else {
         Object.assign(device, snapToWall(plan, device.kind,
             Number.isFinite(Number(x)) ? Number(x) : device.x,
@@ -210,15 +227,34 @@ export function autoLights(plan, { typeId, replace = true, count = null } = {}) 
     const spacing = Math.max(spacingFor(type, mounting) * 0.9, 0.8);
     const preset = roomPresetById(plan.roomType);
     const area = plan.width * plan.depth;
+    const lockedCount = Number.isFinite(count) && count > 0;
     // Enough fittings for the room's target average, then enough to keep the
     // fittings within their spacing ratio. Whichever needs more wins.
     const targetCount = Math.max(1, Math.ceil((preset.targetLux * area) / Math.max(type.lumens * 0.48, 1)));
     const layoutCount = Math.max(1, Math.round(plan.width / spacing)) * Math.max(1, Math.round(plan.depth / spacing));
-    const wanted = Number.isFinite(count) && count > 0
+    let wanted = lockedCount
         ? Math.round(count)
         : plan.roomType === 'dining' ? 1 : Math.max(targetCount, layoutCount);
-    let cols = Math.max(1, Math.ceil(Math.sqrt(wanted * plan.width / Math.max(plan.depth, 0.1))));
+    let cols = wanted === 1 ? 1 : Math.max(1, Math.round(Math.sqrt(wanted * plan.width / Math.max(plan.depth, 0.1))));
     let rows = Math.max(1, Math.ceil(wanted / cols));
+
+    // The first pass uses a mid-range CU; the real room shape can need another
+    // row. Step the count until the suite's photometry reaches 95% of target.
+    if (!lockedCount && plan.roomType !== 'dining') {
+        for (let candidate = wanted; candidate <= 40; candidate += 1) {
+            cols = candidate === 1 ? 1 : Math.max(1, Math.round(Math.sqrt(candidate * plan.width / Math.max(plan.depth, 0.1))));
+            rows = Math.max(1, Math.ceil(candidate / cols));
+            const countNow = cols * rows;
+            const average = lumenMethod({
+                totalLumens: countNow * type.lumens,
+                width: plan.width,
+                depth: plan.depth,
+                mountingHeight: plan.mountingHeight
+            }).averageLux;
+            wanted = candidate;
+            if (average >= preset.targetLux * 0.9) break;
+        }
+    }
     const made = [];
     for (let row = 0; row < rows; row += 1) {
         for (let col = 0; col < cols; col += 1) {

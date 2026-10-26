@@ -73,6 +73,14 @@
                     </label>
                 </div>
                 <p id="room-note" class="text-[10px] text-slate-400 leading-snug mt-1.5"></p>
+                <label class="block text-[11px] text-slate-500 mt-2">Colour temperature
+                    <select id="cct" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 text-[11px]">
+                        <option value="2700">2700 K · warm</option>
+                        <option value="3000">3000 K · soft white</option>
+                        <option value="3500">3500 K · neutral</option>
+                        <option value="4000">4000 K · cool</option>
+                    </select>
+                </label>
                 <div class="grid grid-cols-1 gap-1 mt-2 text-[11px] text-slate-600">
                     <label class="flex items-center gap-1.5"><input type="checkbox" id="insulation" checked> Insulated ceiling · IC required</label>
                     <label class="flex items-center gap-1.5"><input type="checkbox" id="fire-ceiling"> Fire-rated ceiling</label>
@@ -138,6 +146,7 @@
                     <b id="m-cost" class="text-base font-mono">—</b>
                 </div>
                 <p id="check-summary" class="text-[10px] font-mono mt-1">—</p>
+                <p class="text-[9px] text-slate-400 mt-1">Photometry is the installed design at full output; switch and dim states preview the control.</p>
             </section>
 
             <section>

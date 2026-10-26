@@ -180,11 +180,13 @@ function syncRoomFields() {
     $('room-depth').value = plan.depth.toFixed(1);
     $('ceiling-height').value = plan.height.toFixed(2);
     $('mount-height').value = plan.mountingHeight.toFixed(2);
+    $('cct').value = String(plan.cct || roomPresetById(plan.roomType).cct);
     $('insulation').checked = plan.insulation;
     $('fire-ceiling').checked = plan.fireRatedCeiling;
     $('neutral').checked = plan.neutralAtSwitch;
     $('room-note').textContent = roomPresetById(plan.roomType).notes;
-    $('switch-type').value = roomPresetById(plan.roomType).switchType;
+    const placedSwitch = plan.devices.find((device) => device.kind === 'switch');
+    $('switch-type').value = placedSwitch?.typeId || roomPresetById(plan.roomType).switchType;
     $('socket-type').value = roomPresetById(plan.roomType).socketType;
 }
 
@@ -803,6 +805,11 @@ function drawPlan() {
     design.luminaires.forEach((light) => {
         if (!plan.devices.some((device) => device.id === light.id)) return;
         const point = P(light);
+        const inset = Math.min(10, view.scale * 0.12);
+        if (light.wall === 'north') point.y += inset;
+        if (light.wall === 'south') point.y -= inset;
+        if (light.wall === 'west') point.x += inset;
+        if (light.wall === 'east') point.x -= inset;
         const radius = Math.max(6, Math.min(14, view.scale * 0.16));
         const colour = CATEGORY_COLOUR[light.category] || '#f59e0b';
         const on = light.on !== false;
@@ -1028,8 +1035,9 @@ function wireTools() {
 function wireCanvas() {
     canvas.addEventListener('pointerdown', (event) => {
         const point = screenToPlan(event.clientX, event.clientY);
+        const tolerance = Math.max(0.3, 18 / view.scale);
         if (tool === 'erase') {
-            const hit = deviceAt(plan, point, 0.3);
+            const hit = deviceAt(plan, point, tolerance);
             if (hit) {
                 removeDevice(plan, hit.id);
                 if (selectedId === hit.id) selectedId = null;
@@ -1042,7 +1050,7 @@ function wireCanvas() {
             addAt(point);
             return;
         }
-        const hit = deviceAt(plan, point, 0.28);
+        const hit = deviceAt(plan, point, tolerance);
         if (hit) {
             selectedId = hit.id;
             drag = {
@@ -1083,7 +1091,7 @@ function wireCanvas() {
             camera.panY = drag.panY + (event.clientY - drag.startY);
             drawPlan();
         } else {
-            const hit = deviceAt(plan, point, 0.28);
+            const hit = deviceAt(plan, point, Math.max(0.3, 18 / view.scale));
             canvas.style.cursor = hit && tool === 'select' ? 'grab' : tool === 'select' ? 'default' : 'crosshair';
             drawPlan();
         }
@@ -1115,7 +1123,7 @@ function wireCanvas() {
     });
     canvas.addEventListener('dblclick', (event) => {
         const point = screenToPlan(event.clientX, event.clientY);
-        const hit = deviceAt(plan, point, 0.28);
+        const hit = deviceAt(plan, point, Math.max(0.3, 18 / view.scale));
         if (hit?.kind === 'luminaire') {
             toggleLuminaire(plan, hit.id);
             refresh();
@@ -1155,8 +1163,8 @@ function wireSidebar() {
         });
         selectedLuminaire = roomPresetById(roomType).ambient;
         $('luminaire-type').value = selectedLuminaire;
-        syncRoomFields();
         autoDesignPlan(plan);
+        syncRoomFields();
         selectedId = null;
         camera = { zoom: 1, panX: 0, panY: 0 };
         refresh();
@@ -1191,6 +1199,12 @@ function wireSidebar() {
         });
     });
 
+    $('cct').addEventListener('change', (event) => {
+        plan.cct = clamp(Number(event.target.value) || 3000, 2700, 4000);
+        devicesOf(plan, 'luminaire').forEach((light) => { light.cct = plan.cct; });
+        refresh();
+    });
+
     ['insulation', 'fire-ceiling', 'neutral'].forEach((id) => {
         $(id).addEventListener('change', () => {
             plan.insulation = $('insulation').checked;
@@ -1205,6 +1219,7 @@ function wireSidebar() {
     });
     $('auto-design').addEventListener('click', () => {
         autoDesignPlan(plan);
+        syncRoomFields();
         camera = { zoom: 1, panX: 0, panY: 0 };
         refresh();
         setStatus('Auto design refreshed the luminaires, switches, sockets and circuits.');

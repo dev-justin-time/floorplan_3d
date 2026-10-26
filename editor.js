@@ -688,6 +688,29 @@ function init() {
         manufacturing: () => manufacturingPackage(AppState.fixtures)
     };
 
+    // The lighting suite's applied draft, for its own hand-off checks.
+    window.lightingKit = {
+        draft: () => AppState.lightingDraft || null,
+        fixtures: () => (AppState.fixtures || [])
+            .filter((fixture) => ['ceiling_light', 'wall_switch', 'wall_socket'].includes(fixture.type))
+            .map((fixture) => ({
+                id: fixture.id,
+                type: fixture.type,
+                x: fixture.x,
+                y: fixture.y,
+                wall: fixture.boundToWallId || null,
+                elevation: fixture.elevation || 0
+            })),
+        walls: () => (AppState.walls || []).length,
+        summary: () => AppState.lightingDraft
+            ? {
+                room: AppState.lightingDraft.roomType,
+                added: AppState.lightingDraft.added,
+                lights: AppState.lightingDraft.metrics?.litCount ?? null
+            }
+            : null
+    };
+
     window.exportProject = exportProject;
     window.export3D = export3D;
     window.setBgScale = (val) => {
@@ -2304,7 +2327,7 @@ function applyLightingEditorDraft() {
     };
     let added = 0;
     roomPlan.devices.forEach((device) => {
-        if (!device || device.kind === 'switch' && !AppState.walls?.length) return;
+        if (!device) return;
         const point = planPoint(device.x, device.y);
         if (device.kind === 'luminaire') {
             const item = ItemFactory.create('ceiling_light', point.x, point.y, 0);
@@ -2319,8 +2342,10 @@ function applyLightingEditorDraft() {
             const type = device.kind === 'switch' ? 'wall_switch' : 'wall_socket';
             const item = ItemFactory.create(type, point.x, point.y, 0);
             if (!item) return;
-            item.snapToWall(AppState.walls, 1000);
-            if (!item.boundToWallId) return;
+            // With walls drawn, bind the plate to the nearest one and pull it
+            // just off the face. An empty editor still receives the device at
+            // its plan position so the hand-off loses nothing.
+            if (AppState.walls?.length) item.snapToWall(AppState.walls, 1000);
             const wall = (AppState.walls || []).find((entry) => entry.id === item.boundToWallId);
             if (wall) {
                 const dx = wall.end.x - wall.start.x;
@@ -2342,6 +2367,7 @@ function applyLightingEditorDraft() {
     });
     if (added) {
         AppState.lightingDraft = { ...draft, added };
+        stateManager?.saveState?.();
         console.log(`Lighting suite: ${added} electrical devices added to the plan.`);
     }
     return added > 0;

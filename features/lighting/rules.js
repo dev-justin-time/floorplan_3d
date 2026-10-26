@@ -70,7 +70,7 @@ export const RULES = [
         id: 'receptacle-spacing',
         category: 'receptacles',
         title: 'The 6 ft / 12 ft receptacle rule',
-        code: 'IRC 2021 §E3901.2.2',
+        code: 'IRC 2021 §E3901.2.1–E3901.2.2',
         level: 'required',
         summary: 'No point along the floor line of a wall space may be more than 6 ft (1.83 m) from a receptacle; in practice, receptacles are no more than 12 ft (3.66 m) apart.',
         requirements: [
