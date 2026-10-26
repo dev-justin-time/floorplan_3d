@@ -239,11 +239,25 @@ the takeoff stay on one set of numbers. The panel summary prints the family, the
 slope and the governing reference; the takeoff CSV gains model, tread, riser and
 guard rows.
 
+`stair-gallery.html` builds all 12 families side by side on one Three.js stage: a
+4 × 3 grid of 2.70 m stairs, each turned side-on on its own bay with a label.
+Click a model (or its entry in the list) to frame it and read its width, risers,
+riser × tread, slope, footprint, code reference, checks and summary. **Frame all**
+returns to the whole catalogue; the labels toggle and `f` / `Esc` work as in the
+parts catalogue. The page reads `models.js` and `buildStairGeometry`, so the
+gallery cannot drift from the editor's models.
+
 ## 7. Straight stair designer
 
 `stair-designer.html` is a straight-staircase configurator in the shape of the
 EasyStair straight-stair page, and `features/stairs/designer.js` holds its maths,
 elevation drawing and 3D preview.
+
+`stair-glossary.html` is the reference beside it: all 24 terms, the ten formulas
+with ranges, the 3000 mm worked example step by step, the adjustment table and
+the angle bands from `STAIR CALC.MD`. It is a read-only page linked from the
+designer header, the gallery and the editor, so the vocabulary and method stay
+the same everywhere.
 
 Inputs are metric: height, width, what to solve by (**Blondel's law** or **total
 length**), the Blondel value (590–650, default 630), steps (auto or locked),

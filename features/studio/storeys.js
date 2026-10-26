@@ -1,5 +1,6 @@
 import { WALL_HEIGHT } from '../../world-space.js';
 import { stairOpenings } from './room-surfaces.js';
+import { constructionOptions, storeyConstruction, WALL_HEIGHT_M, JOIST_DEPTH_M } from './construction.js';
 
 /**
  * Studio feature 41 - storeys and stair openings.
@@ -12,14 +13,19 @@ import { stairOpenings } from './room-surfaces.js';
 
 export const DEFAULT_STOREY_NAME = 'Ground floor';
 
-export function newStorey({ name = 'Floor', height = WALL_HEIGHT } = {}) {
+export function newStorey({ name = 'Floor', height = WALL_HEIGHT, wallHeight = WALL_HEIGHT_M, floorDepth = JOIST_DEPTH_M } = {}) {
+    const construction = constructionOptions({
+        wallHeight: Math.min(wallHeight, height - floorDepth > 1.8 ? height - floorDepth : wallHeight),
+        floorDepth
+    });
     return {
         id: `storey_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         name,
-        height,
+        ...construction,
         visible: true,
         walls: [],
-        fixtures: []
+        fixtures: [],
+        openings: []
     };
 }
 
@@ -52,7 +58,12 @@ export function activateStorey(state, index) {
 export function addStorey(state, options = {}) {
     syncActiveStorey(state);
     const index = (state.stories?.length || 0) + 1;
-    const story = newStorey({ name: options.name || `Floor ${index}`, height: options.height });
+    const story = newStorey({
+        name: options.name || `Floor ${index}`,
+        height: options.height,
+        wallHeight: options.wallHeight,
+        floorDepth: options.floorDepth
+    });
     if (!state.stories) state.stories = [];
     state.stories.push(story);
     return story;
@@ -71,16 +82,19 @@ export function removeStorey(state, index) {
 export function storeyStack(stories = []) {
     let elevation = 0;
     return stories.map((story, index) => {
-        const height = typeof story.height === 'number' && story.height > 0 ? story.height : WALL_HEIGHT;
+        const construction = storeyConstruction(story);
         const entry = {
             index,
             id: story.id,
             name: story.name || `Floor ${index + 1}`,
-            height,
+            height: construction.pitch,
+            wallHeight: construction.wallHeight,
+            floorDepth: construction.floorDepth,
             elevation,
-            visible: story.visible !== false
+            visible: story.visible !== false,
+            openings: story.openings?.length || 0
         };
-        elevation += height;
+        elevation += construction.pitch;
         return entry;
     });
 }
@@ -88,14 +102,20 @@ export function storeyStack(stories = []) {
 /** Stories for the 3D engine, in engine shape. */
 export function engineStories(state) {
     syncActiveStorey(state);
-    return (state.stories || []).map((story) => ({
-        id: story.id,
-        name: story.name,
-        height: story.height,
-        visible: story.visible !== false,
-        walls: story.walls || [],
-        fixtures: story.fixtures || []
-    }));
+    return (state.stories || []).map((story) => {
+        const construction = storeyConstruction(story);
+        return {
+            id: story.id,
+            name: story.name,
+            height: construction.pitch,
+            wallHeight: construction.wallHeight,
+            floorDepth: construction.floorDepth,
+            visible: story.visible !== false,
+            walls: story.walls || [],
+            fixtures: story.fixtures || [],
+            openings: story.openings || []
+        };
+    });
 }
 
 /**

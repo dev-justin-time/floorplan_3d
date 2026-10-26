@@ -388,6 +388,176 @@ async function main() {
         })()`);
         check('plan canvas has the drawn stair', plan.painted > 500, `${plan.painted} painted pixels`);
 
+        console.log('\nStair gallery');
+        await load(BASE + '/stair-gallery.html');
+        check('gallery page boots', await waitFor('Boolean(window.stairGallery)'));
+        const stairGallery = await cdp.evaluate(`(() => {
+            const gallery = window.stairGallery;
+            const entries = gallery.entries;
+            const cellWidth = Math.max(...entries.map((entry) => entry.size[0])) + 0.8;
+            const cellDepth = Math.max(...entries.map((entry) => entry.size[2])) + 0.8;
+            const outside = entries.filter((entry) => {
+                const [minX, minY, minZ] = entry.world.min;
+                const [maxX, maxY, maxZ] = entry.world.max;
+                return Math.abs(minX - entry.cell.x) > cellWidth / 2
+                    || Math.abs(maxX - entry.cell.x) > cellWidth / 2
+                    || Math.abs(minZ - entry.cell.z) > cellDepth / 2
+                    || Math.abs(maxZ - entry.cell.z) > cellDepth / 2
+                    || Math.abs(minY) > 0.01;
+            }).map((entry) => entry.key);
+            let overlaps = 0;
+            for (let i = 0; i < entries.length; i += 1) {
+                for (let j = i + 1; j < entries.length; j += 1) {
+                    const a = entries[i].world;
+                    const b = entries[j].world;
+                    if (a.min[0] < b.max[0] && a.max[0] > b.min[0] && a.min[2] < b.max[2] && a.max[2] > b.min[2]) overlaps += 1;
+                }
+            }
+
+            // Every family has to be on screen in the opening frame.
+            const view = document.querySelector('#stage canvas').getBoundingClientRect();
+            const visible = new Set();
+            for (let gx = 0.05; gx <= 0.95; gx += 0.02) {
+                for (let gy = 0.05; gy <= 0.95; gy += 0.02) {
+                    const key = gallery.pickAt(view.left + view.width * gx, view.top + view.height * gy);
+                    if (key) visible.add(key);
+                }
+            }
+
+            document.querySelector('.model-button[data-key="alt-tread"]').click();
+            const list = {
+                selected: gallery.selected,
+                title: document.getElementById('info-title').textContent
+            };
+            gallery.clearSelection();
+            const reset = {
+                selected: gallery.selected,
+                active: document.querySelectorAll('.model-button.active').length,
+                hidden: document.getElementById('info-size').classList.contains('hidden')
+            };
+            gallery.select('pan-stair');
+            const info = {
+                title: document.getElementById('info-title').textContent,
+                size: document.getElementById('info-size').textContent,
+                code: document.getElementById('info-code').textContent,
+                checks: document.getElementById('info-checks').textContent,
+                summary: document.getElementById('info-summary').textContent
+            };
+
+            const canvas = document.querySelector('#stage canvas');
+            const rect = canvas.getBoundingClientRect();
+            let pick = null;
+            for (let gx = 0.2; gx <= 0.9 && !pick; gx += 0.03) {
+                for (let gy = 0.2; gy <= 0.9 && !pick; gy += 0.03) {
+                    if (gallery.pickAt(rect.left + rect.width * gx, rect.top + rect.height * gy) === 'pan-stair') {
+                        pick = { gx: Number(gx.toFixed(2)), gy: Number(gy.toFixed(2)) };
+                    }
+                }
+            }
+            const miss = gallery.pickAt(rect.left + 2, rect.top + 2);
+
+            document.getElementById('toggle-labels').click();
+            const labelsOff = document.getElementById('toggle-labels').textContent.trim();
+            document.getElementById('toggle-labels').click();
+
+            return {
+                count: gallery.count,
+                labelCount: gallery.labelCount,
+                buttons: document.querySelectorAll('.model-button').length,
+                uniqueX: new Set(entries.map((entry) => entry.cell.x.toFixed(3))).size,
+                uniqueZ: new Set(entries.map((entry) => entry.cell.z.toFixed(3))).size,
+                outside,
+                overlaps,
+                visible: [...visible],
+                list,
+                reset,
+                info,
+                pick,
+                miss,
+                labelsOff,
+                labelsOn: document.getElementById('toggle-labels').textContent.trim(),
+                gl: Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl')),
+                canvas: { width: canvas.width, height: canvas.height }
+            };
+        })()`);
+        check('gallery renders all 12 models', stairGallery.count === 12 && stairGallery.buttons === 12 && stairGallery.labelCount === 12,
+            `${stairGallery.count} models, ${stairGallery.buttons} buttons, ${stairGallery.labelCount} labels`);
+        check('models are laid out side by side', stairGallery.uniqueX === 4 && stairGallery.uniqueZ === 3 && stairGallery.overlaps === 0,
+            `${stairGallery.uniqueX} columns × ${stairGallery.uniqueZ} rows, ${stairGallery.overlaps} overlaps`);
+        check('every model sits in its own bay', stairGallery.outside.length === 0, stairGallery.outside.join(', ') || 'all inside');
+        check('all 12 models are on screen at once', stairGallery.visible.length === 12,
+            `${stairGallery.visible.length} visible`);
+        check('gallery list selects a model', stairGallery.list.selected === 'alt-tread' && stairGallery.list.title.includes('Alternating'), stairGallery.list.title);
+        check('gallery resets to all models', stairGallery.reset.selected === null && stairGallery.reset.active === 0 && stairGallery.reset.hidden,
+            `${stairGallery.reset.active} active buttons`);
+        check('model card shows the family numbers',
+            stairGallery.info.title.includes('pan stair') && stairGallery.info.size.includes('° slope') && stairGallery.info.size.includes('m footprint')
+            && stairGallery.info.code.includes('IBC') && stairGallery.info.checks.length > 0 && stairGallery.info.summary.length > 20,
+            stairGallery.info.size);
+        check('a rendered model picks from the scene', Boolean(stairGallery.pick),
+            stairGallery.pick ? `hit at ${stairGallery.pick.gx}, ${stairGallery.pick.gy}` : 'no ray hit');
+        check('empty space picks nothing', stairGallery.miss === null);
+        check('labels can be turned off and on', stairGallery.labelsOff === 'Labels off' && stairGallery.labelsOn === 'Labels on',
+            `${stairGallery.labelsOff} → ${stairGallery.labelsOn}`);
+        check('gallery WebGL canvas is live', stairGallery.gl && stairGallery.canvas.width > 0 && stairGallery.canvas.height > 0,
+            `${stairGallery.canvas.width}×${stairGallery.canvas.height}`);
+
+        console.log('\nStair glossary');
+        await load(BASE + '/stair-glossary.html');
+        check('glossary page boots', await waitFor('Boolean(window.stairGlossary)'));
+        const glossary = await cdp.evaluate(`(() => {
+            const api = window.stairGlossary;
+            const cards = document.querySelectorAll('.term-card').length;
+            const filtered = api.filter('headroom');
+            const visible = [...document.querySelectorAll('.term-card')]
+                .filter((card) => !card.hidden)
+                .map((card) => card.dataset.term);
+            const miss = api.filter('zzzz-nothing');
+            const emptyShown = !document.getElementById('glossary-empty').classList.contains('hidden');
+            const input = document.getElementById('glossary-search');
+            input.value = 'riser';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const viaInput = [...document.querySelectorAll('.term-card')].filter((card) => !card.hidden).length;
+            api.filter('');
+            const restored = [...document.querySelectorAll('.term-card')].filter((card) => !card.hidden).length;
+            const text = document.body.innerText;
+            return {
+                terms: api.terms,
+                formulas: api.formulas,
+                cards,
+                formulaRows: document.querySelectorAll('#formula-list > div').length,
+                filtered,
+                visible,
+                miss,
+                emptyShown,
+                viaInput,
+                restored,
+                adjustmentRows: document.querySelectorAll('#adjustments tbody tr').length,
+                failing: document.querySelectorAll('#adjustments td.text-rose-700').length,
+                angleRows: document.querySelectorAll('#angles tbody tr').length,
+                worked: {
+                    steps: text.includes('16 / 17'),
+                    rise: text.includes('176.47 mm'),
+                    going: text.includes('277.06 mm'),
+                    angle: text.includes('32.49°'),
+                    run: text.includes('4482.96 mm'),
+                    headroom: text.includes('1947.45 mm')
+                },
+                overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+            };
+        })()`);
+        check('glossary lists every term', glossary.terms === 24 && glossary.cards === 24, `${glossary.cards} cards`);
+        check('every formula is listed', glossary.formulas === 10 && glossary.formulaRows === 10, `${glossary.formulaRows} rows`);
+        check('glossary filter narrows the list', glossary.filtered === 1 && glossary.visible.includes('headroom'), glossary.visible.join(', '));
+        check('search input is wired to the filter', glossary.viaInput > 0, `${glossary.viaInput} matches for “riser”`);
+        check('no match shows the empty state', glossary.miss === 0 && glossary.emptyShown);
+        check('clearing the filter restores every term', glossary.restored === 24, `${glossary.restored} terms`);
+        check('worked example shows every result', Object.values(glossary.worked).every(Boolean), JSON.stringify(glossary.worked));
+        check('adjustment table has ten rows and two failing headrooms', glossary.adjustmentRows === 10 && glossary.failing === 2,
+            `${glossary.adjustmentRows} rows, ${glossary.failing} below 1900 mm`);
+        check('angle bands table has four bands', glossary.angleRows === 4, `${glossary.angleRows} rows`);
+        check('glossary page fits without sideways scroll', glossary.overflow <= 1, `${glossary.overflow}px`);
+
         console.log('\nStair designer');
         await load(BASE + '/stair-designer.html');
         check('designer page boots', await waitFor('Boolean(window.stairDesigner)'));

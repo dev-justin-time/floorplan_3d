@@ -6,7 +6,7 @@ import path from 'node:path';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:8766';
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const PORT = 9334;
-const PAGES = process.argv.slice(2).length ? process.argv.slice(2) : ['app.html', 'app-demo.html', 'demo.html'];
+const PAGES = process.argv.slice(2).length ? process.argv.slice(2) : ['app.html', 'app-demo.html', 'demo.html', 'stair-gallery.html', 'stair-glossary.html'];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class CDP {
