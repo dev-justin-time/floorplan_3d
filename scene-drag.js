@@ -4,6 +4,7 @@ import { gridSnap, wallSnap } from './features/advanced/snapping.js';
 import { isStairItem } from './features/stairs/design.js';
 import { stairPlanContains } from './features/stairs/geometry.js';
 import { buildCollisionIndex, overlapsFor } from './features/advanced/collision.js';
+import { footprint } from './wall-snap.js';
 
 /**
  * Dragging for plan objects (fixtures, windows, doors).
@@ -19,9 +20,10 @@ export function fixtureAt(fixtures, point, { slack = 10, storeyHeight } = {}) {
         const fixture = fixtures[i];
         if (fixture.visible === false) continue;
 
-        const meta = fixture.metadata || {};
-        const widthPx = (meta.width || 0.5) * PIXELS_PER_METER;
-        const depthPx = (meta.depth || 0.5) * PIXELS_PER_METER;
+        // The rotated footprint uses the item's live dimensions, including a
+        // per-item size override, so a resized cabinet is picked over the whole
+        // shape the plan draws rather than its original metadata rectangle.
+        const { width: widthPx, depth: depthPx } = footprint(fixture);
 
         // Hit test in the fixture's own rotated frame.
         const rotation = fixture.rotation || 0;
@@ -67,7 +69,7 @@ export function beginDrag(fixture, point, { fixtures = null, collision = true } 
         fixture,
         offset: { x: point.x - fixture.x, y: point.y - fixture.y },
         // Where the piece started, so locked axes have something to stay on.
-        origin: { x: fixture.x, y: fixture.y },
+        origin: { x: fixture.x, y: fixture.y, rotation: fixture.rotation || 0 },
         collisionIndex: others.length ? buildCollisionIndex(others) : null,
         valid: null,
         overlaps: []

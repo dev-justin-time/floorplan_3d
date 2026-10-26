@@ -298,6 +298,7 @@
 </script>
 <script type="module">
     import { computeRoofDesign, roofTakeoffCsv, ROOF_DEFAULTS } from '../features/roof/design.js';
+    import { applyPriceBookToDesign } from '../features/pricing/book.js';
     import { ROOF_STYLES, roofStyle } from '../features/roof/styles.js';
     import { SHEATHING, UNDERLAYMENT, COVERINGS, GUTTER_SYSTEMS } from '../features/roof/materials.js';
     import { ROOF_GLOSSARY, ROOF_FORMULAS, glossaryByCategory, searchGlossary } from '../features/roof/glossary.js';
@@ -509,7 +510,7 @@
     }
 
     function render() {
-        design = computeRoofDesign(state);
+        design = applyPriceBookToDesign('roof', computeRoofDesign(state));
 
         $('span-label').textContent = `${num(state.span)} m`;
         $('length-label').textContent = `${num(state.length)} m`;

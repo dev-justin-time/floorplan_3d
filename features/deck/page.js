@@ -6,6 +6,7 @@ import {
     deckSummaryText,
     deckTakeoffCsv
 } from './engine.js';
+import { applyPriceBookToDesign } from '../pricing/book.js';
 import { createDeckPlan, drawDeckPlan, postAt, stairAt } from './plan.js';
 import {
     BEAM_PLIES,
@@ -67,7 +68,7 @@ function loadConfig() {
 
 let config = loadConfig();
 let view = { zoom: 1, panX: 0, panY: 0 };
-let design = computeDeckDesign(config);
+let design = applyPriceBookToDesign('deck', computeDeckDesign(config));
 let plan = createDeckPlan(config);
 let activeTab = 'design';
 let showAllChecks = false;
@@ -163,7 +164,7 @@ function setField(key, value) {
 }
 
 function refresh() {
-    design = computeDeckDesign(config);
+    design = applyPriceBookToDesign('deck', computeDeckDesign(config));
     plan = createDeckPlan(config);
     syncInputs();
     renderMetrics();

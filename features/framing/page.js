@@ -8,6 +8,14 @@ import {
     SUBFLOOR
 } from './catalog.js';
 import {
+    CALCULATOR_BY_ID,
+    CALCULATORS,
+    calculatorsByGroup,
+    computeCalculator,
+    defaultValues,
+    searchCalculators
+} from './calculators.js';
+import {
     computeFramingDesign,
     frameWall,
     ftIn,
@@ -16,6 +24,7 @@ import {
     framingTakeoffCsv,
     wallLengthM
 } from './engine.js';
+import { applyPriceBookToDesign } from '../pricing/book.js';
 import {
     drawFramingPlan,
     drawWallElevation,
@@ -179,7 +188,7 @@ function loadConfig() {
 }
 
 let config = loadConfig();
-let design = computeFramingDesign(config);
+let design = applyPriceBookToDesign('framing', computeFramingDesign(config));
 let storeyIndex = 0;
 let selectedWallId = design.storeys[0]?.walls?.[0]?.id || null;
 let selectedOpeningId = null;
@@ -191,12 +200,15 @@ let ruleQuery = '';
 let ruleCategory = 'all';
 let ruleIssuesOnly = false;
 let glossaryQuery = '';
+let activeCalculator = 'lumber-span';
+let calcValues = defaultValues(activeCalculator);
+let calcQuery = '';
 const openRules = new Set(['stud-size-height', 'header-span', 'rough-opening']);
 
 const NUMERIC_CONFIG = ['studSpacingIn', 'studLengthIn', 'topPlates', 'blockingRows', 'waste', 'floorSpanFt', 'anchorSpacingFt', 'labourRate'];
 
 function refresh({ save = true } = {}) {
-    design = computeFramingDesign(config);
+    design = applyPriceBookToDesign('framing', computeFramingDesign(config));
     const active = design.storeys[Math.min(storeyIndex, design.storeys.length - 1)];
     // An explicit deselection stays deselected; only a wall that disappeared
     // (deleted, or replaced by the rectangle builder) clears the selection.
@@ -965,6 +977,120 @@ function wireSidebar() {
     $('zoom-reset').addEventListener('click', () => { view = { zoom: 1 }; draw(); });
 }
 
+// ---------------------------------------------------------------------------
+// Calculators
+// ---------------------------------------------------------------------------
+
+function renderCalculators() {
+    const list = $('calc-list');
+    if (!list) return;
+    const matches = new Set(searchCalculators(calcQuery).map((entry) => entry.id));
+    list.innerHTML = calculatorsByGroup().map((group) => {
+        const items = group.calculators.filter((entry) => matches.has(entry.id));
+        if (!items.length) return '';
+        return `
+            <p class="px-2 pt-2 pb-1 text-[9px] uppercase tracking-wider font-bold text-slate-400">${escapeHtml(group.label)}</p>
+            ${items.map((entry) => `
+                <button data-calculator="${escapeHtml(entry.id)}" class="w-full text-left px-2 py-1.5 rounded border ${entry.id === activeCalculator ? 'bg-slate-900 text-white border-slate-900' : 'border-transparent hover:bg-slate-50'}">
+                    <span class="block text-[11px] font-semibold leading-tight">${escapeHtml(entry.label)}</span>
+                </button>
+            `).join('')}
+        `;
+    }).join('') || '<p class="px-2 py-3 text-[11px] text-slate-400">No calculator matches that search.</p>';
+    renderCalculator();
+}
+
+function renderCalculator() {
+    const definition = CALCULATOR_BY_ID[activeCalculator];
+    if (!definition) return;
+    $('calc-title').textContent = definition.label;
+    $('calc-intro').textContent = definition.blurb;
+    $('calc-form').innerHTML = definition.fields.map((field) => fieldControl(field)).join('');
+    renderCalcResult();
+}
+
+function fieldControl(field) {
+    const value = calcValues[field.key] ?? field.default;
+    const label = escapeHtml(field.label);
+    if (field.type === 'select') {
+        return `<label class="block text-[10px] text-slate-500">${label}
+            <select data-calc-field="${escapeHtml(field.key)}" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]">
+                ${field.options.map(([option, text]) => `<option value="${escapeHtml(option)}" ${String(option) === String(value) ? 'selected' : ''}>${escapeHtml(text)}</option>`).join('')}
+            </select>
+        </label>`;
+    }
+    if (field.type === 'checkbox') {
+        return `<label class="flex items-center gap-1.5 mt-4 text-[10px] text-slate-600"><input data-calc-field="${escapeHtml(field.key)}" type="checkbox" ${value ? 'checked' : ''}> ${label}</label>`;
+    }
+    return `<label class="block text-[10px] text-slate-500">${label}
+        <span class="flex items-center gap-1">
+            <input data-calc-field="${escapeHtml(field.key)}" type="number" value="${escapeHtml(value)}" min="${field.min ?? ''}" max="${field.max ?? ''}" step="${field.step ?? 'any'}" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px] font-mono">
+            ${field.unit ? `<span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(field.unit)}</span>` : ''}
+        </span>
+    </label>`;
+}
+
+function renderCalcResult() {
+    const node = $('calc-result');
+    if (!node) return;
+    const out = computeCalculator(activeCalculator, calcValues);
+    if (!out) {
+        node.innerHTML = '';
+        return;
+    }
+    node.innerHTML = `
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <p class="text-[10px] uppercase tracking-wider font-bold text-slate-400">${escapeHtml(out.primary.label)}</p>
+            <p class="text-3xl font-mono font-bold mt-1 ${out.primary.value === 'engineered' ? 'text-amber-700' : 'text-slate-900'}">${escapeHtml(out.primary.value)}</p>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 mt-3">
+                ${out.rows.map((row) => `<div class="flex justify-between gap-2 border-b border-slate-100 pb-0.5"><span class="text-[10px] text-slate-400">${escapeHtml(row.label)}</span><span class="text-[11px] font-mono text-right">${escapeHtml(row.value)}</span></div>`).join('')}
+            </div>
+            <ul class="mt-3 text-[10px] text-slate-500 leading-snug list-disc pl-4 space-y-0.5">
+                ${out.notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('')}
+            </ul>
+            <div class="mt-3 rounded bg-slate-50 border border-slate-100 px-2 py-1.5">
+                ${out.formula ? `<p class="text-[10px] font-mono text-slate-600">${escapeHtml(out.formula)}</p>` : ''}
+                ${out.code ? `<p class="text-[9px] text-slate-400 mt-0.5">${escapeHtml(out.code)}</p>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function updateCalculatorValue(event) {
+    const field = event.target.closest('[data-calc-field]');
+    if (!field) return;
+    const key = field.dataset.calcField;
+    calcValues = {
+        ...calcValues,
+        [key]: field.type === 'checkbox' ? field.checked : field.type === 'number' ? Number(field.value) : field.value
+    };
+    renderCalcResult();
+}
+
+function wireCalculators() {
+    $('calc-list').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-calculator]');
+        if (!button) return;
+        activeCalculator = button.dataset.calculator;
+        calcValues = defaultValues(activeCalculator);
+        renderCalculators();
+    });
+    $('calc-search').addEventListener('input', (event) => {
+        calcQuery = event.target.value;
+        renderCalculators();
+    });
+    $('calc-form').addEventListener('input', (event) => {
+        if (event.target.type !== 'checkbox' && event.target.tagName !== 'SELECT') updateCalculatorValue(event);
+    });
+    $('calc-form').addEventListener('change', (event) => {
+        if (event.target.type === 'checkbox' || event.target.tagName === 'SELECT') updateCalculatorValue(event);
+    });
+    $('calc-reset').addEventListener('click', () => {
+        calcValues = defaultValues(activeCalculator);
+        renderCalculator();
+    });
+}
+
 function wireTabs() {
     document.querySelectorAll('[data-tab]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -976,6 +1102,7 @@ function wireTabs() {
                 pane.classList.toggle('hidden', pane.dataset.pane !== activeTab);
             });
             if (activeTab === 'plan') window.requestAnimationFrame(draw);
+            if (activeTab === 'calculators') renderCalculators();
         });
     });
 }
@@ -1102,8 +1229,10 @@ function init() {
     wireSidebar();
     wireHeader();
     wirePlan();
+    wireCalculators();
     renderReference();
     refresh({ save: false });
+    renderCalculators();
     window.addEventListener('resize', () => { if (activeTab === 'plan') draw(); });
     window.framingSuite = {
         config: () => config,
@@ -1114,6 +1243,9 @@ function init() {
             return design;
         },
         addOpening,
+        calculators: () => CALCULATORS.map((entry) => ({ id: entry.id, label: entry.label, group: entry.group, blurb: entry.blurb })),
+        runCalculator: (id, values) => computeCalculator(id, values),
+        calculatorDefaults: (id) => defaultValues(id),
         selectWall: (index = 0) => {
             const wall = design.storeys[storeyIndex]?.walls?.[index];
             selectedWallId = wall?.id || null;

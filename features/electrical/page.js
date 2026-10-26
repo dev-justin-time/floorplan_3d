@@ -11,6 +11,7 @@ import {
     electricalTakeoffCsv,
     panelScheduleCsv
 } from './engine.js';
+import { applyPriceBookToDesign } from '../pricing/book.js';
 import { circuitAt, createElectricalPlan, drawElectricalPlan } from './plan.js';
 import {
     CODE_SCOPE,
@@ -75,7 +76,7 @@ function loadConfig() {
 }
 
 let config = loadConfig();
-let design = computeElectricalDesign(config);
+let design = applyPriceBookToDesign('electrical', computeElectricalDesign(config));
 let plan = createElectricalPlan(config);
 let activeTab = 'design';
 let showAllChecks = false;
@@ -177,7 +178,7 @@ function setAppliance(key, value) {
 }
 
 function refresh() {
-    design = computeElectricalDesign(config);
+    design = applyPriceBookToDesign('electrical', computeElectricalDesign(config));
     plan = createElectricalPlan(config);
     syncInputs();
     renderMetrics();

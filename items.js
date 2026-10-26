@@ -1,5 +1,5 @@
 import { ITEM_METADATA } from './metadata.js';
-import { WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
+import { PIXELS_PER_METER, WALL_HEIGHT, WALL_THICKNESS } from './world-space.js';
 
 /**
  * Effective size of an item in metres. A per-item `size` override wins over the
@@ -62,7 +62,53 @@ export class Item {
         this.y = y;
     }
 
-    isValidPosition(x, y) {
+    /**
+     * Is this item allowed at a plan point? Called before a new piece is added
+     * and before a drag commits. The item's rotated footprint is tested against
+     * every wall centreline, so a cabinet can sit flush against a wall but can
+     * no longer be dragged through one. In-wall pieces (doors, windows) belong
+     * on the wall and skip the clearance test.
+     */
+    isValidPosition(x, y, { walls = [], wallThickness = WALL_THICKNESS } = {}) {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+        const type = this.metadata?.type;
+        if (type === 'in_wall' || type === 'in_wall_floor') return true;
+        if (!Array.isArray(walls) || walls.length === 0) return true;
+
+        const halfWall = (Number(wallThickness) || WALL_THICKNESS) * PIXELS_PER_METER / 2;
+        const { width, depth } = itemDimensions(this);
+        const halfWidth = width * PIXELS_PER_METER / 2;
+        const halfDepth = depth * PIXELS_PER_METER / 2;
+        const rotation = this.rotation || 0;
+        const ux = Math.cos(rotation);
+        const uy = Math.sin(rotation);
+        const broad = Math.hypot(halfWidth, halfDepth) + halfWall;
+
+        for (const wall of walls) {
+            if (!wall?.start || !wall?.end) continue;
+            const dx = wall.end.x - wall.start.x;
+            const dy = wall.end.y - wall.start.y;
+            const length = Math.hypot(dx, dy);
+            if (length < 1e-6) continue;
+
+            const t = Math.max(0, Math.min(1, ((x - wall.start.x) * dx + (y - wall.start.y) * dy) / (length * length)));
+            const cx = wall.start.x + dx * t;
+            const cy = wall.start.y + dy * t;
+            const distance = Math.hypot(x - cx, y - cy);
+            if (distance > broad) continue;
+
+            // Half-extent of the rotated footprint along the wall normal
+            // (the support function used by wall-snap).
+            const nx = -dy / length;
+            const ny = dx / length;
+            const extent = Math.abs(ux * nx + uy * ny) * halfWidth
+                + Math.abs(-uy * nx + ux * ny) * halfDepth;
+
+            // Flush contact is the normal snapped position, so only a real
+            // overlap counts as invalid. 0.1 px absorbs canvas rounding.
+            if (distance + 0.1 < halfWall + extent) return false;
+        }
+
         return true;
     }
 

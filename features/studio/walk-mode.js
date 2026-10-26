@@ -247,7 +247,13 @@ export function createWalkMode({
 
     function update(delta) {
         if (!active) return null;
-        const step = Math.min(Math.max(delta || 0, 0), 0.1);
+        // The walker follows real elapsed time, not frame count. A slow or
+        // headless renderer that reports one frame a second must still cover
+        // the same distance as a 60 fps one. Delta is capped so a tab that was
+        // asleep cannot teleport through a wall.
+        const elapsed = Math.min(Math.max(delta || 0, 0), 0.5);
+        if (elapsed <= 0) return { x: camera.position.x, z: camera.position.z, moved: false };
+
         const running = keys.has('ShiftLeft') || keys.has('ShiftRight');
         const speed = running ? WALK.runSpeed : WALK.walkSpeed;
 
@@ -258,8 +264,8 @@ export function createWalkMode({
         if (keys.has('KeyD')) strafe += 1;
         if (keys.has('KeyA')) strafe -= 1;
         // Arrow left/right turn instead of strafing, like the legacy walker.
-        if (keys.has('ArrowLeft')) yaw += speed * 0.5 * step;
-        if (keys.has('ArrowRight')) yaw -= speed * 0.5 * step;
+        if (keys.has('ArrowLeft')) yaw += speed * 0.5 * elapsed;
+        if (keys.has('ArrowRight')) yaw -= speed * 0.5 * elapsed;
         if (!forward && !strafe) {
             if (keys.has('ArrowLeft') || keys.has('ArrowRight')) applyLook();
             return { x: camera.position.x, z: camera.position.z, moved: false };
@@ -267,30 +273,38 @@ export function createWalkMode({
 
         const sin = Math.sin(yaw);
         const cos = Math.cos(yaw);
-        const dx = (-sin * forward + cos * strafe) * speed * step;
-        const dz = (-cos * forward - sin * strafe) * speed * step;
         const fromX = last.x;
         const fromZ = last.z;
+        let remaining = elapsed;
 
-        let nextX = last.x + dx;
-        let nextZ = last.z + dz;
-        // Slide along whichever axis is still clear.
-        if (!standingAt(nextX, nextZ)) {
-            if (standingAt(nextX, fromZ)) {
-                nextZ = fromZ;
-            } else if (standingAt(fromX, nextZ)) {
-                nextX = fromX;
-            } else {
-                nextX = fromX;
-                nextZ = fromZ;
+        // Substep long frames so a low frame rate cannot tunnel through a
+        // wall; each 50 ms step uses the same clearance check as before.
+        while (remaining > 1e-6) {
+            const step = Math.min(remaining, 0.05);
+            remaining -= step;
+            const dx = (-sin * forward + cos * strafe) * speed * step;
+            const dz = (-cos * forward - sin * strafe) * speed * step;
+
+            let nextX = last.x + dx;
+            let nextZ = last.z + dz;
+            // Slide along whichever axis is still clear.
+            if (!standingAt(nextX, nextZ)) {
+                if (standingAt(nextX, last.z)) {
+                    nextZ = last.z;
+                } else if (standingAt(last.x, nextZ)) {
+                    nextX = last.x;
+                } else {
+                    nextX = last.x;
+                    nextZ = last.z;
+                }
             }
+            last = { x: nextX, z: nextZ };
         }
 
-        last = { x: nextX, z: nextZ };
-        camera.position.x = nextX;
-        camera.position.z = nextZ;
+        camera.position.x = last.x;
+        camera.position.z = last.z;
         applyLook();
-        return { x: nextX, z: nextZ, moved: Math.hypot(nextX - fromX, nextZ - fromZ) > 1e-6 };
+        return { x: last.x, z: last.z, moved: Math.hypot(last.x - fromX, last.z - fromZ) > 1e-6 };
     }
 
     function toggle() {

@@ -31,6 +31,7 @@ import {
     snapToWall
 } from './plan.js';
 import { designLighting, designCsv, glossaryByCategory } from './engine.js';
+import { applyPriceBookToDesign } from '../pricing/book.js';
 import {
     RULES,
     RULE_CATEGORIES,
@@ -1360,7 +1361,7 @@ function download(filename, text) {
 // --- Boot -----------------------------------------------------------------
 
 function refresh() {
-    design = designLighting(plan);
+    design = applyPriceBookToDesign('lighting', designLighting(plan));
     if (selectedId && !plan.devices.some((device) => device.id === selectedId)) selectedId = null;
     renderMetrics();
     renderChecks();

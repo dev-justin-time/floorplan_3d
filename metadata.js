@@ -19,7 +19,7 @@ export const TEXTURES = {
 
 export const ITEM_METADATA = {
     // Structural
-    door: { type: 'in_wall_floor', width: 1.0, depth: 0.15, height: 2.1, color: 0x8b4513 },
+    door: { type: 'in_wall_floor', width: 1.0, depth: 0.15, height: DOOR_HEIGHT, color: 0x8b4513 },
     // A stair cuts an opening in the floor of the storey above it (studio 41).
     // The `stair` block is the design config the stair suite reads: type, code,
     // available space, and for the outdoor presets the system key.
@@ -193,6 +193,7 @@ import {
     WALL_THICKNESS,
     ROOF_PITCH,
     ROOF_OVERHANG,
+    DOOR_HEIGHT,
     WINDOW_SILL_HEIGHT
 } from './world-space.js';
 

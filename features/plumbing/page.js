@@ -42,6 +42,7 @@ import {
     takeoffCsv,
     GLOSSARY
 } from './engine.js';
+import { applyPriceBookToDesign } from '../pricing/book.js';
 import {
     RULES,
     RULE_CATEGORIES,
@@ -82,7 +83,7 @@ const money2 = (value) => Number(value || 0).toLocaleString('en-US', { style: 'c
 const num = (value, digits = 2) => Number(value || 0).toFixed(digits);
 
 let plan = loadPlan();
-let design = designPlumbing(plan);
+let design = applyPriceBookToDesign('plumbing', designPlumbing(plan));
 let part = 'rough';
 let activeTab = 'rough';
 let tool = 'select';
@@ -1160,7 +1161,7 @@ function setTab(tab) {
 }
 
 function refresh() {
-    design = designPlumbing(plan);
+    design = applyPriceBookToDesign('plumbing', designPlumbing(plan));
     syncFields();
     renderMetrics();
     renderChecks();
@@ -1525,7 +1526,7 @@ function bindEvents() {
             } else if (drag.kind === 'fixture') {
                 moveFixture(plan, drag.id, point.x, point.y);
             }
-            design = designPlumbing(plan);
+            design = applyPriceBookToDesign('plumbing', designPlumbing(plan));
             drawAll();
         });
 

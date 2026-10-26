@@ -162,6 +162,86 @@ try {
     check('rule register renders', initial.rules === 30, `${initial.rules} rules`);
     check('glossary renders', initial.glossary > 25, `${initial.glossary} terms`);
 
+    console.log('Calculators');
+    const calcBoot = await cdp.evaluate(`(() => {
+        document.querySelector('[data-tab="calculators"]').click();
+        return {
+            buttons: document.querySelectorAll('#calc-list [data-calculator]').length,
+            ids: [...document.querySelectorAll('#calc-list [data-calculator]')].map((button) => button.dataset.calculator),
+            groups: document.querySelectorAll('#calc-list p').length,
+            title: document.getElementById('calc-title').textContent.trim(),
+            fields: document.querySelectorAll('#calc-form [data-calc-field]').length,
+            primary: (document.querySelector('#calc-result p.text-3xl')?.textContent || '').trim()
+        };
+    })()`);
+    const expectedCalculators = ['lumber-span', 'span-table', '2x4-span', '2x6', 'floor-joist-span', 'ceiling-joist-span', 'roof-span', 'rafter-span', 'beam-span', 'lvl-beam-span', 'lvl-beam-size', 'glulam-beam-size', '2x4-load', 'framing-lumber', 'ceiling-joist', 'floor-truss'];
+    const missingCalculators = expectedCalculators.filter((id) => !calcBoot.ids.includes(id));
+    check('calculator tab lists the full library', calcBoot.buttons === expectedCalculators.length && calcBoot.groups === 3 && missingCalculators.length === 0,
+        `${calcBoot.buttons} calculators in ${calcBoot.groups} groups${missingCalculators.length ? ` · missing ${missingCalculators.join(',')}` : ''}`);
+    check('the first calculator renders a form and a result', calcBoot.fields >= 4 && calcBoot.primary.length > 0, `${calcBoot.title}: ${calcBoot.primary}`);
+
+    const calcAll = await cdp.evaluate(`(() => {
+        const ids = [...document.querySelectorAll('#calc-list [data-calculator]')].map((button) => button.dataset.calculator);
+        const rows = [];
+        for (const id of ids) {
+            document.querySelector('[data-calculator="' + id + '"]')?.click();
+            rows.push({
+                id,
+                title: document.getElementById('calc-title').textContent.trim(),
+                primary: (document.querySelector('#calc-result p.text-3xl')?.textContent || '').trim(),
+                fields: document.querySelectorAll('#calc-form [data-calc-field]').length,
+                results: document.querySelectorAll('#calc-result div.flex.justify-between').length,
+                notes: document.querySelectorAll('#calc-result li').length
+            });
+        }
+        return { rows, broken: rows.filter((row) => !row.primary || !row.fields || !row.results || !row.notes) };
+    })()`);
+    check('every calculator renders a result without errors', calcAll.broken.length === 0, calcAll.broken.map((row) => row.id).join(','));
+
+    const calcSearch = await cdp.evaluate(`(() => {
+        const input = document.getElementById('calc-search');
+        const type = (value) => {
+            input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+        type('beam');
+        const beam = [...document.querySelectorAll('#calc-list [data-calculator]')].map((button) => button.dataset.calculator);
+        type('zzzz');
+        const none = document.getElementById('calc-list').textContent;
+        type('');
+        return { beam, none, restored: document.querySelectorAll('#calc-list [data-calculator]').length };
+    })()`);
+    check('calculator search narrows the list', calcSearch.beam.length >= 2 && calcSearch.beam.every((id) => id.includes('beam')), calcSearch.beam.join(','));
+    check('calculator search reports no match', calcSearch.none.includes('No calculator matches'), calcSearch.none.trim());
+    check('clearing the search restores the library', calcSearch.restored === 16, `${calcSearch.restored}`);
+
+    const spanFeet = (label) => {
+        const match = String(label).match(/^(\d+)'-(.+)"$/);
+        if (!match) return 0;
+        const [whole, fraction] = match[2].split(' ');
+        const parts = fraction ? fraction.split('/') : [];
+        return Number(match[1]) + (Number(whole) + (parts.length === 2 ? Number(parts[0]) / Number(parts[1]) : 0)) / 12;
+    };
+    const span = await cdp.evaluate(`(() => {
+        document.querySelector('[data-calculator="lumber-span"]').click();
+        const read = () => (document.querySelector('#calc-result p.text-3xl')?.textContent || '').trim();
+        const base = read();
+        const size = document.querySelector('[data-calc-field="size"]');
+        size.value = '2x4';
+        size.dispatchEvent(new Event('change', { bubbles: true }));
+        const small = read();
+        const spacing = document.querySelector('[data-calc-field="spacing"]');
+        spacing.value = '24';
+        spacing.dispatchEvent(new Event('change', { bubbles: true }));
+        const wider = read();
+        document.getElementById('calc-reset').click();
+        return { base, small, wider, reset: read() };
+    })()`);
+    check('lumber span matches a plausible 2x10 floor span', spanFeet(span.base) > 10 && spanFeet(span.base) < 25, span.base);
+    check('a 2x4 spans less than a 2x10', spanFeet(span.small) > 0 && spanFeet(span.small) < spanFeet(span.base), `${span.base} -> ${span.small}`);
+    check('wider spacing shortens the span', spanFeet(span.wider) < spanFeet(span.small), `${span.small} -> ${span.wider}`);
+    check('reset restores the defaults', span.reset === span.base, `${span.reset} vs ${span.base}`);
+
     const csv = await cdp.evaluate(`window.framingSuite.csv()`);
     check('schedule CSV has a header and walls', csv.schedule.startsWith('"storey"') && csv.schedule.split('\n').length === 11, `${csv.schedule.split('\n').length} lines`);
     check('cut list CSV has members', csv.cut.includes('"length_in"') && csv.cut.split('\n').length > 4, `${csv.cut.split('\n').length} lines`);

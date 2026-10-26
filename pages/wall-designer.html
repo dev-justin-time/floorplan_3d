@@ -331,6 +331,7 @@
         computeWallDesign,
         wallTakeoffCsv
     } from '../features/wall/design.js';
+    import { applyPriceBookToDesign } from '../features/pricing/book.js';
     import {
         WALL_COVERINGS,
         PAINT_COLOURS,
@@ -664,7 +665,7 @@
     }
 
     function render() {
-        design = computeWallDesign(state);
+        design = applyPriceBookToDesign('wall', computeWallDesign(state));
         state.covering = design.covering.id;
         state.colour = design.colour.id;
         state.substrate = design.substrate.id;

@@ -134,7 +134,29 @@ mid-span girder: joists span wall to girder at half the distance, and the girder
 is checked as a built-up beam carrying half the floor. Posts are counted, but
 their footings are outside the suite.
 
-## 4a. Roof framing (adjacent suite)
+## 4a. Framing calculators
+
+The **Calculators** tab is a span-table desk built on the same engine values as
+this suite. It covers the lumber-span calculators a framer reaches for on site:
+
+| Group | Calculators |
+|---|---|
+| Span tables | Lumber span, custom-load span, 2×4 span, 2×6 span & quantity, floor joist, ceiling joist, roof, rafter |
+| Beams | Wood beam, LVL span, LVL size, glulam size |
+| Loads & quantities | 2×4 load, framing lumber & cost, ceiling joist count, floor truss planning |
+
+Every calculator uses the same bending, shear and live-load deflection checks
+as the suite: `M = wL²/8`, `Δ = 5wL⁴/(384EI) ≤ L/limit`, and a shear check on
+`1.5V/A`. Inputs are size, species, grade, spacing and load case, so a result
+matches the wall, floor and header checks elsewhere in the page. The rafter
+calculator also reports the horizontal run and rise for the entered pitch. The
+quantity calculators add piece counts, board feet, waste and planning cost.
+
+Results are planning checks, not sealed designs. Engineered LVL and glulam use
+generic section values; the supplier’s span table, grade and connection details
+govern. Every result names its governing case and its code reference.
+
+## 4b. Roof framing (adjacent suite)
 
 This suite stops at the top plate. The **Roof suite** (`roof-designer.html`)
 frames and costs the roof; the components below are the review vocabulary.
@@ -321,6 +343,7 @@ the suite.
 | File | Purpose |
 |---|---|
 | `features/framing/catalog.js` | Lumber, sheathing, fasteners, connectors, defaults |
+| `features/framing/calculators.js` | 16 span, beam, load and quantity calculators |
 | `features/framing/rules.js` | 30-rule code register, formulas, glossary, build sequence |
 | `features/framing/engine.js` | Wall and floor framing, headers, takeoff, checks, CSVs |
 | `features/framing/plan.js` | Plan and wall-elevation drawings |

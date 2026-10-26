@@ -13,6 +13,7 @@ import {
     landscapeScheduleCsv,
     landscapeTakeoffCsv
 } from './engine.js';
+import { applyPriceBookToDesign } from '../pricing/book.js';
 import {
     normalizeLandscapePlan,
     clampFeatureToSite,
@@ -42,7 +43,7 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
 }[char]));
 
 let plan = loadPlan();
-let design = designLandscape(plan.feature, plan.site);
+let design = applyPriceBookToDesign('landscape', designLandscape(plan.feature, plan.site));
 let view = { zoom: 1, panX: 0, panY: 0 };
 let show = { dimensions: true, barrier: true, equipment: true, setback: true };
 let activeTab = 'design';
@@ -357,7 +358,7 @@ function syncInputs() {
 }
 
 function refresh() {
-    design = designLandscape(plan.feature, plan.site);
+    design = applyPriceBookToDesign('landscape', designLandscape(plan.feature, plan.site));
     syncInputs();
     renderMetrics();
     renderChecks();

@@ -7,7 +7,7 @@ import { StorageManager } from './storage.js';
 import { FloorPlanProcessor } from './floorPlanProcessor.js';
 import { graphFromWalls } from './floorplan-graph.js';
 import { measurePlan } from './measurements.js';
-import { PIXELS_PER_METER, WALL_HEIGHT, INCH, planToCanvas } from './world-space.js';
+import { PIXELS_PER_METER, WALL_HEIGHT, INCH, canvasToWorld, planToCanvas, wallLengthMetres, worldToCanvas } from './world-space.js';
 import { fitCameraToGraph } from './scene-camera.js';
 import { fixtureAt, beginDrag, dragTo } from './scene-drag.js';
 import { snapToWalls } from './wall-snap.js';
@@ -83,6 +83,7 @@ import {
     planTextSummary,
     ocrLineLabel
 } from './features/ocr.js';
+import { DEFAULT_TEXTURES, detectRoomType, getRecommendedTextures } from './metadata.js';
 import { ROOF_STYLES } from './features/roof/styles.js';
 import { COVERINGS, GUTTER_SYSTEMS } from './features/roof/materials.js';
 import { computeRoofDesign } from './features/roof/design.js';
@@ -176,8 +177,11 @@ import { WALL_COVERINGS, coveringById, finishPatchFor } from './features/wall/ma
 import { computeWallDesign, wallAreaFromPlan } from './features/wall/design.js';
 import { computeDeckDesign } from './features/deck/engine.js';
 import { deckEditorSummary, deckDraftLines } from './features/deck/panel.js';
+import { buildDeckSceneGroup } from './features/deck/scene.js';
+import { applyPriceBookToDesign } from './features/pricing/book.js';
 import { computeElectricalDesign } from './features/electrical/engine.js';
 import { electricalEditorSummary, electricalDraftLines } from './features/electrical/panel.js';
+import { buildElectricalPanelGroup } from './features/electrical/scene.js';
 import { computeEditorFraming, buildFramingGroup, disposeFramingGroup, framingSceneStats, readFramingDraft } from './features/framing/scene.js';
 import { framingEditorSummary, framingDraftLines } from './features/framing/panel.js';
 
@@ -201,6 +205,9 @@ const AppState = {
     // Mesh height and item lift captured when the 3D gizmo attaches, so a Y
     // drag can be expressed as a change in the item's elevation.
     gizmoBase: null,
+    // Plan pose captured at the same moment, so an invalid 3D drag can be
+    // returned to the last valid placement.
+    gizmoOrigin: null,
     
     // Deck draft sent from deck-designer.html (read by window.deckKit).
     deckDraft: null,
@@ -323,6 +330,9 @@ let conversionEngine;
 // 3D framing overlay (features/framing/scene.js) and its last computed design.
 let framingGroup = null;
 let framingResult = null;
+// Exterior suite geometry: the deck and the electrical service panel.
+let deckSceneGroup = null;
+let electricalSceneGroup = null;
 let itemGizmo;
 let gizmoMode = 'translate';
 let stateManager;
@@ -413,9 +423,7 @@ function init() {
     const electricalDraft = applyElectricalEditorDraft();
     const landscapeDraft = applyLandscapeEditorDraft();
     const framingDraft = applyFramingEditorDraft();
-    if (roofDraft || wallDraft || lightingDraft || landscapeDraft || framingDraft) update3D();
-    void deckDraft;
-    void electricalDraft;
+    if (roofDraft || wallDraft || lightingDraft || deckDraft || electricalDraft || landscapeDraft || framingDraft) update3D();
 
     // Initial Draw
     onResize();
@@ -551,6 +559,30 @@ function init() {
         abilities: () => abilitiesState(),
         annotations: () => elevationAnnotations
     };
+    // Selection handle: 3D wall picking and the 2D/3D highlight share one path.
+    window.selectWallById = (id) => selectWallById(id);
+    window.editorKit = {
+        selectedWall: () => AppState.selectedWallId,
+        selectWall: (id) => selectWallById(id),
+        selectAt: (event) => selectAtPointer(event || {}),
+        pickWall: (event) => pickWallIdAtPointer(event || {}),
+        // Screen position of a wall's midpoint, for anchoring UI and for the
+        // headless pick check; it uses the same camera as the 3D view.
+        wallScreenPoint: (id) => {
+            const wall = AppState.walls.find((entry) => entry.id === id);
+            if (!wall || !renderer3D) return null;
+            const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+            const mid = { x: (wall.start.x + wall.end.x) / 2, y: (wall.start.y + wall.end.y) / 2 };
+            const elevation = activeStoreyElevation() + wallHeightOf(wall) / 2;
+            const world = canvasToWorld(mid, view, elevation);
+            const screen = new THREE.Vector3(world.x, world.y, world.z).project(activeCamera());
+            const rect = renderer3D.domElement.getBoundingClientRect();
+            return {
+                clientX: rect.left + ((screen.x + 1) / 2) * rect.width,
+                clientY: rect.top + ((1 - screen.y) / 2) * rect.height
+            };
+        }
+    };
     window.setItemSize = (key, value) => {
         const fixture = AppState.selectedFixture;
         const metres = parseFloat(value) / 100;
@@ -678,18 +710,24 @@ function init() {
     // Deck suite handle: the framing config sent from deck-designer.html.
     window.deckKit = {
         draft: () => AppState.deckDraft || null,
-        design: () => (AppState.deckDraft?.config ? computeDeckDesign(AppState.deckDraft.config) : null),
+        design: () => (AppState.deckDraft?.config
+            ? applyPriceBookToDesign('deck', computeDeckDesign(AppState.deckDraft.config))
+            : null),
         summary: () => deckEditorSummary(window.deckKit.design()),
-        lines: () => deckDraftLines(window.deckKit.design())
+        lines: () => deckDraftLines(window.deckKit.design()),
+        scene: () => suiteSceneStats(deckSceneGroup)
     };
 
     // Electrical suite handle: the dwelling config sent from its designer.
     window.electricalKit = {
         draft: () => AppState.electricalDraft || null,
-        design: () => (AppState.electricalDraft?.config ? computeElectricalDesign(AppState.electricalDraft.config) : null),
+        design: () => (AppState.electricalDraft?.config
+            ? applyPriceBookToDesign('electrical', computeElectricalDesign(AppState.electricalDraft.config))
+            : null),
         summary: () => electricalEditorSummary(window.electricalKit.design()),
         circuits: () => window.electricalKit.design()?.circuits || [],
-        lines: () => electricalDraftLines(window.electricalKit.design())
+        lines: () => electricalDraftLines(window.electricalKit.design()),
+        scene: () => suiteSceneStats(electricalSceneGroup)
     };
 
     // Framing suite handle: the member choices from framing-designer.html and
@@ -963,6 +1001,15 @@ function onPointerDown(e) {
         // floor opening and every size-based read match the 3D build.
         if (isStairItem(item) && !item.size) sizeStairItem(item, activeStoreyHeight());
 
+        // Placement validity runs after wall/flush snapping and after the stair
+        // footprint has been sized: a piece that would pass through a wall is
+        // rejected instead of being added and immediately invalid.
+        if (!item.isValidPosition(item.x, item.y, { walls: AppState.walls })) {
+            setStatus('That position crosses a wall. Move it clear of the wall and try again.', true);
+            draw2D(pos);
+            return;
+        }
+
         AppState.fixtures.push(item);
         
         // Save & Update
@@ -1062,8 +1109,10 @@ function onPointerUp(e) {
     }
 
     if (AppState.drag) {
-        const dragged = AppState.drag.fixture;
-        const snappedWall = AppState.drag.snappedWall;
+        const activeDrag = AppState.drag;
+        const groupDrag = AppState.groupDrag || [];
+        const dragged = activeDrag.fixture;
+        const snappedWall = activeDrag.snappedWall;
         AppState.drag = null;
         AppState.groupDrag = null;
 
@@ -1071,6 +1120,16 @@ function onPointerUp(e) {
         if (dragged && abilitiesState().autoRotateToWall) {
             const wall = snappedWall || nearestWall(dragged);
             if (wall) dragged.rotation = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x);
+        }
+
+        // Commit only a placement that clears every wall. If the drag crossed
+        // one, put the piece (and its group) back where the gesture started.
+        if (dragged && !dragged.isValidPosition(dragged.x, dragged.y, { walls: AppState.walls })) {
+            dragged.x = activeDrag.origin.x;
+            dragged.y = activeDrag.origin.y;
+            dragged.rotation = activeDrag.origin.rotation;
+            applyGroupDelta(groupDrag, dragged);
+            setStatus('That position crosses a wall. The piece was returned to its starting point.', true);
         }
 
         saveAndSync();
@@ -1156,29 +1215,28 @@ function onDoubleClick(e) {
 }
 
 function deleteObjectAt(x, y) {
-    const threshold = 20 / AppState.scale;
-    
-    // Check fixtures (reverse order)
-    for (let i = AppState.fixtures.length - 1; i >= 0; i--) {
-        const f = AppState.fixtures[i];
-        // Simple radius check, could be bounding box
-        if (Math.hypot(f.x - x, f.y - y) < 20) {
-            AppState.fixtures.splice(i, 1);
-            saveAndSync();
-            return;
-        }
+    const point = { x, y };
+
+    // Items are hit-tested on their rotated footprint, so clicking any part of
+    // a long or resized piece removes that piece rather than a neighbour whose
+    // centre happens to be closer. The same helper the selector uses keeps the
+    // two interactions in agreement.
+    const fixture = fixtureAt(AppState.fixtures, point, {
+        slack: 10 / AppState.scale,
+        storeyHeight: activeStoreyHeight()
+    });
+    if (fixture) {
+        AppState.fixtures.splice(AppState.fixtures.indexOf(fixture), 1);
+        saveAndSync();
+        return;
     }
-    
-    // Check walls (center)
-    for (let i = AppState.walls.length - 1; i >= 0; i--) {
-        const w = AppState.walls[i];
-        const midX = (w.start.x + w.end.x) / 2;
-        const midY = (w.start.y + w.end.y) / 2;
-        if (Math.hypot(midX - x, midY - y) < 20) {
-            AppState.walls.splice(i, 1);
-            saveAndSync();
-            return;
-        }
+
+    // Walls are hit-tested on the whole centreline, not only its midpoint, so a
+    // click near either end deletes the wall it is visually over.
+    const wallId = wallAt(point);
+    if (wallId) {
+        AppState.walls.splice(AppState.walls.findIndex((wall) => wall.id === wallId), 1);
+        saveAndSync();
     }
 }
 
@@ -1367,7 +1425,8 @@ function syncSelectionPanels() {
     }
 
     if (wall) {
-        setPanelText('sel-wall-len', `${(wall.length / SCALE).toFixed(2)} m ${wallHeightOf(wall).toFixed(1)} m high`);
+        const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+        setPanelText('sel-wall-len', `${wallLengthMetres(wall, view).toFixed(2)} m ${wallHeightOf(wall).toFixed(1)} m high`);
         const heightInput = document.getElementById('sel-wall-height');
         if (heightInput && document.activeElement !== heightInput) {
             heightInput.value = wallHeightOf(wall).toFixed(1);
@@ -2232,7 +2291,13 @@ function refreshFinishPanel() {
         const subject = target === 'floor'
             ? 'Floors'
             : (selectedWall() ? 'Selected wall' : 'Walls');
-        status.textContent = `${subject} · ${finishLabel(active)}`;
+        // Recommend from the room the selected piece implies (a bathtub reads
+        // as a bathroom, a sofa as living space); otherwise the generic preset.
+        const roomType = detectRoomType(AppState.selectedFixture?.metadata?.label || '');
+        const suggestedId = getRecommendedTextures(roomType)[target];
+        const suggested = DEFAULT_TEXTURES[target === 'floor' ? 'floors' : 'walls']
+            .find((texture) => texture.id === suggestedId)?.name || suggestedId;
+        status.textContent = `${subject} · ${finishLabel(active)} · suggested ${suggested}`;
     }
 }
 
@@ -3855,7 +3920,7 @@ function init3D() {
             walkthrough.walkToEvent(e);
             return;
         }
-        selectItemAtPointer(e);
+        selectAtPointer(e);
     });
     
     // Ability helpers: the 3D grid and axes are ability toggles themselves.
@@ -3920,6 +3985,14 @@ function initGizmo() {
             const fixture = AppState.selectedFixture;
             if (!fixture) return;
             snapToWalls(fixture, AppState.walls, { threshold: 24 / AppState.scale });
+            if (!fixture.isValidPosition(fixture.x, fixture.y, { walls: AppState.walls })) {
+                if (AppState.gizmoOrigin) {
+                    fixture.x = AppState.gizmoOrigin.x;
+                    fixture.y = AppState.gizmoOrigin.y;
+                    fixture.rotation = AppState.gizmoOrigin.rotation;
+                }
+                setStatus('That position crosses a wall. The piece was returned to its starting point.', true);
+            }
             saveAndSync();
         }
     });
@@ -3941,6 +4014,7 @@ function refreshGizmo() {
     if (!fixture || fixture.locked || fixture.visible === false || AppState.viewMode !== '3d' || AppState.elevationSide) {
         itemGizmo.detach();
         AppState.gizmoBase = null;
+        AppState.gizmoOrigin = null;
         return;
     }
     const object = findItemObject(fixture.id);
@@ -3948,21 +4022,94 @@ function refreshGizmo() {
         itemGizmo.attach(object);
         // Remember the mesh's builder height so Y movement maps to elevation.
         AppState.gizmoBase = { y: object.position.y, elevation: fixture.elevation || 0 };
+        AppState.gizmoOrigin = { x: fixture.x, y: fixture.y, rotation: fixture.rotation };
     } else {
         itemGizmo.detach();
         AppState.gizmoBase = null;
+        AppState.gizmoOrigin = null;
     }
 }
 
-function selectItemAtPointer(event) {
-    if (!scene3D || !renderer3D) return;
-    const id = pickItemId(scene3D, activeCamera(), renderer3D.domElement, event);
-    AppState.selectedFixture = id ? AppState.fixtures.find((f) => f.id === id) || null : null;
-    if (AppState.selectedFixture) AppState.selectedWallId = null;
-    if (AppState.selectedFixture) AppState.currentTool = 'select';
+/** Wall id under a 3D pointer event, or null when the click misses a wall. */
+function pickWallIdAtPointer(event) {
+    if (!scene3D || !renderer3D || !conversionEngine?.wallRoot) return null;
+    if (conversionEngine.wallRoot.visible === false) return null;
+
+    const rect = renderer3D.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const pointer = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, activeCamera());
+
+    const visible = (object) => {
+        for (let node = object; node; node = node.parent) {
+            if (node.visible === false) return false;
+        }
+        return true;
+    };
+    const walls = [];
+    conversionEngine.wallRoot.traverse((child) => {
+        if (child.userData?.type === 'wall' && child.userData.id && visible(child)) walls.push(child);
+    });
+    if (walls.length === 0) return null;
+
+    conversionEngine.wallRoot.updateWorldMatrix(true, true);
+    const hit = raycaster.intersectObjects(walls, false)[0];
+    if (!hit?.object?.userData?.id) return null;
+
+    // Keep the plan cursor on the picked point: the next comment, paste or
+    // keyboard action then lands where the user just clicked in 3D.
+    if (hit.point && blueprintCanvas) {
+        AppState.cursor = worldToCanvas(hit.point, {
+            width: blueprintCanvas.width,
+            height: blueprintCanvas.height
+        });
+    }
+    return hit.object.userData.id;
+}
+
+/** Select a wall in both the plan and the 3D view, refreshing the inspector. */
+function selectWallById(id) {
+    AppState.selectedWallId = id || null;
+    if (id) {
+        AppState.selectedFixture = null;
+        AppState.currentTool = 'select';
+    }
     draw2D();
     refreshGizmo();
     syncSelectionPanels();
+    // The wall builder's highlight is part of its wall signature, so one
+    // rebuild swaps the selected material without touching anything else.
+    if (AppState.viewMode === '3d') update3D();
+    return AppState.selectedWallId;
+}
+
+/** One pick for the 3D view: an item first, then the wall behind it. */
+function selectAtPointer(event) {
+    if (!scene3D || !renderer3D) return null;
+    const id = pickItemId(scene3D, activeCamera(), renderer3D.domElement, event);
+    if (id) {
+        AppState.selectedFixture = AppState.fixtures.find((fixture) => fixture.id === id) || null;
+        if (AppState.selectedFixture) AppState.selectedWallId = null;
+        if (AppState.selectedFixture) AppState.currentTool = 'select';
+        draw2D();
+        refreshGizmo();
+        syncSelectionPanels();
+        return AppState.selectedFixture;
+    }
+
+    const wallId = pickWallIdAtPointer(event);
+    if (wallId) return selectWallById(wallId);
+
+    AppState.selectedFixture = null;
+    AppState.selectedWallId = null;
+    draw2D();
+    refreshGizmo();
+    syncSelectionPanels();
+    return null;
 }
 
 function setGizmoMode(mode) {
@@ -4055,6 +4202,11 @@ function setViewMode(mode) {
     v3d.style.opacity = show3d ? '1' : '0';
     v3d.style.pointerEvents = show3d ? 'auto' : 'none';
     if (r3d) r3d.style.display = show3d ? 'block' : 'none';
+    // The 3D renderer is created before the responsive layout settles, so a
+    // view switch has to re-measure its host; otherwise the canvas stays 0×0
+    // and the first 3D click has no camera. This is also what keeps the first
+    // 3D pick and the wall highlight aligned after a resize.
+    if (show3d) onResize();
 
     if (itemGizmo) itemGizmo.detach();
     if (!show3d && elevationDrag) elevationDrag.end();
@@ -4181,9 +4333,88 @@ function update3D() {
     // The rebuild replaced every mesh, so the height annotations anchored to
     // them are rebuilt too.
     refreshElevationAnnotations();
+    // The exterior suite geometry sits outside the walls, so it is rebuilt
+    // after the engine has rebuilt the house it attaches to.
+    refreshSuiteScene();
     // Framing is rebuilt from the same plan, after the walls it replaces.
     refreshFramingOverlay();
     renderLoop?.requestRender();
+}
+
+/** Mesh count and world bounds of one exterior suite group, for the kits. */
+function suiteSceneStats(group) {
+    if (!group) return null;
+    let meshes = 0;
+    group.traverse((object) => { if (object.isMesh) meshes += 1; });
+    const box = new THREE.Box3().setFromObject(group);
+    return {
+        name: group.name,
+        visible: group.visible,
+        meshes,
+        bounds: box.isEmpty() ? null : {
+            minX: Math.round(box.min.x * 1000) / 1000,
+            maxX: Math.round(box.max.x * 1000) / 1000,
+            minY: Math.round(box.min.y * 1000) / 1000,
+            maxY: Math.round(box.max.y * 1000) / 1000,
+            minZ: Math.round(box.min.z * 1000) / 1000,
+            maxZ: Math.round(box.max.z * 1000) / 1000
+        }
+    };
+}
+
+/**
+ * Place the deck and the service panel against the active storey's walls.
+ * Both are drafts from their designers; with no draft there is no group. The
+ * groups live under the scene root rather than the engine content, so they are
+ * disposed here before each rebuild.
+ */
+function refreshSuiteScene() {
+    const disposeGroup = (group) => {
+        if (!group) return;
+        group.traverse((object) => {
+            if (object.geometry) object.geometry.dispose();
+            if (object.material) {
+                if (Array.isArray(object.material)) object.material.forEach((entry) => entry.dispose());
+                else object.material.dispose();
+            }
+        });
+        group.parent?.remove(group);
+    };
+
+    disposeGroup(deckSceneGroup);
+    disposeGroup(electricalSceneGroup);
+    deckSceneGroup = null;
+    electricalSceneGroup = null;
+
+    if (!scene3D || !blueprintCanvas) return;
+    const stories = engineStories(AppState);
+    const activeIndex = Math.min(AppState.currentStoryIndex || 0, stories.length - 1);
+    const walls = stories[activeIndex]?.walls || AppState.walls || [];
+    const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+
+    try {
+        const deckDesign = AppState.deckDraft?.config ? computeDeckDesign(AppState.deckDraft.config) : null;
+        if (deckDesign) {
+            deckSceneGroup = buildDeckSceneGroup(deckDesign, { walls, view });
+            if (deckSceneGroup) scene3D.add(deckSceneGroup);
+        }
+    } catch (error) {
+        console.warn('Deck scene could not be built', error);
+        deckSceneGroup = null;
+    }
+
+    try {
+        const electricalDesign = AppState.electricalDraft?.config
+            ? computeElectricalDesign(AppState.electricalDraft.config)
+            : null;
+        if (electricalDesign) {
+            electricalSceneGroup = buildElectricalPanelGroup(electricalDesign, { walls, view });
+            if (electricalSceneGroup) scene3D.add(electricalSceneGroup);
+        }
+    } catch (error) {
+        console.warn('Electrical panel scene could not be built', error);
+        electricalSceneGroup = null;
+    }
 }
 
 /**
