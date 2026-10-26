@@ -75,6 +75,12 @@ import {
     exportScene,
     downloadExport
 } from './features/advanced/index.js';
+import {
+    recognizePlanText,
+    parsePlanText,
+    planTextSummary,
+    ocrLineLabel
+} from './features/ocr.js';
 import { ROOF_STYLES } from './features/roof/styles.js';
 import { COVERINGS, GUTTER_SYSTEMS } from './features/roof/materials.js';
 import { computeRoofDesign } from './features/roof/design.js';
@@ -210,6 +216,9 @@ const AppState = {
     // Background
     backgroundImage: null,
     backgroundScale: 1.0, // Added scale property
+    // OCR of the imported plan (features/ocr.js): recognized lines stay in the
+    // session so they can be drawn over the image and copied out.
+    planText: null,
     
     // Styles
     fixtureStyles: {},
@@ -346,6 +355,7 @@ function init() {
     refreshStoreyPanel();
     refreshRoomFloorPanel();
     initRoofPanel();
+    refreshPlanTextPanel();
     refreshFinishPanel();
     refreshProjectsPanel();
     refreshCommentsPanel();
@@ -450,6 +460,30 @@ function init() {
     window.repeatSelected = repeatSelection;
     window.toggleAxisLock = toggleAxisLock;
     window.exportCutList = exportCutList;
+    // OCR handle: run on the imported plan, read the result, or drive the panel.
+    window.planOcr = {
+        run: (source, options) => runPlanOcr(source, options),
+        runCurrent: () => runPlanOcrCurrent(),
+        parse: parsePlanText,
+        result: () => AppState.planText,
+        summary: () => planTextSummary(AppState.planText),
+        setResult: (result) => {
+            AppState.planText = result || null;
+            refreshPlanTextPanel();
+            draw2D();
+            return AppState.planText;
+        },
+        debug: () => ({
+            image: Boolean(AppState.backgroundImage),
+            imageSize: AppState.backgroundImage ? [AppState.backgroundImage.width, AppState.backgroundImage.height] : null,
+            scale: AppState.backgroundScale,
+            lines: AppState.planText?.lines?.length || 0,
+            boxes: AppState.planTextBoxCount || 0,
+            rects: AppState.planTextRects || []
+        }),
+        clear: () => clearPlanText(),
+        copy: () => copyPlanText()
+    };
     // Roof suite handle: the editor's roof options and the takeoff they compute.
     window.roofKit = {
         config: () => ({ ...AppState.roofConfig }),
@@ -2187,6 +2221,212 @@ function refreshRoofPanel() {
     summary.title = `${design.areas.roof} m² · ${design.trussCount} trusses · ${design.gutterPackage.gutterLf} m gutter`;
 }
 
+// --- Floorplan OCR (features/ocr.js) --------------------------------
+
+let planOcrRunning = false;
+
+const OCR_CATEGORY_LABEL = {
+    room: { label: 'Room', className: 'text-emerald-600 dark:text-emerald-400' },
+    dimension: { label: 'Dim', className: 'text-sky-600 dark:text-sky-400' },
+    area: { label: 'Area', className: 'text-amber-600 dark:text-amber-400' },
+    scale: { label: 'Scale', className: 'text-violet-600 dark:text-violet-400' },
+    label: { label: 'Text', className: 'text-gray-500 dark:text-gray-400' }
+};
+
+function ocrStatus(message) {
+    const status = document.getElementById('plan-text-status');
+    if (status) status.textContent = message;
+    const uploadStatus = document.getElementById('upload-ocr-status');
+    if (uploadStatus && document.getElementById('upload-modal') && !document.getElementById('upload-modal').classList.contains('hidden')) {
+        uploadStatus.textContent = message;
+    }
+}
+
+function refreshPlanTextPanel() {
+    const list = document.getElementById('plan-text-list');
+    if (!list) return;
+    const result = AppState.planText;
+    const runButton = document.getElementById('plan-text-run');
+    const copyButton = document.getElementById('plan-text-copy');
+    const clearButton = document.getElementById('plan-text-clear');
+    const count = document.getElementById('plan-text-count');
+
+    if (runButton) runButton.disabled = planOcrRunning || !AppState.backgroundImage;
+    if (copyButton) copyButton.disabled = !result?.text;
+    if (clearButton) clearButton.disabled = !result;
+    if (count) {
+        count.textContent = result
+            ? String((result.counts?.rooms || 0) + (result.counts?.dimensions || 0) + (result.counts?.labels || 0))
+            : '0';
+    }
+
+    if (!result) {
+        list.innerHTML = `<p class="text-xs text-gray-400">${AppState.backgroundImage ? 'Plan loaded. Read its text to find dimensions.' : 'No text read yet.'}</p>`;
+        if (!planOcrRunning) {
+            ocrStatus(AppState.backgroundImage ? 'Plan loaded. Read text when ready.' : 'Import a plan, then read its dimensions and labels.');
+        }
+        return;
+    }
+
+    const lines = result.lines
+        .filter((line) => OCR_CATEGORY_LABEL[line.category])
+        .slice(0, 80);
+    if (!lines.length) {
+        list.innerHTML = '<p class="text-xs text-gray-400">No labels or dimensions recognized.</p>';
+    } else {
+        list.innerHTML = lines.map((line) => {
+            const meta = OCR_CATEGORY_LABEL[line.category];
+            return `<div class="flex items-baseline gap-1.5 text-[11px] leading-snug">
+                <span class="text-[9px] font-bold uppercase tracking-wide ${meta.className} w-8 shrink-0">${meta.label}</span>
+                <span class="text-gray-700 dark:text-gray-200 truncate" title="${line.text.replace(/"/g, '&quot;')}">${ocrLineLabel(line)}</span>
+            </div>`;
+        }).join('');
+    }
+
+    const scale = result.scales?.[0]?.scale;
+    ocrStatus(`${planTextSummary(result)}${scale ? ` · ${scale.note}` : ''}`);
+}
+
+/** Box the high-signal OCR lines over the imported plan image. */
+/** Where the imported plan sits on the canvas, in plan coordinates. */
+function planBackgroundRect() {
+    const img = AppState.backgroundImage;
+    if (!img) return null;
+    const width = img.width * (AppState.backgroundScale || 1);
+    const height = img.height * (AppState.backgroundScale || 1);
+    return {
+        x: blueprintCanvas.width / 2 - width / 2,
+        y: blueprintCanvas.height / 2 - height / 2,
+        width,
+        height
+    };
+}
+
+function drawPlanTextOverlay(ctx) {
+    const result = AppState.planText;
+    AppState.planTextBoxCount = result ? result.lines.filter((line) => line.bbox).length : 0;
+    const background = planBackgroundRect();
+    if (!result || !background || !ctx) return;
+    const scale = AppState.backgroundScale || 1;
+    const originX = background.x;
+    const originY = background.y;
+    const colours = {
+        dimension: '#0284c7',
+        room: '#16a34a',
+        scale: '#7c3aed',
+        area: '#d97706'
+    };
+    ctx.save();
+    ctx.lineWidth = 1.5 / Math.max(AppState.scale || 1, 0.2);
+    ctx.globalAlpha = 0.85;
+    const drawn = [];
+    result.lines.forEach((line) => {
+        const colour = colours[line.category];
+        if (!colour || !line.bbox) return;
+        const x = originX + line.bbox.x0 * scale;
+        const y = originY + line.bbox.y0 * scale;
+        const width = Math.max((line.bbox.x1 - line.bbox.x0) * scale, 4);
+        const height = Math.max((line.bbox.y1 - line.bbox.y0) * scale, 4);
+        ctx.strokeStyle = colour;
+        ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+        drawn.push({
+            category: line.category,
+            x: x * AppState.scale + AppState.offset.x,
+            y: y * AppState.scale + AppState.offset.y,
+            width: width * AppState.scale,
+            height: height * AppState.scale
+        });
+    });
+    AppState.planTextRects = drawn;
+    ctx.restore();
+}
+
+function showOcrToast(message = 'Reading plan text…') {
+    const el = document.createElement('div');
+    el.className = 'fixed bottom-4 right-4 bg-amber-600 text-white px-5 py-3 rounded-lg shadow-xl z-50 flex items-center gap-3 max-w-xs';
+    el.innerHTML = `<span class="material-symbols-outlined text-base">document_scanner</span><span class="ocr-label text-xs font-semibold">${message}</span>`;
+    document.body.appendChild(el);
+    return { el, label: el.querySelector('.ocr-label') };
+}
+
+async function runPlanOcr(source, { quiet = false, recognize } = {}) {
+    if (planOcrRunning) return null;
+    const image = source || AppState.backgroundImage?.src || null;
+    if (!image) {
+        ocrStatus('Import a plan image first.');
+        return null;
+    }
+
+    planOcrRunning = true;
+    refreshPlanTextPanel();
+    const toast = showOcrToast();
+    const onProgress = (message) => {
+        const percent = Math.round((message?.progress || 0) * 100);
+        const text = `${message?.status || 'Reading plan text'} ${percent}%`;
+        toast.label.textContent = text;
+        ocrStatus(text);
+    };
+
+    try {
+        const result = await recognizePlanText(image, { onProgress, recognize });
+        AppState.planText = result;
+        refreshPlanTextPanel();
+        draw2D();
+        toast.label.textContent = planTextSummary(result);
+        setTimeout(() => toast.el.remove(), 2400);
+        return result;
+    } catch (error) {
+        console.error('Plan OCR failed', error);
+        toast.el.classList.remove('bg-amber-600');
+        toast.el.classList.add('bg-red-600');
+        toast.label.textContent = 'OCR failed — check the connection';
+        ocrStatus(`OCR failed: ${error?.message || error}`);
+        setTimeout(() => toast.el.remove(), 4200);
+        return null;
+    } finally {
+        planOcrRunning = false;
+        refreshPlanTextPanel();
+    }
+}
+
+async function runPlanOcrCurrent() {
+    if (!AppState.backgroundImage) {
+        ocrStatus('Import a plan image first.');
+        return null;
+    }
+    return runPlanOcr(AppState.backgroundImage.src || null);
+}
+
+async function copyPlanText() {
+    const text = AppState.planText?.text;
+    if (!text) {
+        ocrStatus('Nothing to copy yet.');
+        return false;
+    }
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch (error) {
+        // Clipboard permissions are not guaranteed; the textarea fallback works
+        // in the same click for older browsers.
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+    }
+    ocrStatus(`Copied ${text.length} characters of plan text.`);
+    return true;
+}
+
+function clearPlanText() {
+    AppState.planText = null;
+    refreshPlanTextPanel();
+    draw2D();
+}
+
 function updateCabinetConfig(key, value) {
     const fixture = AppState.selectedFixture;
     if (!fixture) return null;
@@ -2759,20 +2999,22 @@ function draw2D(cursorPos = null) {
     // Grid
     drawGrid(ctx, w, h, abilityState);
     
-    // Background Image
-    if (AppState.backgroundImage) {
-        const img = AppState.backgroundImage;
+    // Background Image, centred in the plan and panning with it.
+    const background = planBackgroundRect();
+    if (background && AppState.backgroundImage) {
         ctx.globalAlpha = 0.4;
-        
-        // Apply scale centered
-        const scaledW = img.width * AppState.backgroundScale;
-        const scaledH = img.height * AppState.backgroundScale;
-        const imgX = -scaledW / 2;
-        const imgY = -scaledH / 2;
-        
-        ctx.drawImage(img, imgX, imgY, scaledW, scaledH);
+        ctx.drawImage(
+            AppState.backgroundImage,
+            background.x,
+            background.y,
+            background.width,
+            background.height
+        );
         ctx.globalAlpha = 1.0;
     }
+
+    // OCR boxes over the imported plan, so recognized text is visible where it sits.
+    drawPlanTextOverlay(ctx);
     
     // Floor openings on this storey (the cutout tool's output). Drawn under the
     // walls so a hole reads as part of the slab, with handles when selected.
@@ -3570,10 +3812,11 @@ function wireUploadModal() {
     const btnImage = document.getElementById('upload-image-btn');
     const btnJson = document.getElementById('upload-json-btn');
     const btnAi = document.getElementById('upload-ai-btn');
+    const btnOcr = document.getElementById('upload-ocr-btn');
     
     if (!modal || !fileInput) return;
 
-    let uploadMode = 'image'; // image | json | ai
+    let uploadMode = 'image'; // image | json | ai | ocr
 
     const triggerUpload = (mode, accept) => {
         uploadMode = mode;
@@ -3584,6 +3827,7 @@ function wireUploadModal() {
     btnImage?.addEventListener('click', () => triggerUpload('image', 'image/*'));
     btnJson?.addEventListener('click', () => triggerUpload('json', '.json'));
     btnAi?.addEventListener('click', () => triggerUpload('ai', 'image/*'));
+    btnOcr?.addEventListener('click', () => triggerUpload('ocr', 'image/*'));
 
     fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
@@ -3605,9 +3849,28 @@ function wireUploadModal() {
             reader.onload = (evt) => {
                 const img = new Image();
                 img.onload = () => {
+                    // A new plan invalidates the previous plan's OCR boxes.
+                    AppState.planText = null;
+                    AppState.backgroundImage = img;
+                    AppState.backgroundScale = 1.0;
+                    refreshPlanTextPanel();
+                    draw2D();
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        } else if (uploadMode === 'ocr') {
+            // Load the plan for reference, then read its text with Tesseract.js.
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const img = new Image();
+                img.onload = () => {
+                    AppState.planText = null;
                     AppState.backgroundImage = img;
                     AppState.backgroundScale = 1.0;
                     draw2D();
+                    refreshPlanTextPanel();
+                    runPlanOcr(file);
                 };
                 img.src = evt.target.result;
             };
@@ -3627,6 +3890,7 @@ function wireUploadModal() {
                     // Set as background first for reference
                     const img = new Image();
                     img.onload = () => {
+                        AppState.planText = null;
                         AppState.backgroundImage = img;
                         
                         // Scale walls to fit canvas reasonable size (approx 20m width)
@@ -3635,9 +3899,12 @@ function wireUploadModal() {
                         const scanScale = targetWidth / result.width;
                         AppState.backgroundScale = scanScale;
 
-                        // Center offset
+                        // The background is centred in the plan, so the scanned
+                        // walls get the same frame (see planBackgroundRect()).
                         const offsetX = (result.width * scanScale) / 2;
                         const offsetY = (result.height * scanScale) / 2;
+                        const frameX = blueprintCanvas.width / 2;
+                        const frameY = blueprintCanvas.height / 2;
 
                         AppState.walls = [];
                         result.walls.forEach(contour => {
@@ -3645,10 +3912,10 @@ function wireUploadModal() {
                                 const p1 = contour[i-1];
                                 const p2 = contour[i];
                                 AppState.walls.push(new Wall(
-                                    p1[0] * scanScale - offsetX, 
-                                    p1[1] * scanScale - offsetY, 
-                                    p2[0] * scanScale - offsetX, 
-                                    p2[1] * scanScale - offsetY
+                                    p1[0] * scanScale - offsetX + frameX, 
+                                    p1[1] * scanScale - offsetY + frameY, 
+                                    p2[0] * scanScale - offsetX + frameX, 
+                                    p2[1] * scanScale - offsetY + frameY
                                 ));
                             }
                         });
@@ -3656,6 +3923,8 @@ function wireUploadModal() {
                         toast.remove();
                         saveAndSync();
                         alert(`AI Scan Complete: ${AppState.walls.length} walls detected.`);
+                        // Read the same image for room names and dimensions.
+                        runPlanOcr(file);
                     };
                     img.src = URL.createObjectURL(file);
                 }
@@ -3906,7 +4175,9 @@ function clearProject() {
     AppState.selectedFixture = null;
     AppState.selectedWallId = null;
     AppState.backgroundImage = null;
+    AppState.planText = null;
     AppState.fixtureStyles = {};
+    refreshPlanTextPanel();
     refreshStoreyPanel();
     saveAndSync();
 }

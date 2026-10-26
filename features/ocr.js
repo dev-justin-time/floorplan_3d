@@ -52,8 +52,6 @@ export function extractWords(data = {}) {
     const seen = new Set();
     const push = (word) => {
         if (!word) return;
-        if (seen.has(word)) return;
-        seen.add(word);
         const text = String(word.text ?? '').trim();
         if (!text) return;
         const raw = word.bbox || {};
@@ -63,6 +61,11 @@ export function extractWords(data = {}) {
             x1: Number(raw.x1 ?? word.x1 ?? 0),
             y1: Number(raw.y1 ?? word.y1 ?? 0)
         };
+        // Tesseract 5 exposes both a flat word list and the same words under
+        // blocks; key on the box and text so each word is counted once.
+        const key = `${text}|${bbox.x0}|${bbox.y0}|${bbox.x1}|${bbox.y1}`;
+        if (seen.has(key)) return;
+        seen.add(key);
         words.push({ text, confidence: Number(word.confidence ?? 0), bbox });
     };
     const visit = (node) => {

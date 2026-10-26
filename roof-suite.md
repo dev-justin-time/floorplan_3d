@@ -101,6 +101,14 @@ with the project (`roofConfig`) and restore with autosave.
 applies it after restoring the autosave, so the designed roof wins, switches the
 roof on and rebuilds the 3D scene.
 
+## Rules and regulations
+
+[`ROOF.MD`](ROOF.MD) collects the code and manufacturer rules behind every
+concern in the suite: structure, underlayment, ice barriers, flashing, covering
+slopes, fastening, ventilation, drainage, thermal performance, insurance,
+warranty and jobsite safety, plus the suite's check mapping and an inspection
+checklist. The roof designer links to it from the header and the footer note.
+
 ## Tests
 
 ```bash

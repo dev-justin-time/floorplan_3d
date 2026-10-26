@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import { Wall } from './items.js';
 import { PIXELS_PER_METER } from './world-space.js';
 import {
@@ -264,6 +265,20 @@ const autoRoof = buildTrussRoof(THREE, { walls, view });
 check('the default roof keeps two planes', countNamed(autoRoof, 'roof-plane') === 2);
 check('the default roof has king posts', countNamed(autoRoof, 'truss-king-post') === autoRoof.userData.trusses);
 check('the default roof has four webs per truss', countNamed(autoRoof, 'truss-web') === autoRoof.userData.trusses * 4);
+
+console.log('\nRules document');
+const rules = readFileSync(new URL('./ROOF.MD', import.meta.url), 'utf8').toLowerCase();
+const missingRules = ROOF_GLOSSARY
+    .filter((entry) => !rules.includes(entry.term.toLowerCase()))
+    .map((entry) => entry.term);
+check('ROOF.MD exists and is substantial', rules.length > 10000, `${rules.split(/\s+/).length} words`);
+check('ROOF.MD covers every glossary term', missingRules.length === 0, missingRules.join(', '));
+check('ROOF.MD cites the roof chapters', rules.includes('irc r905') && rules.includes('irc r806') && rules.includes('irc r903'));
+check('ROOF.MD covers the covering slope rules', rules.includes('r905.10.2') && rules.includes('r905.3.2'));
+check('ROOF.MD covers insurance and warranty', rules.includes('actual cash value') && rules.includes('replacement cost value') && rules.includes('assignment of benefits'));
+check('ROOF.MD covers safety', rules.includes('1926.501') && rules.includes('fall protection'));
+const unmappedChecks = design.checks.filter((entry) => !rules.includes(entry.id));
+check('ROOF.MD maps every suite check', unmappedChecks.length === 0, unmappedChecks.map((entry) => entry.id).join(', '));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exitCode = 1;

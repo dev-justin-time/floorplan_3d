@@ -250,6 +250,24 @@
                     </div>
                 </div>
 
+                <!-- OCR of the imported plan (features/ocr.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Plan text</h3>
+                        <span id="plan-text-count" class="text-[10px] font-mono text-gray-400">0</span>
+                    </div>
+                    <div class="mt-2 grid grid-cols-3 gap-1">
+                        <button id="plan-text-run" onclick="window.planOcr.runCurrent()" class="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold disabled:opacity-40" title="OCR the imported plan image">Read text</button>
+                        <button id="plan-text-copy" onclick="window.planOcr.copy()" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-bold disabled:opacity-40" title="Copy every recognized line">Copy</button>
+                        <button id="plan-text-clear" onclick="window.planOcr.clear()" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-bold disabled:opacity-40" title="Remove the OCR overlay and results">Clear</button>
+                    </div>
+                    <p id="plan-text-status" class="text-[10px] text-gray-400 mt-1">Import a plan, then read its dimensions and labels.</p>
+                    <div id="plan-text-list" class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
+                        <p class="text-xs text-gray-400">No text read yet.</p>
+                    </div>
+                    <p class="text-[10px] text-gray-400 leading-snug mt-1">Tesseract.js runs in the browser; boxes mark dimensions, rooms, scale notes and areas on the plan.</p>
+                </div>
+
                 <!-- Per-room floor materials (features/studio/room-surfaces.js) -->
                 <div class="item-category">
                     <div class="item-category-header py-2 border-b border-gray-100 dark:border-gray-700">
@@ -810,7 +828,7 @@
                 </button>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <!-- Image Upload -->
                 <div id="upload-image-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-primary dark:hover:border-primary rounded-xl p-6 text-center cursor-pointer transition-colors group">
                     <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-primary rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
@@ -828,7 +846,18 @@
                     <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Load Project</h4>
                     <p class="text-xs text-gray-500">Restore a previously saved .json file</p>
                 </div>
+
+                <!-- OCR Upload -->
+                <div id="upload-ocr-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-amber-500 dark:hover:border-amber-500 rounded-xl p-6 text-center cursor-pointer transition-colors group" title="Read dimensions, room names and scale notes from a plan image (Tesseract.js, in the browser)">
+                    <div class="w-12 h-12 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-2xl">document_scanner</span>
+                    </div>
+                    <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Read Text</h4>
+                    <p class="text-xs text-gray-500">OCR dimensions, room labels and scale notes</p>
+                </div>
             </div>
+
+            <p id="upload-ocr-status" class="text-[10px] text-gray-400 text-center -mt-2 mb-4">Read Text runs a local OCR pass; the image is not uploaded.</p>
 
             <div class="relative">
                 <div class="absolute inset-0 flex items-center">

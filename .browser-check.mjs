@@ -685,6 +685,94 @@ async function main() {
             colourFlow.finish.wall?.color === '#8b5a2b' && colourFlow.activeSwatches === 1,
             colourFlow.finish.wall?.color || 'none');
 
+        console.log('\nFloorplan OCR');
+        const ocrFlow = await cdp.evaluate(`(async () => {
+            const tile = Boolean(document.getElementById('upload-ocr-btn'));
+            const api = Boolean(window.planOcr) && typeof window.planOcr.run === 'function';
+
+            // Load a plan background through the ordinary Image tile.
+            document.getElementById('upload-image-btn').click();
+            const imageCanvas = document.createElement('canvas');
+            imageCanvas.width = 420;
+            imageCanvas.height = 300;
+            const imageCtx = imageCanvas.getContext('2d');
+            imageCtx.fillStyle = '#ffffff';
+            imageCtx.fillRect(0, 0, 420, 300);
+            imageCtx.strokeStyle = '#111827';
+            imageCtx.lineWidth = 2;
+            imageCtx.strokeRect(20, 90, 380, 180);
+            const blob = await new Promise((resolve) => imageCanvas.toBlob(resolve, 'image/png'));
+            const file = new File([blob], 'plan.png', { type: 'image/png' });
+            const transfer = new DataTransfer();
+            transfer.items.add(file);
+            const input = document.getElementById('hidden-file-input');
+            input.files = transfer.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            const planCanvas = document.getElementById('blueprint-canvas');
+            const emptyPlan = planCanvas.toDataURL();
+
+            const words = [
+                { text: 'KITCHEN', confidence: 92, bbox: { x0: 20, y0: 20, x1: 100, y1: 40 } },
+                { text: '12′-6″', confidence: 90, bbox: { x0: 20, y0: 60, x1: 80, y1: 78 } },
+                { text: 'MASTER', confidence: 94, bbox: { x0: 200, y0: 20, x1: 270, y1: 40 } },
+                { text: 'BEDROOM', confidence: 94, bbox: { x0: 275, y0: 20, x1: 360, y1: 40 } },
+                { text: 'SCALE', confidence: 88, bbox: { x0: 20, y0: 200, x1: 80, y1: 218 } },
+                { text: '1:100', confidence: 88, bbox: { x0: 85, y0: 200, x1: 140, y1: 218 } }
+            ];
+            const first = await window.planOcr.run('plan.png', {
+                recognize: async () => ({ width: 420, height: 300, text: 'KITCHEN', words })
+            });
+            await new Promise((resolve) => setTimeout(resolve, 400));
+
+            const debug = window.planOcr.debug();
+            const rect = (debug.rects || [])[0];
+            let pixel = null;
+            if (rect) {
+                const p = planCanvas.getContext('2d').getImageData(Math.round(rect.x), Math.round(rect.y), 1, 1).data;
+                pixel = [p[0], p[1], p[2], p[3]];
+            }
+
+            const afterRun = {
+                rooms: first?.counts?.rooms,
+                dimensions: first?.counts?.dimensions,
+                scales: first?.counts?.scales,
+                rows: document.querySelectorAll('#plan-text-list > div').length,
+                count: document.getElementById('plan-text-count').textContent,
+                status: document.getElementById('plan-text-status').textContent,
+                summary: window.planOcr.summary(),
+                withBoxes: planCanvas.toDataURL() !== emptyPlan,
+                pixel,
+                debug,
+                parsed: window.planOcr.parse({ words }).counts.rooms
+            };
+
+            window.planOcr.clear();
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            const afterClear = {
+                result: window.planOcr.result(),
+                count: document.getElementById('plan-text-count').textContent,
+                text: document.getElementById('plan-text-list').textContent,
+                restored: planCanvas.toDataURL() === emptyPlan,
+                debug: window.planOcr.debug()
+            };
+            return { tile, api, afterRun, afterClear };
+        })()`);
+        check('import modal offers OCR', ocrFlow.tile === true && ocrFlow.api === true);
+        check('OCR finds the rooms', ocrFlow.afterRun.rooms === 2, `${ocrFlow.afterRun.rooms} rooms`);
+        check('OCR finds the dimension', ocrFlow.afterRun.dimensions === 1);
+        check('OCR finds the scale note', ocrFlow.afterRun.scales === 1);
+        check('OCR panel lists every line', ocrFlow.afterRun.rows === 4, `${ocrFlow.afterRun.rows} rows`);
+        check('OCR badge counts rooms and dimensions', ocrFlow.afterRun.count === '3', ocrFlow.afterRun.count);
+        check('OCR status summarises the result', /Found 2 rooms/.test(ocrFlow.afterRun.status) && /1:100/.test(ocrFlow.afterRun.status), ocrFlow.afterRun.status);
+        check('OCR summary is readable', /2 rooms/.test(ocrFlow.afterRun.summary), ocrFlow.afterRun.summary);
+        check('OCR boxes are drawn on the plan', ocrFlow.afterRun.withBoxes === true,
+            JSON.stringify({ pixel: ocrFlow.afterRun.pixel, rects: ocrFlow.afterRun.debug.rects.slice(0, 2), image: ocrFlow.afterRun.debug.imageSize }));
+        check('parser is exposed for QA', ocrFlow.afterRun.parsed === 2);
+        check('clearing OCR empties the panel', ocrFlow.afterClear.result === null && ocrFlow.afterClear.count === '0', ocrFlow.afterClear.count);
+        check('clearing OCR removes the boxes', ocrFlow.afterClear.restored === true);
+
         console.log('\nStair gallery');
         await load(BASE + '/stair-gallery.html');
         check('gallery page boots', await waitFor('Boolean(window.stairGallery)'));
