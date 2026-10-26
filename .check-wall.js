@@ -234,8 +234,8 @@ check('empty search returns everything', searchWallGlossary('').length === WALL_
 check('formulas are listed', WALL_FORMULAS.length >= 10 && WALL_FORMULAS.every((entry) => entry.label && entry.formula && entry.note));
 
 console.log('\nPage wiring');
-const page = readFileSync(new URL('./wall-designer.html', import.meta.url), 'utf8');
-const editor = readFileSync(new URL('./Editor.html', import.meta.url), 'utf8');
+const page = readFileSync(new URL('./pages/wall-designer.html', import.meta.url), 'utf8');
+const editor = readFileSync(new URL('./pages/Editor.html', import.meta.url), 'utf8');
 const editorJs = readFileSync(new URL('./editor.js', import.meta.url), 'utf8');
 check('the designer page exists', page.length > 12000, `${page.length} bytes`);
 check('the page imports the wall kit', page.includes("from './features/wall/design.js'") && page.includes("from './features/wall/materials.js'"));

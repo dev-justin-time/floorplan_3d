@@ -306,8 +306,13 @@ export function autoSwitches(plan, { typeId, count = null, replace = true } = {}
         || (Number.isFinite(count) && count >= 2);
     const countWanted = Math.max(1, Number.isFinite(count) ? Math.round(count) : (twoWay ? 2 : 1));
     const preset = roomPresetById(plan.roomType);
-    const wantedType = !twoWay && preset.dimmer && (!typeId || typeId === preset.switchType)
-        ? 'dimmer-led'
+    // Title 24, Part 6: dimming is the default in habitable rooms, while
+    // bathrooms, garages, laundry rooms and walk-in closets need automatic-off.
+    const preferredType = preset.autoOff ? 'vacancy-sensor'
+        : preset.dimmer ? 'dimmer-led'
+            : preset.switchType;
+    const wantedType = !twoWay && (!typeId || typeId === preset.switchType)
+        ? preferredType
         : (typeId || preset.switchType);
     const type = switchById(twoWay ? 'three-way' : wantedType);
     const made = [];
@@ -324,6 +329,24 @@ export function autoSwitches(plan, { typeId, count = null, replace = true } = {}
     }
     const lights = devicesOf(plan, 'luminaire').map((device) => device.id);
     made.forEach((device) => { device.controls = [...lights]; });
+
+    // Title 24, Part 6 §150.0(k)2G: under-cabinet lighting must switch
+    // separately from the ceiling lighting, so split it onto its own control.
+    const taskLights = devicesOf(plan, 'luminaire')
+        .filter((device) => luminaireById(device.typeId).id === 'undercabinet-strip')
+        .map((device) => device.id);
+    if (plan.roomType === 'kitchen' && made.length === 1 && taskLights.length) {
+        const ceilingLights = lights.filter((id) => !taskLights.includes(id));
+        made[0].controls = ceilingLights;
+        const taskSwitch = addDevice(plan, {
+            kind: 'switch',
+            typeId: type.id,
+            x: plan.width * 0.72,
+            y: plan.depth
+        });
+        taskSwitch.controls = taskLights;
+        made.push(taskSwitch);
+    }
     return made;
 }
 
@@ -413,7 +436,10 @@ function makeCircuit(plan, typeId, label, breakerA, voltage, wire) {
         colour: type.colour,
         breakerA,
         voltage,
-        wire
+        wire,
+        // CEC 210.12(A): 120 V, 15/20 A dwelling-unit branch circuits need
+        // combination-type AFCI protection. The takeoff selects an AFCI breaker.
+        afci: voltage === 120 && breakerA <= 20
     };
     plan.circuits.push(circuit);
     return circuit;
@@ -508,7 +534,7 @@ export function validateLayout(plan) {
     const preset = roomPresetById(plan.roomType);
 
     if (!lights.length) {
-        push('error', 'lighting-outlet', 'No lighting outlet in the room.', 'IRC E3903.2 requires at least one switch-controlled lighting outlet in a habitable room.');
+        push('error', 'lighting-outlet', 'No lighting outlet in the room.', 'CEC 210.70(A)(1) requires at least one lighting outlet controlled by a listed wall-mounted control device in a habitable room, kitchen or bathroom.');
     } else {
         push('ok', 'lighting-outlet', `${lights.length} lighting outlet${lights.length === 1 ? '' : 's'} placed.`);
     }
@@ -516,13 +542,13 @@ export function validateLayout(plan) {
     const controlled = new Set(switches.flatMap((device) => device.controls || []));
     const uncontrolled = lights.filter((light) => !controlled.has(light.id));
     if (uncontrolled.length) {
-        push('error', 'switch-control', `${uncontrolled.length} light${uncontrolled.length === 1 ? '' : 's'} not controlled by a switch.`, 'Bind every luminaire to a wall switch, sensor or smart control (IRC E3903.2).');
+        push('error', 'switch-control', `${uncontrolled.length} light${uncontrolled.length === 1 ? '' : 's'} not controlled by a switch.`, 'Bind every luminaire to a listed wall-mounted control, sensor or smart control (CEC 210.70(A)(1)).');
     } else if (lights.length) {
         push('ok', 'switch-control', 'Every luminaire is controlled by a switch.');
     }
 
     if (!switches.length) {
-        push('error', 'switch-missing', 'No switch in the plan.', 'Every habitable room needs a wall-mounted control at the entry (IRC E3903.2).');
+        push('error', 'switch-missing', 'No switch in the plan.', 'Every habitable room needs a wall-mounted control near the entry (CEC 210.70(A)(1)).');
     } else {
         const nearest = switches.reduce((best, device) => {
             const distance = Math.hypot(device.x - plan.entry.x, device.y - plan.entry.y);
@@ -536,7 +562,7 @@ export function validateLayout(plan) {
     }
 
     if (plan.roomType === 'stairs' && switches.length < 2) {
-        push('error', 'stair-switch', 'A stairway needs a switch at each floor level.', 'IRC E3903.3.1: a stairway with six or more risers needs a wall switch at the top and bottom.');
+        push('error', 'stair-switch', 'A stairway needs a switch at each floor level.', 'CEC 210.70(A)(2)(3): a stairway with six or more risers needs a listed wall-mounted control at each floor level and landing level with an entryway.');
     } else if (plan.roomType === 'stairs') {
         push('ok', 'stair-switch', 'Switches at both ends of the stair.');
     }
@@ -546,7 +572,7 @@ export function validateLayout(plan) {
         const devices = wallDevices(plan, wall).slice().sort((a, b) => (a.along ?? 0) - (b.along ?? 0));
         if (!devices.length) {
             if (length >= 1.8 && preset.minSockets > 0) {
-                push('error', 'socket-spacing', `No socket on the ${wall} wall.`, `IRC E3901.2.2: any wall space 2 ft or wider needs a receptacle within 6 ft; this wall is ${length.toFixed(2)} m.`);
+                push('error', 'socket-spacing', `No socket on the ${wall} wall.`, `CEC 210.52(A)(1): any wall space 2 ft or wider needs a receptacle within 6 ft; this wall is ${length.toFixed(2)} m.`);
             }
             return;
         }

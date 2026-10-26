@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Roof suite · truss designer and takeoff</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<style>
+        html, body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #071326;
+            color: #dbeafe;
+            font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .font-mono-draft { font-family: 'Chivo+Mono', monospace; }
+        
+        /* Blueprint grid background texture */
+        .blueprint-grid-subtle {
+            background-color: #071326;
+            background-image: 
+                linear-gradient(rgba(30, 58, 99, 0.45) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 58, 99, 0.45) 1px, transparent 1px),
+                linear-gradient(rgba(35, 72, 124, 0.2) 0.5px, transparent 0.5px),
+                linear-gradient(90deg, rgba(35, 72, 124, 0.2) 0.5px, transparent 0.5px);
+            background-size: 40px 40px, 40px 40px, 8px 8px, 8px 8px;
+            background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+        }
+
+        input[type="range"] {
+            accent-color: #00f2fe;
+            background-color: #0e2444;
+            height: 6px;
+            border-radius: 3px;
+        }
+        
+        input[type="text"], input[type="number"], select {
+            background-color: #0a1b35 !important;
+            border-color: #1e3a63 !important;
+            color: #e0f2fe !important;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: #00f2fe !important;
+            box-shadow: 0 0 0 1px #00f2fe !important;
+            outline: none;
+        }
+
+        input[type="checkbox"] {
+            accent-color: #00f2fe;
+            background-color: #0a1b35;
+            border-color: #1e3a63;
+        }
+
+        .style-card {
+            background: rgba(14, 36, 68, 0.6);
+            border-color: #1e3a63;
+        }
+        .style-card:hover {
+            border-color: #38bdf8;
+            background: rgba(14, 36, 68, 0.95);
+        }
+        .style-card.active {
+            border-color: #00f2fe !important;
+            background: rgba(0, 242, 254, 0.12) !important;
+            box-shadow: 0 0 0 1px #00f2fe, 0 0 12px rgba(0, 242, 254, 0.25) inset;
+        }
+
+        /* Technical Blueprint Tabs */
+        .tab {
+            background: #0a1b35;
+            color: #7dd3fc;
+            border-color: #1e3a63;
+            transition: all 0.15s ease;
+        }
+        .tab:hover {
+            border-color: #38bdf8;
+            color: #ffffff;
+        }
+        .tab.active {
+            background: #0284c7;
+            color: #ffffff;
+            border-color: #00f2fe;
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.35);
+        }
+
+        /* Custom scrollbar for blueprint look */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #071326;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e3a63;
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #38bdf8;
+        }
+    </style>
+</head>
+<body class="h-full text-sky-100 blueprint-grid-subtle">
+<div class="h-full flex flex-col">
+<!-- Blueprint Header -->
+<header class="flex items-center justify-between gap-3 px-4 py-2 bg-[#0a192f]/95 backdrop-blur border-b border-[#1e3a63] text-xs">
+<div class="flex items-baseline gap-3 min-w-0">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-sm bg-[#00f2fe] shadow-[0_0_8px_#00f2fe]"></span>
+<h1 class="text-sm font-bold tracking-wider uppercase text-white font-mono-draft">ROOF SUITE // ARCH-SPEC v4.2</h1>
+</div>
+<span class="text-[10px] text-cyan-400/80 font-mono-draft truncate border-l border-[#1e3a63] pl-3">10 TRUSS CONFIGS · SHEATHING · UNDERLAYMENT · GUTTER TAKEOFF MATRIX</span>
+</div>
+<div class="flex items-center gap-2 text-[10px] font-mono-draft shrink-0">
+<a class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-200 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" href="Editor.html">Editor</a>
+<a class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-200 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" href="stair-designer.html">Stairs</a>
+<a class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-200 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" href="ROOF.MD" title="Roof rules and regulations">Rules</a>
+<button class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-300 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" id="reset">Reset</button>
+<button class="px-2.5 py-1 rounded border border-amber-500/40 bg-amber-950/30 text-amber-300 hover:border-amber-400 hover:text-amber-200 transition-colors uppercase tracking-wider" id="download-csv">Takeoff CSV</button>
+<button class="px-3 py-1 rounded bg-[#0284c7] hover:bg-[#00f2fe] text-white hover:text-slate-950 font-bold border border-cyan-400 shadow-[0_0_12px_rgba(0,242,254,0.3)] transition-all uppercase tracking-wider" id="send-editor">Send to Editor</button>
+</div>
+</header>
+<main class="flex-1 min-h-0 flex">
+<!-- Blueprint Control Sidebar -->
+<aside class="w-[382px] shrink-0 overflow-y-auto bg-[#0a192f]/90 border-r border-[#1e3a63] p-4 space-y-4">
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<div class="flex items-baseline justify-between mb-1.5">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Truss Profile Style
+                    </h2>
+<span class="text-[9px] font-mono-draft px-1.5 py-0.5 rounded bg-[#0e2444] border border-[#1e3a63] text-cyan-300" id="style-count">10 TYPES</span>
+</div>
+<div class="grid grid-cols-2 gap-1.5 mt-2" id="roof-style-grid">
+<button class="style-card active text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-white font-mono-draft">Fink (W-truss)</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Pitched truss</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Howe</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Pitched truss</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">King Post</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Small span</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Queen Post</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Medium span</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Attic / Room</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Habitable roof</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Scissor</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Vaulted ceiling</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Mono-pitch</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Shed / modern</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Gambrel</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Barn / dual slope</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Mansard</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">French curb roof</span>
+</button>
+<button class="style-card text-left rounded border p-2 transition-all" type="button">
+<span class="block text-[11px] font-bold leading-tight text-sky-200 font-mono-draft">Parallel Chord</span>
+<span class="block text-[9px] text-cyan-300/70 mt-0.5 leading-snug">Flat / commercial</span>
+</button>
+</div>
+<p class="text-[9.5px] text-sky-300/70 leading-snug mt-2 font-mono-draft border-l border-cyan-500/50 pl-2" id="style-note">
+                    Standard residential truss with W web bracing. Economical for spans from 6 m to 16 m.
+                </p>
+</section>
+<!-- Geometry Section -->
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft mb-2 flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Geometry &amp; Dimensions
+                </h2>
+<div class="space-y-2.5">
+<label class="block text-[10.5px] text-sky-300 font-mono-draft">
+<span class="flex justify-between items-center mb-0.5"><span>SPAN (CLEAR)</span><b class="text-white text-xs font-mono-draft bg-[#0e2444] px-1.5 py-0.5 rounded border border-[#1e3a63]" id="span-label">10.00 m</b></span>
+<div class="flex items-center gap-2 mt-1">
+<input class="flex-1 cursor-pointer" id="span" max="20" min="4" step="0.1" type="range" value="10"/>
+<input class="w-20 rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono-draft text-[11px] text-right" id="span-number" max="20" min="4" step="0.1" type="number" value="10"/>
+</div>
+</label>
+<label class="block text-[10.5px] text-sky-300 font-mono-draft">
+<span class="flex justify-between items-center mb-0.5"><span>RIDGE LENGTH</span><b class="text-white text-xs font-mono-draft bg-[#0e2444] px-1.5 py-0.5 rounded border border-[#1e3a63]" id="length-label">14.00 m</b></span>
+<div class="flex items-center gap-2 mt-1">
+<input class="flex-1 cursor-pointer" id="length" max="30" min="4" step="0.1" type="range" value="14"/>
+<input class="w-20 rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono-draft text-[11px] text-right" id="length-number" max="30" min="4" step="0.1" type="number" value="14"/>
+</div>
+</label>
+<label class="block text-[10.5px] text-sky-300 font-mono-draft">
+<span class="flex justify-between items-center mb-0.5"><span>ROOF PITCH</span><b class="text-amber-300 text-xs font-mono-draft bg-[#0e2444] px-1.5 py-0.5 rounded border border-[#1e3a63]" id="pitch-label">6.00:12</b></span>
+<div class="flex items-center gap-2 mt-1">
+<input class="flex-1 cursor-pointer" id="pitch" max="16" min="0.5" step="0.25" type="range" value="6"/>
+<input class="w-20 rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono-draft text-[11px] text-right" id="pitch-number" max="16" min="0.5" step="0.25" type="number" value="6"/>
+</div>
+<span class="text-[9.5px] text-cyan-400/80 block mt-1 font-mono-draft" id="pitch-angle">SLOPE: 26.6° · FACTOR: 1.118</span>
+</label>
+<div class="grid grid-cols-2 gap-2 pt-1">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Overhang (m)
+                            <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="overhang" max="1.5" min="0" step="0.05" type="number" value="0.5"/>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Truss spacing
+                            <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[11px] font-mono-draft" id="spacing">
+<option value="0.4">16 in · 406 mm</option>
+<option selected="" value="0.61">24 in · 610 mm</option>
+</select>
+</label>
+</div>
+</div>
+</section>
+<!-- Roof Layers -->
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft mb-2 flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Layer Assemblies
+                </h2>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Covering Spec
+                    <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[11px] font-mono-draft" id="covering">
+<option selected="" value="shingles-arch">Architectural asphalt shingles (30 yr)</option>
+<option value="standing-seam">Standing seam metal 24-ga</option>
+<option value="concrete-tile">Concrete interlocking roof tile</option>
+<option value="slate-natural">Natural quarried slate</option>
+</select>
+</label>
+<p class="text-[9.5px] text-sky-400/70 leading-snug mt-1 font-mono-draft" id="covering-note">Laminated fibreglass · Rating 2.5–12:12 · 14.2 kg/m²</p>
+<div class="grid grid-cols-2 gap-2 mt-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Sheathing
+                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[10px] font-mono-draft" id="sheathing">
+<option selected="" value="osb-12">7/16 in · OSB APA</option>
+<option value="ply-15">5/8 in · CDX Ply</option>
+</select>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Underlayment
+                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[10px] font-mono-draft" id="underlayment">
+<option selected="" value="synth">Synthetic 40 mil</option>
+<option value="felt-30">#30 Felt paper</option>
+</select>
+</label>
+</div>
+<label class="mt-2.5 flex items-center gap-2 text-[10.5px] text-sky-200 font-mono-draft cursor-pointer">
+<input checked="" class="rounded border-[#1e3a63] text-cyan-500" id="ice-shield" type="checkbox"/> Ice &amp; water shield at eaves
+                </label>
+</section>
+<!-- Rain Gutters -->
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Drainage &amp; Gutters
+                    </h2>
+<label class="flex items-center gap-1.5 text-[10px] text-sky-300 font-mono-draft cursor-pointer">
+<input checked="" class="rounded border-[#1e3a63]" id="gutters" type="checkbox"/> Package active
+                    </label>
+</div>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Profile
+                    <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[11px] font-mono-draft" id="gutter">
+<option selected="" value="k-style-5">5 in · 127mm Seamless K-Style Aluminium</option>
+<option value="half-round-6">6 in · 152mm Half Round Copper</option>
+</select>
+</label>
+<div class="grid grid-cols-2 gap-2 mt-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Downspouts
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="downspouts" max="12" min="0" placeholder="auto" step="1" type="number"/>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Waste allowance
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="waste" max="40" min="0" step="1" type="number" value="10"/>
+</label>
+</div>
+</section>
+<!-- Site & Climate -->
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft mb-2 flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Site Parameters
+                </h2>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Climate Load Zone
+                    <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[11px] font-mono-draft" id="climate">
+<option selected="" value="moderate">Zone 3: Moderate (Standard)</option>
+<option value="cold">Zone 5-7: Cold · High Snow (40+ PSF)</option>
+<option value="hail">Zone 4: Hail Belt Impact (Class 4)</option>
+<option value="warm">Zone 1: Warm · High Velocity Hurricane</option>
+</select>
+</label>
+<div class="grid grid-cols-2 gap-x-2 gap-y-1 mt-2 text-[10.5px] text-sky-200 font-mono-draft">
+<label class="flex items-center gap-1.5 cursor-pointer"><input checked="" id="ridge-vent" type="checkbox"/> Ridge vent</label>
+<label class="flex items-center gap-1.5 cursor-pointer"><input checked="" id="soffit-vent" type="checkbox"/> Soffit vent</label>
+<label class="flex items-center gap-1.5 cursor-pointer"><input id="chimney" type="checkbox"/> Chimney</label>
+<label class="flex items-center gap-1.5 cursor-pointer"><input id="tear-off" type="checkbox"/> Tear-off</label>
+</div>
+</section>
+<!-- Blueprint Takeoff Matrix Card -->
+<section class="rounded-lg border border-[#00f2fe]/40 bg-[#0e2444]/90 p-3 shadow-[0_0_15px_rgba(0,242,254,0.1)] relative overflow-hidden">
+<div class="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-cyan-500/20 to-transparent pointer-events-none"></div>
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-[10.5px] uppercase tracking-wider font-bold text-white font-mono-draft flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span> QUANTITY TAKEOFF
+                    </h2>
+<span class="text-[9px] font-mono-draft text-amber-300">EST. BILL OF MTLS</span>
+</div>
+<div class="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] font-mono-draft">
+<span class="text-sky-300/80">Roof area</span><b class="text-right text-cyan-300 font-bold" id="roof-area">156.52 m²</b>
+<span class="text-sky-300/80">Squares (100ft²)</span><b class="text-right text-white" id="roof-squares">16.85</b>
+<span class="text-sky-300/80">Deck sheets (4×8)</span><b class="text-right text-white" id="roof-sheets">54 pcs</b>
+<span class="text-sky-300/80">Underlayment</span><b class="text-right text-white" id="roof-rolls">2 rolls</b>
+<span class="text-sky-300/80">Covering units</span><b class="text-right text-cyan-300 font-bold" id="roof-covering-qty">51 bundles</b>
+<span class="text-sky-300/80">Ridge / hip cap</span><b class="text-right text-white" id="roof-cap">15.00 m</b>
+<span class="text-sky-300/80">Trusses required</span><b class="text-right text-amber-300 font-bold" id="roof-trusses">24</b>
+<span class="text-sky-300/80">Gutter profile</span><b class="text-right text-white" id="roof-gutter">30.00 m</b>
+<span class="text-sky-300/80">Downspouts</span><b class="text-right text-white" id="roof-downspouts">4</b>
+<span class="text-sky-300/80">Net vent area</span><b class="text-right text-emerald-400" id="roof-vent">0.52 m²</b>
+</div>
+<div class="mt-3 pt-2.5 border-t border-[#1e3a63] flex items-baseline justify-between">
+<div>
+<span class="text-[9px] uppercase tracking-wider text-sky-400 font-mono-draft block">TOTAL ESTIMATE</span>
+<p class="text-[9px] font-mono-draft text-emerald-400 font-semibold mt-0.5" id="check-summary">✓ 0 ERRORS · 0 WARNINGS</p>
+</div>
+<div class="text-right">
+<b class="text-lg font-mono-draft text-[#00f2fe] font-bold drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]" id="roof-cost">$14,820</b>
+<p class="text-[9.5px] font-mono-draft text-sky-400/80" id="roof-cost-note">$879/sq · $94.68/m²</p>
+</div>
+</div>
+</section>
+<p class="text-[9.5px] text-sky-400/60 leading-snug font-mono-draft">
+                ENGINEERING AID: Truss pitch, span and load checked against IRC R802 / IBC 2308 standards.
+                <a class="underline text-cyan-400 hover:text-cyan-200" href="#reference">Formulas</a> ·
+                <a class="underline text-cyan-400 hover:text-cyan-200" href="ROOF.MD">Structural Specs</a>.
+            </p>
+</aside>
+<!-- Right Blueprint Canvas Area -->
+<div class="flex-1 min-w-0 flex flex-col bg-[#071326]">
+<!-- Blueprint View Tabs -->
+<nav class="flex items-center gap-2 px-4 pt-2 pb-1 bg-[#0a192f] border-b border-[#1e3a63]">
+<button class="tab active px-3.5 py-1.5 rounded text-[11px] font-mono-draft font-bold border tracking-wider flex items-center gap-1.5" data-tab="design">
+<span class="w-2 h-2 rounded-full bg-cyan-400"></span> 01 // DRAFTING &amp; 3D
+                </button>
+<button class="tab px-3.5 py-1.5 rounded text-[11px] font-mono-draft font-bold border tracking-wider" data-tab="takeoff">
+                    02 // SCHEDULE TAKEOFF
+                </button>
+<button class="tab px-3.5 py-1.5 rounded text-[11px] font-mono-draft font-bold border tracking-wider" data-tab="reference">
+                    03 // CODE &amp; CALC SPECS
+                </button>
+<div class="ml-auto flex items-center gap-3 pr-2 text-[10px] font-mono-draft text-cyan-400/80">
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-amber-400 rounded-full"></span> SCALE 1:50</span>
+<span class="border-l border-[#1e3a63] pl-2">GRID: 0.25M UNIT</span>
+</div>
+</nav>
+<div class="flex-1 min-h-0 flex flex-col p-3 gap-3 overflow-hidden" id="panel-design">
+<!-- 2D Technical Elevation Section Blueprint -->
+<section class="flex-1 min-h-0 bg-[#0a192f] rounded-lg border border-[#1e3a63] flex flex-col shadow-lg relative overflow-hidden">
+<!-- Title Bar -->
+<div class="flex items-center justify-between px-3 py-1.5 bg-[#0e2444] border-b border-[#1e3a63]">
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-mono-draft text-[9px] border border-cyan-800">DWG-ELV-01</span>
+<h2 class="text-[11px] uppercase tracking-wider font-bold text-white font-mono-draft">ELEVATION SECTION // TRUSS PROFILE</h2>
+</div>
+<span class="text-[10px] font-mono-draft text-cyan-400/80">CHORD CALLOUTS · PITCH TRIANGLE · CLEAR SPAN</span>
+</div>
+<!-- Blueprint Technical Drawing -->
+<div class="flex-1 min-h-0 relative p-2 flex items-center justify-center bg-[#071326] overflow-hidden">
+<svg class="w-full h-full max-h-[220px]" preserveaspectratio="xMidYMid meet" viewbox="0 0 740 230">
+<defs>
+<!-- Fine Blueprint Grid -->
+<pattern height="10" id="bp-small-grid" patternunits="userSpaceOnUse" width="10">
+<path d="M 10 0 L 0 0 0 10" fill="none" stroke="#162e52" stroke-width="0.5"></path>
+</pattern>
+<!-- Major Blueprint Grid -->
+<pattern height="50" id="bp-major-grid" patternunits="userSpaceOnUse" width="50">
+<rect fill="url(#bp-small-grid)" height="50" width="50"></rect>
+<path d="M 50 0 L 0 0 0 50" fill="none" stroke="#1e3e6e" stroke-width="1.25"></path>
+</pattern>
+<!-- Arrowheads -->
+<marker id="arrow" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="5" refy="5" viewbox="0 0 10 10">
+<path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#00f2fe"></path>
+</marker>
+<marker id="arrow-amber" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="5" refy="5" viewbox="0 0 10 10">
+<path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#fbbf24"></path>
+</marker>
+</defs>
+<!-- Blueprint Drawing Canvas Background -->
+<rect fill="url(#bp-major-grid)" height="100%" width="100%"></rect>
+<!-- Blueprint Border Framing & Coordinate Marks -->
+<rect fill="none" height="214" stroke="#1e3a63" stroke-width="1.5" width="724" x="8" y="8"></rect>
+<circle cx="8" cy="8" fill="#00f2fe" r="3"></circle>
+<circle cx="732" cy="8" fill="#00f2fe" r="3"></circle>
+<circle cx="8" cy="222" fill="#00f2fe" r="3"></circle>
+<circle cx="732" cy="222" fill="#00f2fe" r="3"></circle>
+<!-- Technical Drawing Title Block in SVG -->
+<g transform="translate(560, 168)">
+<rect fill="#0a192f" height="46" stroke="#1e3a63" stroke-width="1" width="160"></rect>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="8" font-weight="bold" x="8" y="14">SCALE: 1:50 METRIC</text>
+<text fill="#ffffff" font-family="'Chivo Mono', monospace" font-size="8.5" x="8" y="27">TRUSS: FINK W-STYLE</text>
+<text fill="#7dd3fc" font-family="'Chivo Mono', monospace" font-size="7.5" x="8" y="39">STATION: 0+00 RIDGE</text>
+</g>
+<!-- Bearing Wall Plates (Timber 2x6 Double Top Plate) -->
+<rect fill="#0e2444" height="14" stroke="#00f2fe" stroke-width="1.5" width="30" x="130" y="178"></rect>
+<line stroke="#00f2fe" stroke-width="0.75" x1="130" x2="160" y1="178" y2="192"></line>
+<line stroke="#00f2fe" stroke-width="0.75" x1="130" x2="160" y1="192" y2="178"></line>
+<text fill="#67e8f9" font-family="'Chivo Mono', monospace" font-size="8" text-anchor="middle" x="145" y="204">BEARING A</text>
+<rect fill="#0e2444" height="14" stroke="#00f2fe" stroke-width="1.5" width="30" x="580" y="178"></rect>
+<line stroke="#00f2fe" stroke-width="0.75" x1="580" x2="610" y1="178" y2="192"></line>
+<line stroke="#00f2fe" stroke-width="0.75" x1="580" x2="610" y1="192" y2="178"></line>
+<text fill="#67e8f9" font-family="'Chivo Mono', monospace" font-size="8" text-anchor="middle" x="595" y="204">BEARING B</text>
+<!-- Centerline Datum -->
+<line stroke="#0284c7" stroke-dasharray="8 3 2 3" stroke-width="1" x1="370" x2="370" y1="20" y2="200"></line>
+<text fill="#38bdf8" font-family="'Chivo Mono', monospace" font-size="7.5" x="374" y="32">CL ROOF</text>
+<!-- Truss Members: Bottom Chord (Tension) -->
+<line stroke="#ffffff" stroke-linecap="round" stroke-width="3" x1="145" x2="595" y1="178" y2="178"></line>
+<line stroke="#00f2fe" stroke-width="1" x1="145" x2="595" y1="181" y2="181"></line>
+<!-- Top Chords (Compression) extending for Overhang -->
+<!-- Overhang eave point left: (105, 192), Ridge: (370, 52), Overhang eave point right: (635, 192) -->
+<line stroke="#ffffff" stroke-linecap="round" stroke-width="3.5" x1="105" x2="370" y1="192" y2="52"></line>
+<line stroke="#ffffff" stroke-linecap="round" stroke-width="3.5" x1="635" x2="370" y1="192" y2="52"></line>
+<!-- Exterior Sheathing & Covering Profile -->
+<path d="M 100 190 L 370 47 L 640 190" fill="none" stroke="#00f2fe" stroke-width="2"></path>
+<!-- Fascia & Rain Gutters Blueprint Section -->
+<rect fill="#00f2fe" fill-opacity="0.25" height="14" rx="1.5" stroke="#00f2fe" stroke-width="1.5" width="9" x="94" y="188"></rect>
+<rect fill="#00f2fe" fill-opacity="0.25" height="14" rx="1.5" stroke="#00f2fe" stroke-width="1.5" width="9" x="637" y="188"></rect>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="7.5" x="76" y="198">GUTTER</text>
+<!-- Fink Web Members (W - Pattern) in Vivid Blueprint Cyan -->
+<!-- Chords divided into 3 equal bays: Bottom chord nodes: (295, 178), (445, 178) -->
+<!-- Top chord nodes: (237, 122), (502, 122) -->
+<line stroke="#00f2fe" stroke-linecap="round" stroke-width="2.2" x1="295" x2="237" y1="178" y2="122"></line>
+<line stroke="#00f2fe" stroke-linecap="round" stroke-width="2.2" x1="295" x2="370" y1="178" y2="52"></line>
+<line stroke="#00f2fe" stroke-linecap="round" stroke-width="2.2" x1="445" x2="370" y1="178" y2="52"></line>
+<line stroke="#00f2fe" stroke-linecap="round" stroke-width="2.2" x1="445" x2="502" y1="178" y2="122"></line>
+<!-- Gusset Connection Plates (Metallic Cyan/White dots) -->
+<circle cx="145" cy="178" fill="#0a192f" r="4.5" stroke="#00f2fe" stroke-width="2"></circle>
+<circle cx="595" cy="178" fill="#0a192f" r="4.5" stroke="#00f2fe" stroke-width="2"></circle>
+<circle cx="370" cy="52" fill="#0a192f" r="5" stroke="#fbbf24" stroke-width="2.5"></circle>
+<circle cx="295" cy="178" fill="#00f2fe" r="3.5"></circle>
+<circle cx="445" cy="178" fill="#00f2fe" r="3.5"></circle>
+<circle cx="237" cy="122" fill="#00f2fe" r="3.5"></circle>
+<circle cx="502" cy="122" fill="#00f2fe" r="3.5"></circle>
+<!-- Ridge Vent Blueprint Callout -->
+<line stroke="#fbbf24" stroke-width="1.2" x1="370" x2="370" y1="44" y2="24"></line>
+<rect fill="#0a192f" height="15" rx="2" stroke="#fbbf24" stroke-width="1" width="140" x="300" y="16"></rect>
+<text fill="#fbbf24" font-family="'Chivo Mono', monospace" font-size="8" font-weight="bold" text-anchor="middle" x="370" y="27">CONTINUOUS RIDGE VENT (26.6°)</text>
+<!-- Drafting Dimension: Span (Between Centers of Bearing) -->
+<g transform="translate(0, 160)">
+<line stroke="#67e8f9" stroke-width="1" x1="145" x2="145" y1="0" y2="8"></line>
+<line stroke="#67e8f9" stroke-width="1" x1="595" x2="595" y1="0" y2="8"></line>
+<line marker-end="url(#arrow)" marker-start="url(#arrow)" stroke="#00f2fe" stroke-width="1.2" x1="145" x2="595" y1="4" y2="4"></line>
+<rect fill="#0a192f" height="14" stroke="#1e3a63" stroke-width="0.8" width="110" x="315" y="-3"></rect>
+<text fill="#ffffff" font-family="'Chivo Mono', monospace" font-size="9" font-weight="bold" text-anchor="middle" x="370" y="7">SPAN = 10.00 m</text>
+</g>
+<!-- Drafting Dimension: Overhang Left -->
+<line stroke="#67e8f9" stroke-width="1" x1="105" x2="105" y1="196" y2="216"></line>
+<line stroke="#67e8f9" stroke-width="1" x1="145" x2="145" y1="196" y2="216"></line>
+<line marker-end="url(#arrow)" marker-start="url(#arrow)" stroke="#00f2fe" stroke-width="1" x1="105" x2="145" y1="210" y2="210"></line>
+<text fill="#67e8f9" font-family="'Chivo Mono', monospace" font-size="7.5" text-anchor="middle" x="125" y="206">0.5m OH</text>
+<!-- Golden Pitch Caliper Triangle Symbol -->
+<g transform="translate(480, 80)">
+<polygon fill="#fbbf24" fill-opacity="0.15" points="0,30 50,30 50,5" stroke="#fbbf24" stroke-width="1.8"></polygon>
+<text fill="#fbbf24" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" text-anchor="middle" x="25" y="40">12 RUN</text>
+<text fill="#fbbf24" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" x="56" y="20">6 RISE</text>
+</g>
+</svg>
+</div>
+</section>
+<!-- 3D Blueprint Structural Viewport -->
+<section class="flex-1 min-h-0 bg-[#0a192f] rounded-lg border border-[#1e3a63] flex flex-col shadow-lg relative overflow-hidden">
+<div class="flex items-center justify-between px-3 py-1.5 bg-[#0e2444] border-b border-[#1e3a63]">
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-mono-draft text-[9px] border border-cyan-800">3D-AXIS-ISO</span>
+<h2 class="text-[11px] uppercase tracking-wider font-bold text-white font-mono-draft">3D AXONOMETRIC STRUCTURAL FRAME</h2>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[9.5px] font-mono-draft text-cyan-400/80">ORBIT [ROT: 35° / TILT: 25°]</span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono-draft bg-cyan-950 text-cyan-300 border border-cyan-500/50 shadow-[0_0_6px_rgba(0,242,254,0.2)]">
+                                24 TRUSSES @ 610mm O.C.
+                            </span>
+</div>
+</div>
+<div class="flex-1 min-h-0 relative p-2 flex items-center justify-center bg-[#050c18] overflow-hidden">
+<!-- Isometric Blueprint SVG Model -->
+<svg class="w-full h-full max-h-[220px]" preserveaspectratio="xMidYMid meet" viewbox="0 0 660 220">
+<defs>
+<pattern height="20" id="iso-dots" patternunits="userSpaceOnUse" width="20">
+<circle cx="2" cy="2" fill="#162e52" r="1"></circle>
+</pattern>
+</defs>
+<rect fill="url(#iso-dots)" height="100%" width="100%"></rect>
+<!-- XYZ Coordinate Compass in Corner -->
+<g transform="translate(35, 175)">
+<line stroke="#ef4444" stroke-width="1.5" x1="0" x2="35" y1="0" y2="0"></line>
+<text fill="#ef4444" font-family="'Chivo Mono', monospace" font-size="8" x="40" y="3">X (10m)</text>
+<line stroke="#22c55e" stroke-width="1.5" x1="0" x2="0" y1="0" y2="-32"></line>
+<text fill="#22c55e" font-family="'Chivo Mono', monospace" font-size="8" x="-3" y="-36">Z (PITCH)</text>
+<line stroke="#00f2fe" stroke-width="1.5" x1="0" x2="-22" y1="0" y2="18"></line>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="8" x="-36" y="28">Y (14m)</text>
+</g>
+<!-- Blueprint Facet Planes (Sheathing wireframe) -->
+<!-- Left Slope Facet (Lit by blueprint keylight) -->
+<polygon fill="#0284c7" fill-opacity="0.22" points="310,32 505,74 340,165 145,120" stroke="#00f2fe" stroke-width="1.8"></polygon>
+<!-- Right Slope Facet -->
+<polygon fill="#0369a1" fill-opacity="0.12" points="310,32 505,74 600,126 405,82" stroke="#38bdf8" stroke-width="1.2"></polygon>
+<!-- Longitudinal Purlins & Ridge Beam -->
+<line stroke="#ffffff" stroke-linecap="round" stroke-width="3" x1="310" x2="505" y1="32" y2="74"></line>
+<line stroke="#00f2fe" stroke-width="2.5" x1="145" x2="340" y1="120" y2="165"></line>
+<line stroke="#00f2fe" stroke-width="1.5" x1="405" x2="600" y1="82" y2="126"></line>
+<!-- Multiple Truss Traces in Axonometric Perspective (Simulating 24 bays) -->
+<!-- GABLE FRONT (TRUSS 01) -->
+<polyline fill="none" points="145,120 310,32 405,82" stroke="#ffffff" stroke-width="2.8"></polyline>
+<line stroke="#67e8f9" stroke-width="2" x1="145" x2="405" y1="120" y2="82"></line>
+<!-- Internal Web Truss 1 -->
+<line stroke="#00f2fe" stroke-width="1.2" x1="230" x2="200" y1="107" y2="76"></line>
+<line stroke="#00f2fe" stroke-width="1.2" x1="230" x2="310" y1="107" y2="32"></line>
+<line stroke="#00f2fe" stroke-width="1.2" x1="320" x2="310" y1="95" y2="32"></line>
+<line stroke="#00f2fe" stroke-width="1.2" x1="320" x2="357" y1="95" y2="57"></line>
+<!-- INTERMEDIATE TRUSS RIBS -->
+<!-- Truss 05 -->
+<polyline fill="none" points="177,127 342,39 437,89" stroke="#38bdf8" stroke-opacity="0.8" stroke-width="1.4"></polyline>
+<line stroke="#38bdf8" stroke-opacity="0.6" stroke-width="1" x1="177" x2="437" y1="127" y2="89"></line>
+<!-- Truss 09 -->
+<polyline fill="none" points="210,135 375,46 470,96" stroke="#38bdf8" stroke-opacity="0.8" stroke-width="1.4"></polyline>
+<line stroke="#38bdf8" stroke-opacity="0.6" stroke-width="1" x1="210" x2="470" y1="135" y2="96"></line>
+<!-- Truss 13 -->
+<polyline fill="none" points="242,142 407,53 502,104" stroke="#38bdf8" stroke-opacity="0.8" stroke-width="1.4"></polyline>
+<line stroke="#38bdf8" stroke-opacity="0.6" stroke-width="1" x1="242" x2="502" y1="142" y2="104"></line>
+<!-- Truss 17 -->
+<polyline fill="none" points="275,150 440,60 535,111" stroke="#38bdf8" stroke-opacity="0.8" stroke-width="1.4"></polyline>
+<line stroke="#38bdf8" stroke-opacity="0.6" stroke-width="1" x1="275" x2="535" y1="150" y2="111"></line>
+<!-- Truss 21 -->
+<polyline fill="none" points="307,157 472,67 567,118" stroke="#38bdf8" stroke-opacity="0.8" stroke-width="1.4"></polyline>
+<line stroke="#38bdf8" stroke-opacity="0.6" stroke-width="1" x1="307" x2="567" y1="157" y2="118"></line>
+<!-- GABLE REAR (TRUSS 24) -->
+<polyline fill="none" points="340,165 505,74 600,126" stroke="#ffffff" stroke-width="2.8"></polyline>
+<line stroke="#67e8f9" stroke-width="2" x1="340" x2="600" y1="165" y2="126"></line>
+<!-- Sheathing / Shingle Hatching Blueprint Grid Lines on Plane -->
+<line stroke="#00f2fe" stroke-dasharray="3 3" stroke-opacity="0.4" stroke-width="0.75" x1="165" x2="360" y1="100" y2="145"></line>
+<line stroke="#00f2fe" stroke-dasharray="3 3" stroke-opacity="0.4" stroke-width="0.75" x1="205" x2="400" y1="80" y2="125"></line>
+<line stroke="#00f2fe" stroke-dasharray="3 3" stroke-opacity="0.4" stroke-width="0.75" x1="245" x2="440" y1="60" y2="105"></line>
+<line stroke="#00f2fe" stroke-dasharray="3 3" stroke-opacity="0.4" stroke-width="0.75" x1="285" x2="480" y1="40" y2="85"></line>
+<!-- Floating HUD Callout in Viewport -->
+<g transform="translate(460, 160)">
+<rect fill="#0a192f" fill-opacity="0.9" height="46" rx="4" stroke="#00f2fe" stroke-width="1" width="180"></rect>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" x="10" y="15">SYSTEM GEOMETRY</text>
+<text fill="#ffffff" font-family="'Chivo Mono', monospace" font-size="8" x="10" y="27">PITCH: 6.00:12 (26.6°)</text>
+<text fill="#94a3b8" font-family="'Chivo Mono', monospace" font-size="8" x="10" y="38">SPAN: 10m · LENGTH: 14m</text>
+</g>
+</svg>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+</body></html>

@@ -1,8 +1,9 @@
 /**
  * Rules and regulations for the lighting and power plan, written for a
- * designer rather than a lawyer. The model code is the 2021 IRC (which adopts
- * the 2020 NEC for electrical) plus the 2021 IECC; local amendments can be
- * stricter and always win.
+ * designer rather than a lawyer. The model code is the 2022 California
+ * Electrical Code (Title 24, Part 3, based on the 2020 NEC with California
+ * amendments) plus the 2022 California Energy Code (Title 24, Part 6). Local
+ * amendments and the authority having jurisdiction always win.
  */
 
 export const RULE_CATEGORIES = [
@@ -15,8 +16,9 @@ export const RULE_CATEGORIES = [
 ];
 
 export const CODE_SCOPE = {
-    title: '2021 IRC · 2021 IECC · 2020 NEC',
-    body: 'Chapter 39 of the 2021 International Residential Code covers receptacle spacing, GFCI/AFCI protection and lighting outlets. The IECC adds efficacy and control requirements. This page is a design aid: confirm the edition and amendments adopted in your jurisdiction, and have the final plan reviewed by a licensed electrician.'
+    title: '2022 California Electrical Code · 2022 Title 24, Part 6',
+    url: 'https://up.codes/viewer/california/ca-electric-code-2022',
+    body: 'The 2022 California Electrical Code is Title 24, Part 3 and is based on the 2020 NEC with California amendments. It covers receptacle spacing, GFCI/AFCI protection and lighting outlets. The 2022 California Energy Code (Title 24, Part 6) adds high-efficacy/JA8 luminaire and lighting-control requirements. This page is a design aid: confirm the edition and amendments adopted in your jurisdiction, and have the final plan reviewed by a licensed electrician.'
 };
 
 export const RULES = [
@@ -24,13 +26,14 @@ export const RULES = [
         id: 'lighting-outlet',
         category: 'lighting',
         title: 'A switched lighting outlet in every habitable room, kitchen and bathroom',
-        code: 'IRC 2021 §E3903.2',
+        code: 'CEC 2022 §210.70(A)(1)',
         level: 'required',
-        summary: 'At least one lighting outlet controlled by a listed wall-mounted control device is required in every habitable room, kitchen and bathroom.',
+        summary: 'At least one lighting outlet controlled by a listed wall-mounted control device is required in every habitable room, kitchen and bathroom. The control must be near a room entrance on a wall.',
         requirements: [
             'The lighting outlet is the box and circuit, not the fixture; a luminaire is installed at it later.',
             'The control must be wall mounted and listed; a pull chain or a lamp switch does not satisfy it.',
-            'A switched receptacle can satisfy the requirement only where the code allows it, not as a substitute in every room.'
+            'Exception 1 permits a switched receptacle in rooms other than kitchens and bathrooms.',
+            'Exception 2 permits an occupancy sensor in addition to the wall control, or at a customary switch location with a manual override.'
         ],
         checkIds: ['lighting-outlet', 'switch-control'],
         detail: 'Place at least one luminaire, bind it to a switch, and check that the switch sits on the wall by the door. Bedrooms, living rooms, dining rooms, kitchens and bathrooms all need this; closets and storage rooms have their own requirement.'
@@ -39,12 +42,12 @@ export const RULES = [
         id: 'additional-locations',
         category: 'lighting',
         title: 'Hallways, stairways, garages and outdoor entrances',
-        code: 'IRC 2021 §E3903.3 · NEC 210.70(A)(2)',
+        code: 'CEC 2022 §210.70(A)(2)',
         level: 'required',
-        summary: 'Hallways, stairways, attached garages and outdoor entrances need at least one wall-switch-controlled lighting outlet.',
+        summary: 'Hallways, stairways, attached garages, detached garages with electric power and outdoor entrances need at least one lighting outlet controlled by a listed wall-mounted control device.',
         requirements: [
-            'A stairway with six or more risers needs a switch at the top and bottom of the flight.',
-            'An outdoor entrance needs a switch inside the door, not only a motion light.',
+            'A stairway with six or more risers needs a control at each floor level and landing level with an entryway.',
+            'An outdoor entrance or exit with grade-level access needs illumination on the exterior side; a vehicle door does not count as an outdoor entrance.',
             'A garage needs a switched light that is not on the door-operator circuit.'
         ],
         checkIds: ['stair-switch', 'switch-entry', 'lighting-outlet'],
@@ -54,7 +57,7 @@ export const RULES = [
         id: 'switch-location',
         category: 'lighting',
         title: 'Put the switch where the door opens',
-        code: 'IRC §E3903.2 · practice',
+        code: 'CEC 2022 §210.70(A)(1) · practice',
         level: 'recommended',
         summary: 'A wall control needs to be reachable on entry, on the latch side of the door and clear of the door swing.',
         requirements: [
@@ -70,7 +73,7 @@ export const RULES = [
         id: 'receptacle-spacing',
         category: 'receptacles',
         title: 'The 6 ft / 12 ft receptacle rule',
-        code: 'IRC 2021 §E3901.2.1–E3901.2.2',
+        code: 'CEC 2022 §210.52(A)(1)–(A)(3)',
         level: 'required',
         summary: 'No point along the floor line of a wall space may be more than 6 ft (1.83 m) from a receptacle; in practice, receptacles are no more than 12 ft (3.66 m) apart.',
         requirements: [
@@ -85,24 +88,25 @@ export const RULES = [
     {
         id: 'countertop',
         category: 'rooms',
-        title: 'Countertop receptacles: 24 in from anywhere',
-        code: 'IRC 2021 §E3901.4',
+        title: 'Countertop receptacles: 24 in from anywhere, islands sized by area',
+        code: 'CEC 2022 §210.52(C)',
         level: 'required',
-        summary: 'Every wall countertop space 12 in (305 mm) or wider needs a receptacle, and no point may be more than 24 in (610 mm) from one.',
+        summary: 'Every wall countertop space 12 in (305 mm) or wider needs a receptacle, and no point may be more than 24 in (610 mm) from one. Islands and peninsulas follow the area formula in 210.52(C)(2).',
         requirements: [
-            'Not more than 12 in (305 mm) below the countertop.',
-            'Not behind a range, refrigerator or sink; split the counter space around the appliance.',
-            'Islands and peninsulas need at least one receptacle, with exceptions for certain small islands.',
+            'Wall countertop: no point along the wall line more than 600 mm (24 in) from a receptacle.',
+            'Island or peninsula: at least one receptacle for the first 9 sq ft or fraction, plus one for every additional 18 sq ft or fraction.',
+            'A peninsula needs at least one receptacle within 600 mm (2 ft) of its outer end.',
+            'A receptacle may be on or above the counter but not more than 500 mm (20 in) above it, in the counter, or not more than 300 mm (12 in) below it.',
             'Every countertop receptacle needs GFCI protection.'
         ],
         checkIds: ['socket-spacing', 'socket-count', 'gfci'],
-        detail: 'A 1.83 m spacing on the kitchen preset is a planning approximation of the 600 mm counter rule. Lay out the actual cabinet run and put a receptacle in every 305 mm+ counter segment.'
+        detail: 'California retains the 2020 NEC island and peninsula requirement. The kitchen preset uses 1.2 m spacing so no point is more than 600 mm from a socket; lay out the actual cabinet run and split the counter at the range, refrigerator and sink.'
     },
     {
         id: 'small-appliance',
         category: 'rooms',
         title: 'Two kitchen small-appliance circuits',
-        code: 'IRC 2021 §E3901.3',
+        code: 'CEC 2022 §210.11(C)(1) · §210.52(C)',
         level: 'required',
         summary: 'Kitchen countertop receptacles must be supplied by at least two 20 A small-appliance branch circuits.',
         requirements: [
@@ -118,13 +122,13 @@ export const RULES = [
         id: 'bathroom',
         category: 'rooms',
         title: 'Bathroom receptacle and light',
-        code: 'IRC 2021 §E3901.6 · §E3902.1 · §E3903.2',
+        code: 'CEC 2022 §210.52(D) · §210.8(A)(1) · §210.70(A)(1) · §406.9(C)',
         level: 'required',
         summary: 'A bathroom needs a GFCI-protected receptacle within 3 ft of the basin, and a switch-controlled lighting outlet.',
         requirements: [
             'At least one receptacle within 36 in (914 mm) of the outside edge of the basin.',
-            'No receptacle inside a tub or shower space, including a compartment.',
-            'All 125 V, 15/20 A bathroom receptacles need GFCI protection.',
+            'No receptacle in the tub or shower zone: 900 mm (3 ft) horizontally and 2.5 m (8 ft) above the rim or threshold.',
+            'All 125–250 V bathroom receptacles need GFCI protection.',
             'The luminaire must be damp rated, and a fixture over a tub or shower must be wet rated and listed for the location.'
         ],
         checkIds: ['gfci', 'wet-luminaire', 'lighting-outlet'],
@@ -134,13 +138,13 @@ export const RULES = [
         id: 'laundry',
         category: 'rooms',
         title: 'Laundry circuit and GFCI',
-        code: 'IRC 2021 §E3901.8 · §E3902.7',
+        code: 'CEC 2022 §210.11(C)(2) · §210.8(A)(10)',
         level: 'required',
         summary: 'A laundry area needs at least one 20 A receptacle circuit, and its receptacles need GFCI protection.',
         requirements: [
             'At least one 20 A laundry branch circuit for the washing machine.',
             'No other outlets on that circuit, with limited exceptions for a laundry light or exhaust fan.',
-            'GFCI protection for laundry, utility and bar sink receptacles.',
+            'GFCI protection covers 125–250 V laundry receptacles, including a 240 V electric dryer receptacle.',
             'A gas dryer still needs a 120 V receptacle; an electric dryer needs a dedicated 30 A, 240 V circuit.'
         ],
         checkIds: ['gfci', 'socket-count'],
@@ -150,11 +154,11 @@ export const RULES = [
         id: 'outdoor',
         category: 'rooms',
         title: 'Outdoor receptacles and wet-location fixtures',
-        code: 'IRC 2021 §E3901.7 · §E3902.3 · NEC 210.52(E)',
+        code: 'CEC 2022 §210.52(E) · §210.8(A)(3), (F) · §406.9',
         level: 'required',
         summary: 'A one-family dwelling needs at least one outdoor receptacle at the front and one at the back, not more than 6.5 ft above grade, with GFCI, WR rating and an in-use cover.',
         requirements: [
-            'GFCI protection for all 125 V, 15/20 A outdoor receptacles.',
+            'GFCI protection for 125–250 V outdoor receptacles, and for outdoor outlets 50 A or less under 210.8(F).',
             'Weather-resistant (WR) receptacle and an in-use (bubble) cover.',
             'Wet-location luminaires with gasketed boxes; a damp-rated fixture is not enough.',
             'Keep the cover closed on an unused receptacle and drain the box.'
@@ -166,11 +170,11 @@ export const RULES = [
         id: 'garage',
         category: 'rooms',
         title: 'Garage receptacles and lights',
-        code: 'IRC 2021 §E3901.9 · §E3902.2',
+        code: 'CEC 2022 §210.52(G) · §210.8(A)(2)',
         level: 'required',
         summary: 'An attached garage needs at least one receptacle and a switched lighting outlet; garage receptacles need GFCI protection.',
         requirements: [
-            'At least one 125 V, 15/20 A receptacle in an attached garage.',
+            'At least one 125–250 V receptacle in an attached garage, and in a detached garage with electric power.',
             'GFCI protection for garage and accessory-building receptacles.',
             'A switched light that is independent of the door operator.',
             'Keep the panel and its working clearance clear of stored goods.'
@@ -182,14 +186,14 @@ export const RULES = [
         id: 'gfci',
         category: 'power',
         title: 'Where GFCI protection is required',
-        code: 'IRC 2021 §E3902 · NEC 210.8',
+        code: 'CEC 2022 §210.8(A) · §210.8(F)',
         level: 'required',
-        summary: 'GFCI protection is required for receptacles in bathrooms, kitchens, laundry areas, garages, outdoors, crawlspaces, unfinished basements and near sinks.',
+        summary: 'GFCI protection is required for 125–250 V receptacles in bathrooms, kitchens, laundry areas, garages, outdoors, crawlspaces, basements, indoor damp or wet locations and near sinks.',
         requirements: [
-            'Bathrooms, kitchens and countertop surfaces.',
-            'Laundry, utility and bar sinks.',
-            'Garages and accessory buildings, outdoors, crawlspaces and unfinished basements.',
-            'Within 6 ft of a sink, bathtub or shower in other rooms.',
+            'Bathrooms; kitchen countertop receptacles; laundry areas.',
+            'Garages and accessory buildings; outdoors; crawlspaces; basements.',
+            'Indoor damp and wet locations, and within 6 ft of a sink, bathtub or shower in other rooms.',
+            'Outdoor outlets 50 A or less are also covered by 210.8(F).',
             'GFCI protection can be at the breaker or at the first receptacle; downstream receptacles are then protected.'
         ],
         checkIds: ['gfci'],
@@ -199,23 +203,23 @@ export const RULES = [
         id: 'afci',
         category: 'power',
         title: 'AFCI protection for 120 V branch circuits',
-        code: 'IRC 2021 §E3902.20 · NEC 210.12',
+        code: 'CEC 2022 §210.12(A)',
         level: 'required',
-        summary: 'Most 120 V, single-phase, 15 and 20 A branch circuits supplying outlets in a dwelling need combination-type AFCI protection.',
+        summary: 'All 120 V, single-phase, 15 and 20 A branch circuits supplying outlets or devices in a dwelling need combination-type AFCI protection.',
         requirements: [
-            'Living, dining, bedrooms, closets, hallways, laundry, kitchen and similar areas.',
+            'The rule covers the whole dwelling, not a list of rooms.',
             'Use a combination-type AFCI breaker at the origin of the circuit.',
             'An outlet-branch AFCI is an alternative only where the code permits it.',
             'Label the panel clearly; an AFCI trip is a diagnostic, not a nuisance to bypass.'
         ],
         checkIds: ['afci'],
-        detail: 'The suite records ACI as an advisory because the breaker type is chosen at the panel, not on the plan. Mark every 120 V branch as AFCI on the panel schedule.'
+        detail: 'The suite marks every 120 V, 15/20 A circuit for AFCI and selects an AFCI breaker in the takeoff. If a circuit is imported without AFCI, the plan check warns.'
     },
     {
         id: 'circuits',
         category: 'power',
         title: 'Do not overload a branch circuit',
-        code: 'IRC 2021 §E3905 · NEC 210.19–210.23',
+        code: 'CEC 2022 §210.19–210.23',
         level: 'required',
         summary: 'The connected load must stay within the branch-circuit rating; continuous loads are limited to 80% of the breaker.',
         requirements: [
@@ -231,7 +235,7 @@ export const RULES = [
         id: 'boxes',
         category: 'power',
         title: 'Box fill and cable support',
-        code: 'IRC 2021 §E3905.12 · NEC 314.16',
+        code: 'CEC 2022 §314.16',
         level: 'required',
         summary: 'Every box needs enough cubic-inch capacity for its conductors, clamps, grounding and device, and cable must be supported and protected.',
         requirements: [
@@ -247,24 +251,25 @@ export const RULES = [
     {
         id: 'ic-fire',
         category: 'power',
-        title: 'IC, airtight and fire-rated recessed luminaires',
-        code: 'IRC 2021 §E3904 · NEC 410.116 · listed instructions',
+        title: 'IC, airtight, JA8 and fire-rated recessed luminaires',
+        code: 'CEC 2022 §410.116 · Title 24 §150.0(k)1C',
         level: 'required',
-        summary: 'A recessed luminaire in an insulated ceiling must be IC rated; in a fire-resistance-rated assembly it must be listed for the assembly.',
+        summary: 'A recessed luminaire in an insulated ceiling must be IC rated; in a fire-resistance-rated assembly it must be listed for the assembly. A ceiling recessed downlight must also be JA8, screw-base-free and airtight.',
         requirements: [
             'IC-rated and airtight for a ceiling that touches insulation.',
+            'Title 24 requires less than 2.0 cfm at 75 Pa, a gasket or caulk at the ceiling, and no screw-base socket.',
             'Non-IC cans need a clearance box or the insulation kept clear; the instructions govern.',
             'A fire-rated ceiling needs a fire-rated luminaire or a listed protection of the membrane.',
             'Do not bury a driver or junction box under insulation unless it is listed for it.'
         ],
-        checkIds: ['ic-rating', 'fire-rating'],
-        detail: 'The suite warns when a recessed fitting lacks IC or fire rating. A surface fixture avoids the ceiling penetration entirely, at the cost of ceiling height.'
+        checkIds: ['ic-rating', 'fire-rating', 'recessed-ja8'],
+        detail: 'The suite flags a recessed fitting that is not IC, fire rated, JA8, screw-base-free and airtight. A surface fixture avoids the ceiling penetration entirely, at the cost of ceiling height.'
     },
     {
         id: 'damp-wet',
         category: 'power',
         title: 'Damp and wet location ratings',
-        code: 'IRC 2021 §E3904 · NEC 410.10',
+        code: 'CEC 2022 §410.10',
         level: 'required',
         summary: 'Bathrooms, covered porches and other damp locations need damp-rated luminaires; exposed outdoor locations need wet-rated luminaires and boxes.',
         requirements: [
@@ -279,34 +284,84 @@ export const RULES = [
     {
         id: 'energy-controls',
         category: 'energy',
-        title: 'Dimmer or occupant sensor in habitable spaces',
-        code: 'IECC 2021 §R404.2 · IRC §N1104.2',
+        title: 'Dimmers in habitable spaces',
+        code: 'Title 24 §150.0(k)2F',
         level: 'required',
-        summary: 'Permanently installed lighting in habitable spaces needs a dimmer, an occupant sensor or an equivalent control.',
+        summary: 'Lighting in habitable spaces must have readily accessible wall-mounted dimming controls that allow manual adjustment up and down.',
         requirements: [
-            'Applies to living, sleeping, eating and cooking spaces.',
-            'A simple on/off switch may not satisfy the control requirement.',
-            'Some fixtures have the control built in; document it.',
+            'Applies to living rooms, dining rooms, kitchens, bedrooms and similar habitable spaces.',
+            'A plain on/off switch does not satisfy the requirement.',
+            'Exception: a controlled load under 20 W, or an occupancy/vacancy sensor that provides automatic-off.',
+            'Forward-phase dimmers controlling LEDs must comply with NEMA SSL 7A.',
             'Commission the dimmer with the actual LED load and confirm no flicker or buzz.'
         ],
         checkIds: ['energy-controls'],
         detail: 'The suite auto-selects a dimmer where the room preset asks for one. A smart dimmer may need a neutral at the switch box; check before the cable is pulled.'
     },
     {
+        id: 'auto-off',
+        category: 'energy',
+        title: 'Automatic-off lighting controls',
+        code: 'Title 24 §150.0(k)2E',
+        level: 'required',
+        summary: 'Bathrooms, garages, laundry rooms, utility rooms and walk-in closets need at least one luminaire controlled by an occupancy or vacancy sensor with automatic-off.',
+        requirements: [
+            'The sensor may be an occupancy sensor or a manual-on vacancy sensor.',
+            'It must control at least one installed luminaire, not only a fan or a receptacle.',
+            'Lighting inside drawers and cabinets needs a door or drawer switch.',
+            'A manual override may not bypass the automatic-off function.'
+        ],
+        checkIds: ['auto-off'],
+        detail: 'The suite auto-selects a vacancy sensor for these rooms and warns if the plan has only a plain switch. A sensor usually needs a neutral at the box.'
+    },
+    {
+        id: 'outdoor-controls',
+        category: 'energy',
+        title: 'Outdoor lighting controls',
+        code: 'Title 24 §150.0(k)3',
+        level: 'required',
+        summary: 'Outdoor lighting permanently mounted to a dwelling needs a manual ON/OFF switch plus a photocell and motion sensor or time switch, or an astronomical time clock.',
+        requirements: [
+            'A manual ON/OFF control must remain available and permit the automatic action.',
+            'Photocell plus motion sensor or automatic time switch, or an astronomical time clock.',
+            'An override to ON must return to automatic operation within 6 hours.',
+            'An energy management control system may be used if it provides the same functionality.'
+        ],
+        checkIds: ['outdoor-controls'],
+        detail: 'The suite auto-selects a photocell plus motion switch for the outdoor entry. A plain weatherproof switch satisfies the electrical code but not the energy code.'
+    },
+    {
+        id: 'independent-controls',
+        category: 'energy',
+        title: 'Separately switched task and cabinet lighting',
+        code: 'Title 24 §150.0(k)2G',
+        level: 'required',
+        summary: 'Undercabinet, undershelf, display-cabinet and switched-outlet lighting must be controlled separately from ceiling-installed lighting.',
+        requirements: [
+            'One can be turned on without turning on the other.',
+            'Integrated exhaust-fan lighting must be controlled independently from the fan.',
+            'A dimmer or sensor on the ceiling circuit does not control the task circuit.',
+            'Label the switches so the separation is clear at inspection.'
+        ],
+        checkIds: ['independent-controls'],
+        detail: 'The suite splits an under-cabinet strip onto its own switch in a kitchen and warns when a switch controls both task and ceiling lighting.'
+    },
+    {
         id: 'efficacy',
         category: 'energy',
-        title: 'High-efficacy sources only',
-        code: 'IECC 2021 §R404.1',
+        title: 'High-efficacy, JA8 luminaires',
+        code: 'Title 24 §150.0(k)1A–1C · Table 150.0-A · JA8',
         level: 'required',
-        summary: 'Permanently installed luminaires must contain only high-efficacy sources, in practice 65 lm/W or better.',
+        summary: 'Every installed luminaire must be high efficacy under Table 150.0-A; most interior sources must be JA8 certified. Ceiling recessed downlights must be JA8, screw-base-free and airtight.',
         requirements: [
-            'All catalog luminaires in this suite are LED and exceed the threshold.',
-            'A screw-in lamp in a permanently installed fixture counts; choose the lamp as carefully as the fixture.',
-            'Kitchen appliance lighting and some specialty fixtures have limited exceptions.',
-            'Keep the cut sheet to prove efficacy and CCT at inspection.'
+            'Outdoor LED, decorative colored SSL, pin-based fluorescent, HID/induction and ceiling fan kits are classified high efficacy in Table 150.0-A.',
+            'Screw-based luminaires must contain JA8-certified lamps.',
+            'Ceiling recessed downlights: JA8, no screw-base socket, airtight below 2.0 cfm at 75 Pa, gasketed or sealed.',
+            'Lamps in enclosed or recessed luminaires must meet the JA8 elevated-temperature requirements.',
+            'Keep the JA8 listing numbers on the luminaire schedule for plan review.'
         ],
-        checkIds: ['efficacy', 'lpd'],
-        detail: 'The suite reports installed lumens per watt. A luminaire with a poor driver can be under 65 lm/W even with good LED chips, so use the fixture cut sheet rather than the lamp claim.'
+        checkIds: ['efficacy', 'recessed-ja8', 'lpd'],
+        detail: 'The suite checks the permanent luminaires in the plan against the JA8, screw-base and airtight flags and reports installed lumens per watt as a design metric, not as the compliance threshold.'
     },
     {
         id: 'quality',
@@ -329,7 +384,7 @@ export const RULES = [
         id: 'working-clearance',
         category: 'inspection',
         title: 'Panel and equipment working clearance',
-        code: 'IRC 2021 §E3405 · NEC 110.26',
+        code: 'CEC 2022 §110.26',
         level: 'required',
         summary: 'Keep a clear working space in front of the panel and service equipment: typically 30 in wide, 36 in deep and 6 ft 6 in high.',
         requirements: [
@@ -351,6 +406,7 @@ export const RULES = [
         requirements: [
             'Dimensioned plan with every receptacle, switch, luminaire and circuit identified.',
             'Panel schedule with breaker size, circuit type, AFCI/GFCI and connected load.',
+            'Luminaire schedule with the JA8 listing number for every permanently installed fixture.',
             'Cut sheets for luminaires, dimmers and any smart control.',
             'Rough-in photos before insulation and drywall, especially at boxes and fire-rated ceilings.',
             'GFCI/AFCI test and a written dimmer compatibility check.'

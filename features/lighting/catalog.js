@@ -23,6 +23,12 @@ const luminaire = (entry) => ({
     wet: false,
     ic: false,
     fireRated: false,
+    // Title 24, Part 6 treats hard-wired LED luminaires as installed and
+    // requires a JA8 listing unless Table 150.0-A exempts the source.
+    permanent: true,
+    ja8: true,
+    screwBase: false,
+    airtight: false,
     lifeHours: 50000,
     weightKg: 1.2,
     ...entry,
@@ -32,19 +38,19 @@ const luminaire = (entry) => ({
 export const LUMINAIRES = [
     luminaire({
         id: 'recessed-4', label: '4 in LED downlight', category: 'ambient', mount: 'recessed',
-        watts: 10, lumens: 800, beamAngle: 36, spacingRatio: 1.0, ic: true, fireRated: true, damp: true,
+        watts: 10, lumens: 800, beamAngle: 36, spacingRatio: 1.0, ic: true, fireRated: true, damp: true, airtight: true,
         cost: 32, weightKg: 0.6,
         notes: 'The default residential downlight; IC-rated and airtight so it can touch insulation.'
     }),
     luminaire({
         id: 'recessed-6', label: '6 in LED downlight', category: 'ambient', mount: 'recessed',
-        watts: 14, lumens: 1100, beamAngle: 60, spacingRatio: 1.1, ic: true, fireRated: true, damp: true,
+        watts: 14, lumens: 1100, beamAngle: 60, spacingRatio: 1.1, ic: true, fireRated: true, damp: true, airtight: true,
         cost: 38, weightKg: 0.8,
         notes: 'Wider beam than the 4 in can; fewer fittings for the same average illuminance.'
     }),
     luminaire({
         id: 'recessed-gimbal', label: 'Adjustable gimbal downlight', category: 'accent', mount: 'recessed',
-        watts: 12, lumens: 900, beamAngle: 30, spacingRatio: 0.9, ic: true, damp: true,
+        watts: 12, lumens: 900, beamAngle: 30, spacingRatio: 0.9, ic: true, damp: true, airtight: true,
         cost: 48, weightKg: 0.7,
         notes: 'Aims at a wall or artwork; keep it away from the ceiling line to avoid scalloping.'
     }),
@@ -176,7 +182,7 @@ export const LUMINAIRES = [
     }),
     luminaire({
         id: 'table-lamp', label: 'Table lamp', category: 'task', mount: 'portable',
-        watts: 8, lumens: 600, beamAngle: 120, spacingRatio: 1.0,
+        watts: 8, lumens: 600, beamAngle: 120, spacingRatio: 1.0, permanent: false, ja8: false,
         cost: 60, weightKg: 1.5,
         notes: 'Plug-in task light; it needs a receptacle, not a lighting outlet, and is not counted as fixed lighting.'
     })
@@ -227,6 +233,18 @@ export const SWITCHES = [
         id: 'weatherproof', label: 'Weatherproof switch', type: 'weather', ways: 1,
         ratingA: 15, voltage: 120, dimmable: false, requiresNeutral: false, maxLedW: 0,
         cost: 18, notes: 'Gasketed cover for an exterior wall; the box must drain and be listed for the location.'
+    },
+    {
+        id: 'outdoor-photocell', label: 'Photocell + motion switch', type: 'sensor', ways: 1,
+        ratingA: 15, voltage: 120, dimmable: false, requiresNeutral: true, maxLedW: 150,
+        automatic: 'photocell-motion', cost: 68,
+        notes: 'Photocell plus motion sensor with a manual ON/OFF override; the override must return to automatic within 6 hours.'
+    },
+    {
+        id: 'astronomical-timer', label: 'Astronomical time switch', type: 'timer', ways: 1,
+        ratingA: 15, voltage: 120, dimmable: false, requiresNeutral: true, maxLedW: 150,
+        automatic: 'astronomical', cost: 88,
+        notes: 'Switches outdoor lighting at sunset and sunrise; a manual override is timed and returns to the schedule.'
     },
     {
         id: 'timer', label: 'Countdown timer', type: 'timer', ways: 1,
@@ -300,6 +318,7 @@ export const SOCKETS = [
 
 export const BREAKERS = [
     { id: '15-standard', label: '15 A · single pole', amps: 15, poles: 1, type: 'standard', cost: 12, wire: '14-2' },
+    { id: '15-afci', label: '15 A · AFCI', amps: 15, poles: 1, type: 'afci', cost: 48, wire: '14-2' },
     { id: '20-standard', label: '20 A · single pole', amps: 20, poles: 1, type: 'standard', cost: 14, wire: '12-2' },
     { id: '20-gfci', label: '20 A · GFCI', amps: 20, poles: 1, type: 'gfci', cost: 48, wire: '12-2' },
     { id: '20-afci', label: '20 A · AFCI', amps: 20, poles: 1, type: 'afci', cost: 52, wire: '12-2' },
@@ -348,15 +367,15 @@ export const ROOM_PRESETS = [
         id: 'kitchen', label: 'Kitchen', targetLux: 300, cct: 3500,
         ambient: 'recessed-6', task: 'undercabinet-strip', accent: 'pendant-globe',
         switchType: 'single-pole', socketType: 'gfci-20', minSockets: 6,
-        socketSpacing: 1.83, dimmer: true, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
+        socketSpacing: 1.2, dimmer: true, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
         notes: 'Two 20 A small-appliance circuits and counter receptacles no more than 600 mm apart along the worktop.'
     },
     {
         id: 'bathroom', label: 'Bathroom', targetLux: 250, cct: 3000,
         ambient: 'recessed-4', task: 'vanity-bar', accent: 'mirror-light',
         switchType: 'single-pole', socketType: 'gfci-20', minSockets: 1,
-        socketSpacing: 3.66, dimmer: true, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
-        notes: 'Light the face from both sides of the mirror; every receptacle needs GFCI protection.'
+        socketSpacing: 3.66, dimmer: true, autoOff: true, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
+        notes: 'Light the face from both sides of the mirror; every receptacle needs GFCI protection and the room needs automatic-off control.'
     },
     {
         id: 'dining', label: 'Dining room', targetLux: 200, cct: 2700,
@@ -390,29 +409,29 @@ export const ROOM_PRESETS = [
         id: 'laundry', label: 'Laundry', targetLux: 250, cct: 3500,
         ambient: 'flush-mount', task: null, accent: null,
         switchType: 'single-pole', socketType: 'gfci-20', minSockets: 2,
-        socketSpacing: 3.66, dimmer: false, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
-        notes: 'One 20 A laundry circuit, GFCI protection and a light that reaches into the appliances.'
+        socketSpacing: 3.66, dimmer: false, autoOff: true, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
+        notes: 'One 20 A laundry circuit, GFCI protection, automatic-off control and a light that reaches into the appliances.'
     },
     {
         id: 'garage', label: 'Garage', targetLux: 250, cct: 4000,
         ambient: 'shop-light', task: null, accent: null,
         switchType: 'single-pole', socketType: 'gfci-20', minSockets: 2,
-        socketSpacing: 3.66, dimmer: false, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
-        notes: 'At least one 20 A GFCI circuit and a switched light that is not on the door operator circuit.'
+        socketSpacing: 3.66, dimmer: false, autoOff: true, occupancy: false, socketHeight: 1.1, switchHeight: 1.2,
+        notes: 'At least one 20 A GFCI circuit, automatic-off lighting control and a switched light that is not on the door operator circuit.'
     },
     {
         id: 'closet', label: 'Closet', targetLux: 150, cct: 3000,
         ambient: 'closet-light', task: null, accent: null,
         switchType: 'single-pole', socketType: 'duplex-15', minSockets: 0,
-        socketSpacing: 3.66, dimmer: false, occupancy: false, socketHeight: 0.3, switchHeight: 1.2,
-        notes: 'A storage space needs a light; keep the fixture clear of shelving and stored goods.'
+        socketSpacing: 3.66, dimmer: false, autoOff: true, occupancy: false, socketHeight: 0.3, switchHeight: 1.2,
+        notes: 'A walk-in storage space needs automatic-off lighting; keep the fixture clear of shelving and stored goods.'
     },
     {
         id: 'outdoor', label: 'Outdoor entry', targetLux: 100, cct: 3000,
         ambient: 'outdoor-wall', task: null, accent: 'step-light',
-        switchType: 'weatherproof', socketType: 'outdoor-gfci', minSockets: 2,
+        switchType: 'outdoor-photocell', socketType: 'outdoor-gfci', minSockets: 2,
         socketSpacing: 6, dimmer: false, occupancy: false, socketHeight: 0.45, switchHeight: 1.2,
-        notes: 'Wet-location fixtures, GFCI receptacles with in-use covers and a switch inside the door.'
+        notes: 'Wet-location fixtures, GFCI receptacles with in-use covers, and photocell plus motion or astronomical control.'
     }
 ];
 

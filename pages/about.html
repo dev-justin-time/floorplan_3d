@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1" name="viewport">
-  <title>Contact - Floorplan 3D</title>
+  <title>About Us - Floorplan 3D</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
@@ -41,15 +41,46 @@
   </header>
 
   <main class="container mx-auto px-6 py-12">
-    <div class="max-w-2xl mx-auto">
-      <h1 class="text-4xl font-bold mb-6 text-center">Get in Touch</h1>
-      <p class="text-center text-gray-600 dark:text-gray-400 mb-12">
-        Have questions? We'd love to hear from you.
-      </p>
+    <div class="max-w-4xl mx-auto">
+      <h1 class="text-4xl font-bold mb-6">About Floorplan 3D</h1>
+      
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-8 border border-gray-200 dark:border-gray-700 mb-8">
+        <h2 class="text-2xl font-bold mb-4">Our Mission</h2>
+        <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
+          We're revolutionizing the way architects, designers, and homeowners visualize spaces. 
+          Our AI-powered platform transforms 2D blueprints into immersive 3D experiences in seconds.
+        </p>
+        <p class="text-lg text-gray-600 dark:text-gray-400">
+          Founded in 2024, Floorplan 3D combines cutting-edge technology with intuitive design 
+          to make professional-grade 3D visualization accessible to everyone.
+        </p>
+      </div>
 
+      <div class="grid md:grid-cols-3 gap-6 mb-12">
+        <div class="text-center">
+          <div class="text-4xl font-bold text-primary mb-2">10k+</div>
+          <div class="text-gray-600 dark:text-gray-400">Users Worldwide</div>
+        </div>
+        <div class="text-center">
+          <div class="text-4xl font-bold text-primary mb-2">50k+</div>
+          <div class="text-gray-600 dark:text-gray-400">Projects Created</div>
+        </div>
+        <div class="text-center">
+          <div class="text-4xl font-bold text-primary mb-2">99%</div>
+          <div class="text-gray-600 dark:text-gray-400">Satisfaction Rate</div>
+        </div>
+      </div>
+
+      <div class="text-center">
+        <button onclick="window.location.href='Editor.html'" class="bg-primary text-white px-8 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity">
+          Try It Now
+        </button>
+      </div>
+
+      <!-- NEW: Interactive Demo Section -->
       <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-8">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-xl font-bold">See What You'll Get</h2>
+          <h2 class="text-2xl font-bold">Experience Our Technology</h2>
           <div class="flex items-center gap-4">
             <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Panorama</span>
             <label class="relative inline-flex cursor-pointer items-center">
@@ -59,55 +90,9 @@
             <span class="text-sm font-medium text-gray-500 dark:text-gray-400">3D</span>
           </div>
         </div>
-        <div id="shared-viewer-container" style="width: 100%; height: 350px; position: relative; background: #f8f8f8; border-radius: 8px; overflow: hidden;">
+        <div id="shared-viewer-container" style="width: 100%; height: 400px; position: relative; background: #f8f8f8; border-radius: 8px; overflow: hidden;">
           <canvas id="viewer-panorama-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: grab;"></canvas>
           <div id="viewer-3d-view" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none;"></div>
-        </div>
-      </div>
-
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-8 border border-gray-200 dark:border-gray-700">
-        <form class="space-y-6">
-          <div>
-            <label class="block text-sm font-medium mb-2">Name</label>
-            <input type="text" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Your name">
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium mb-2">Email</label>
-            <input type="email" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 focus:border-primary focus:ring-1 focus:ring-primary" placeholder="your@email.com">
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium mb-2">Subject</label>
-            <input type="text" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 focus:border-primary focus:ring-1 focus:ring-primary" placeholder="How can we help?">
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium mb-2">Message</label>
-            <textarea rows="5" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Tell us more..."></textarea>
-          </div>
-          
-          <button type="submit" class="w-full bg-primary text-white px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity">
-            Send Message
-          </button>
-        </form>
-      </div>
-
-      <div class="grid md:grid-cols-3 gap-6 mt-12">
-        <div class="text-center">
-          <span class="material-symbols-outlined text-primary text-3xl mb-2 block">mail</span>
-          <div class="font-medium">Email</div>
-          <div class="text-sm text-gray-600 dark:text-gray-400">support@floorplan3d.com</div>
-        </div>
-        <div class="text-center">
-          <span class="material-symbols-outlined text-primary text-3xl mb-2 block">chat</span>
-          <div class="font-medium">Live Chat</div>
-          <div class="text-sm text-gray-600 dark:text-gray-400">Available 9-5 EST</div>
-        </div>
-        <div class="text-center">
-          <span class="material-symbols-outlined text-primary text-3xl mb-2 block">help</span>
-          <div class="font-medium">Help Center</div>
-          <div class="text-sm text-gray-600 dark:text-gray-400">24/7 Documentation</div>
         </div>
       </div>
     </div>
@@ -123,7 +108,7 @@
     }
   </script>
   <script type="module">
-    import { SharedViewer } from './SharedViewer.js';
+    import { SharedViewer } from '../SharedViewer.js';
 
     document.addEventListener('DOMContentLoaded', () => {
         const viewer = new SharedViewer();

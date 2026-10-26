@@ -175,13 +175,13 @@ export const GLOSSARY = [
         term: 'GFCI',
         category: 'Electrical',
         short: 'Ground-fault circuit interrupter: trips on a small current leak to earth.',
-        detail: 'Required in bathrooms, kitchens, laundry, garages, outdoors and near sinks. It protects people, not the wiring.'
+        detail: 'CEC 210.8(A) covers 125–250 V receptacles in bathrooms, kitchens, laundry, garages, outdoors, basements, crawlspaces and indoor damp or wet locations. It protects people, not the wiring.'
     },
     {
         term: 'AFCI',
         category: 'Electrical',
         short: 'Arc-fault circuit interrupter: trips on a dangerous parallel or series arc.',
-        detail: 'Required for most 120 V branch circuits in habitable rooms. A combination AFCI breaker is the usual choice.'
+        detail: 'CEC 210.12(A) requires combination-type AFCI protection for 120 V, 15/20 A dwelling-unit branch circuits. An AFCI breaker is the usual choice.'
     },
     {
         term: 'TR receptacle',
@@ -292,10 +292,10 @@ export const GLOSSARY = [
         detail: 'Typically 30 in wide, 36 in deep and 6 ft 6 in high, not blocked by shelving or a door swing. Check the local amendment.'
     },
     {
-        term: 'IRC E3901 / E3902 / E3903',
+        term: 'CEC 210.8 / 210.52 / 210.70',
         category: 'Code',
-        short: 'The residential code sections for receptacle spacing, GFCI and lighting outlets.',
-        detail: 'E3901.2.2 is the 6 ft / 12 ft receptacle rule; E3902 is GFCI; E3903 is lighting outlets and switching. Local amendments can be stricter.'
+        short: 'The California Electrical Code sections for GFCI, receptacle spacing and lighting outlets.',
+        detail: 'CEC 210.52(A) is the 6 ft / 12 ft receptacle rule; 210.8 is GFCI; 210.70 is lighting outlets and switching. California amendments and the local AHJ can be stricter.'
     },
     {
         term: '6 ft / 12 ft rule',
@@ -307,19 +307,19 @@ export const GLOSSARY = [
         term: 'Lighting outlet',
         category: 'Code',
         short: 'An outlet intended for a luminaire, not the luminaire itself.',
-        detail: 'The required lighting outlet is the box and circuit; the fixture is chosen later. A switched receptacle can satisfy some rooms in older editions.'
+        detail: 'The required lighting outlet is the box and circuit; the fixture is chosen later. CEC 210.70(A)(1) Exception 1 still permits a switched receptacle in rooms other than kitchens and bathrooms.'
     },
     {
         term: 'LPD',
         category: 'Energy',
         short: 'Lighting power density in W/m² (or W/ft²).',
-        detail: 'A design metric and an energy-code lever. IECC caps residential lighting power in the whole-home trade-off, not room by room.'
+        detail: 'A design metric, not a Title 24 pass/fail limit. California regulates residential lighting through the high-efficacy luminaire and control requirements of §150.0(k).'
     },
     {
         term: 'High-efficacy lamp',
         category: 'Energy',
-        short: 'A lamp meeting the energy code efficacy threshold, in practice an LED.',
-        detail: 'IECC 2021 requires 75% of permanently installed luminaires to be high efficacy, or all of them in some paths. LEDs are the simple answer.'
+        short: 'A light source that meets the California high-efficacy classification, in practice a JA8 LED.',
+        detail: 'Title 24 §150.0(k)1A and Table 150.0-A require every installed luminaire to be high efficacy; most interior sources must also be JA8 certified.'
     },
     {
         term: 'Color shift',
@@ -487,18 +487,23 @@ function buildChecks(design, plan, preset) {
     const sockets = design.sockets;
     const gfciRequired = ['kitchen', 'bathroom', 'laundry', 'garage', 'outdoor'].includes(plan.roomType);
     if (gfciRequired) {
-        const unprotected = sockets.filter((socket) => !socket.gfci);
+        // CEC 210.8(A): 125–250 V receptacles in these locations. In a kitchen
+        // the rule covers countertop receptacles, not a dedicated 240 V range.
+        const scope = plan.roomType === 'kitchen'
+            ? sockets.filter((socket) => !socket.dedicated)
+            : sockets;
+        const unprotected = scope.filter((socket) => !socket.gfci);
         if (unprotected.length) {
-            push('error', 'gfci', `${unprotected.length} receptacle(s) lack GFCI protection in a ${preset.label.toLowerCase()}.`, 'IRC E3902 requires GFCI protection in kitchens, bathrooms, laundry areas, garages and outdoors.');
-        } else if (sockets.length) {
-            push('ok', 'gfci', 'Every receptacle is GFCI protected.');
+            push('error', 'gfci', `${unprotected.length} receptacle(s) lack GFCI protection in a ${preset.label.toLowerCase()}.`, 'CEC 210.8(A) requires GFCI for 125–250 V receptacles in kitchens, bathrooms, laundry areas, garages, outdoors, basements, crawlspaces and indoor damp or wet locations.');
+        } else if (scope.length) {
+            push('ok', 'gfci', 'Every required receptacle is GFCI protected.');
         }
     }
 
     if (plan.roomType === 'kitchen') {
         const kitchenCircuits = design.circuits.filter((circuit) => circuit.type === 'kitchen');
         if (kitchenCircuits.length < 2 && sockets.length) {
-            push('error', 'kitchen-circuits', 'Kitchen counter receptacles need two small-appliance circuits.', 'IRC E3901.3: at least two 20 A small-appliance branch circuits for countertop receptacles.');
+            push('error', 'kitchen-circuits', 'Kitchen counter receptacles need two small-appliance circuits.', 'CEC 210.11(C)(1): at least two 20 A small-appliance branch circuits for countertop receptacles.');
         } else if (kitchenCircuits.length >= 2) {
             push('ok', 'kitchen-circuits', 'Two kitchen small-appliance circuits.');
         }
@@ -506,7 +511,7 @@ function buildChecks(design, plan, preset) {
 
     if (plan.roomType === 'outdoor') {
         sockets.filter((socket) => !socket.weatherResistant).forEach(() => {
-            push('error', 'wr', 'An outdoor receptacle is not weather resistant.', 'Use a WR-rated receptacle with an in-use cover (IRC E3901.7).');
+            push('error', 'wr', 'An outdoor receptacle is not weather resistant.', 'Use a WR-rated receptacle with an in-use cover (CEC 406.9).');
         });
     }
 
@@ -515,27 +520,104 @@ function buildChecks(design, plan, preset) {
         push('warn', 'switch-empty', `${noSwitch.length} switch(es) control no lights.`, 'Bind each switch to at least one luminaire, or remove it from the plan.');
     }
 
+    const installed = design.luminaires.filter((light) => light.type.permanent !== false);
     const habitable = ['living', 'bedroom', 'kitchen', 'dining', 'office'];
-    const dimOrSensor = design.switches.some((device) => {
-        const type = switchById(device.typeId);
-        return type.dimmable || type.type === 'sensor';
+    const autoOffRooms = ['bathroom', 'laundry', 'garage', 'closet'];
+    const controlledBy = (light, predicate) => design.switches.some((device) => {
+        if (!(device.controls || []).includes(light.id)) return false;
+        return predicate(switchById(device.typeId));
     });
-    if (habitable.includes(plan.roomType) && design.switches.length && !dimOrSensor) {
-        push('warn', 'energy-controls', 'No dimmer or occupant sensor on the lighting.', 'IECC 2021 R404.2 / IRC N1104.2: permanently installed fixtures in habitable spaces need a dimmer, occupant sensor or equivalent control.');
-    } else if (habitable.includes(plan.roomType) && dimOrSensor) {
-        push('ok', 'energy-controls', 'Lighting is on a dimmer or occupancy control.');
+
+    // Title 24, Part 6 §150.0(k)2F: dimming in habitable spaces.
+    if (habitable.includes(plan.roomType) && installed.length) {
+        const missingDimming = installed.filter((light) => {
+            const hasDimming = controlledBy(light, (type) => type.dimmable);
+            const hasAutoOff = controlledBy(light, (type) => type.type === 'sensor');
+            return !hasDimming && !hasAutoOff && light.watts >= 20;
+        });
+        if (missingDimming.length) {
+            push('warn', 'energy-controls', `${missingDimming.length} luminaire(s) have no dimmer or automatic-off control.`, 'Title 24 §150.0(k)2F: lighting in habitable spaces needs a wall-mounted dimmer unless the controlled load is under 20 W or an occupancy/vacancy sensor provides automatic-off.');
+        } else {
+            push('ok', 'energy-controls', 'Habitable-space lighting is dimmable or on an automatic-off sensor.');
+        }
     }
 
-    const afci = design.circuits.some((circuit) => circuit.afci)
-        || design.sockets.some((socket) => socket.afci);
-    if (!afci && design.circuits.some((circuit) => circuit.voltage === 120)) {
-        push('info', 'afci', 'AFCI protection is not modelled on these 120 V circuits.', 'IRC E3902.20 / NEC 210.12 requires combination-type AFCI protection for most 120 V, 15–20 A branch circuits. Use AFCI breakers unless a listed exception applies.');
+    // Title 24, Part 6 §150.0(k)2E: automatic-off in wet, utility and storage rooms.
+    if (autoOffRooms.includes(plan.roomType) && design.luminaires.length) {
+        const automatic = design.switches.some((device) => {
+            const type = switchById(device.typeId);
+            return type.type === 'sensor' && (device.controls || []).length > 0;
+        });
+        if (automatic) {
+            push('ok', 'auto-off', 'An occupancy or vacancy sensor provides automatic-off.');
+        } else {
+            push('warn', 'auto-off', 'No occupancy or vacancy sensor controls the lighting.', 'Title 24 §150.0(k)2E: bathrooms, garages, laundry rooms, utility rooms and walk-in closets need at least one luminaire on an occupancy or vacancy sensor with automatic-off.');
+        }
     }
 
-    if (design.metrics.efficacy && design.metrics.efficacy < 65) {
-        push('warn', 'efficacy', `Installed efficacy is ${design.metrics.efficacy} lm/W.`, 'IECC 2021 R404.1 requires high-efficacy sources (65 lm/W or better) in permanently installed luminaires.');
-    } else if (design.luminaires.length) {
-        push('ok', 'efficacy', `Installed efficacy ${design.metrics.efficacy} lm/W meets the high-efficacy threshold.`);
+    // Title 24, Part 6 §150.0(k)3: outdoor lighting controls.
+    if (plan.roomType === 'outdoor' && design.switches.length) {
+        const automatic = design.switches.some((device) => Boolean(switchById(device.typeId).automatic));
+        if (automatic) {
+            push('ok', 'outdoor-controls', 'Outdoor lighting has an automatic control.');
+        } else {
+            push('warn', 'outdoor-controls', 'Outdoor lighting has no photocell or astronomical control.', 'Title 24 §150.0(k)3: outdoor lighting needs a manual ON/OFF switch plus a photocell and motion sensor or time switch, or an astronomical time clock.');
+        }
+    }
+
+    // Title 24, Part 6 §150.0(k)2G: under-cabinet lighting switches separately.
+    if (plan.roomType === 'kitchen') {
+        const undercabinet = design.luminaires.filter((light) => light.type.id === 'undercabinet-strip');
+        if (undercabinet.length) {
+            const shared = design.switches.some((device) => {
+                const controls = (device.controls || [])
+                    .map((id) => design.luminaires.find((light) => light.id === id))
+                    .filter(Boolean);
+                const hasTask = controls.some((light) => light.type.id === 'undercabinet-strip');
+                const hasCeiling = controls.some((light) => light.type.id !== 'undercabinet-strip');
+                return hasTask && hasCeiling;
+            });
+            const separate = design.switches.some((device) => {
+                const controls = (device.controls || [])
+                    .map((id) => design.luminaires.find((light) => light.id === id))
+                    .filter(Boolean);
+                return controls.length > 0 && controls.every((light) => light.type.id === 'undercabinet-strip');
+            });
+            if (shared || !separate) {
+                push('warn', 'independent-controls', 'Under-cabinet lighting shares a control with the ceiling lighting.', 'Title 24 §150.0(k)2G: under-cabinet, undershelf and display-cabinet lighting must be controlled separately from ceiling lighting.');
+            } else {
+                push('ok', 'independent-controls', 'Under-cabinet lighting has its own control.');
+            }
+        }
+    }
+
+    // CEC 210.12(A): every 120 V, 15/20 A branch circuit needs AFCI.
+    const afciCircuits = design.circuits.filter((circuit) => circuit.voltage === 120 && circuit.breakerA <= 20);
+    const noAfci = afciCircuits.filter((circuit) => {
+        const socketAfci = design.sockets.some((socket) => socket.circuitId === circuit.id && socket.afci);
+        return !circuit.afci && !socketAfci;
+    });
+    if (noAfci.length) {
+        push('warn', 'afci', `${noAfci.length} 120 V branch circuit(s) have no AFCI protection modelled.`, 'CEC 210.12(A) requires combination-type AFCI protection for 120 V, 15/20 A dwelling-unit branch circuits. Use an AFCI breaker unless a listed exception applies.');
+    } else if (afciCircuits.length) {
+        push('ok', 'afci', '120 V branch circuits are on AFCI breakers.');
+    }
+
+    // Title 24, Part 6 §150.0(k)1: high-efficacy, JA8 luminaires.
+    const exemptFromJa8 = (light) => plan.roomType === 'outdoor' || light.type.ja8Exempt === true;
+    const notJa8 = installed.filter((light) => !exemptFromJa8(light) && light.type.ja8 !== true);
+    if (notJa8.length) {
+        push('error', 'efficacy', `${notJa8.length} installed luminaire(s) are not JA8 certified.`, 'Title 24 §150.0(k)1A and Table 150.0-A: all installed luminaires must be high efficacy, and most interior sources must be JA8 certified.');
+    } else if (installed.length) {
+        push('ok', 'efficacy', 'Installed luminaires meet the Title 24 high-efficacy/JA8 requirement.');
+    }
+
+    const recessedBad = installed.filter((light) => light.type.mount === 'recessed'
+        && (light.type.ja8 !== true || light.type.screwBase === true || light.type.airtight !== true));
+    if (recessedBad.length) {
+        push('error', 'recessed-ja8', `${recessedBad.length} recessed downlight(s) fail the Title 24 downlight rules.`, 'Title 24 §150.0(k)1C: ceiling recessed downlights must be JA8, have no screw-base socket, and be airtight (under 2.0 cfm at 75 Pa).');
+    } else if (installed.some((light) => light.type.mount === 'recessed')) {
+        push('ok', 'recessed-ja8', 'Recessed downlights are JA8, screw-base-free and airtight.');
     }
 
     return checks;
@@ -592,7 +674,10 @@ function buildBom(design, plan) {
 
     const breakerCounts = new Map();
     design.circuits.forEach((circuit) => {
-        const breaker = BREAKERS.find((entry) => entry.amps === circuit.breakerA && entry.poles === (circuit.voltage === 240 ? 2 : 1))
+        const poles = circuit.voltage === 240 ? 2 : 1;
+        const breakerType = circuit.afci ? 'afci' : 'standard';
+        const breaker = BREAKERS.find((entry) => entry.amps === circuit.breakerA && entry.poles === poles && entry.type === breakerType)
+            || BREAKERS.find((entry) => entry.amps === circuit.breakerA && entry.poles === poles)
             || BREAKERS.find((entry) => entry.amps === circuit.breakerA)
             || BREAKERS[0];
         if (!breakerCounts.has(breaker.id)) breakerCounts.set(breaker.id, { breaker, count: 0 });

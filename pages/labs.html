@@ -1280,20 +1280,20 @@ room.<span class="function">requestPresenceUpdate</span>(clientId, {
 <script type="text/babel" data-type="module">
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import LabApp from './LabApp.js';
-import LabPathfinding from './LabPathfinding.js';
-import LabGLTFExport from './LabGLTFExport.js';
-import LabDracoCompression from './LabDracoCompression.js';
-import LabShaker3DViewer from './LabShaker3DViewer.js';
-import LabShakerPhysics from './LabShakerPhysics.js';
-import LabShakerAR from './LabShakerAR.js';
-import LabInstancing from './LabInstancing.js';
-import LabPostProcessing from './LabPostProcessing.js';
-import LabReactSpring from './LabReactSpring.js';
-import LabUpload from './LabUpload.js';
+import LabApp from '../LabApp.js';
+import LabPathfinding from '../LabPathfinding.js';
+import LabGLTFExport from '../LabGLTFExport.js';
+import LabDracoCompression from '../LabDracoCompression.js';
+import LabShaker3DViewer from '../LabShaker3DViewer.js';
+import LabShakerPhysics from '../LabShakerPhysics.js';
+import LabShakerAR from '../LabShakerAR.js';
+import LabInstancing from '../LabInstancing.js';
+import LabPostProcessing from '../LabPostProcessing.js';
+import LabReactSpring from '../LabReactSpring.js';
+import LabUpload from '../LabUpload.js';
 // NEW: R3F + WebGPU labs
-import LabR3FWebGPUFloorplan from './LabR3FWebGPUFloorplan.js';
-import LabWebGPUReactDemo from './LabWebGPUReactDemo.js';
+import LabR3FWebGPUFloorplan from '../LabR3FWebGPUFloorplan.js';
+import LabWebGPUReactDemo from '../LabWebGPUReactDemo.js';
 
 const root = createRoot(document.getElementById('react-root'));
 root.render(React.createElement(LabApp));
@@ -1349,8 +1349,8 @@ floorplanUploadRoot.render(React.createElement('div', { className: 'w-full h-ful
 
 // Object Placement Demo (using LabScene with constraints)
 const objectPlacementRoot = createRoot(document.getElementById('object-placement-demo'));
-import LabScene from './LabScene.js';
-import { MOCK_DATA } from './test-data.js';
+import LabScene from '../LabScene.js';
+import { MOCK_DATA } from '../test-data.js';
 
 const placementData = {
   rooms: [{ 
@@ -1426,7 +1426,7 @@ const materialSystemRoot = createRoot(document.getElementById('material-system-d
 materialSystemRoot.render(React.createElement(MaterialSystemDemo));
 
 // 2D/3D Sync Demo
-import { ConversionEngine3D } from './3dConversionEngine.js';
+import { ConversionEngine3D } from '../3dConversionEngine.js';
 
 class SyncDemo {
   constructor() {

@@ -106,7 +106,7 @@ async function main() {
 
     try {
         await waitForVersion();
-        const target = await (await fetch(`http://127.0.0.1:${PORT}/json/new?${encodeURIComponent(BASE + '/stair-parts.html')}`, { method: 'PUT' })).json();
+        const target = await (await fetch(`http://127.0.0.1:${PORT}/json/new?${encodeURIComponent(BASE + '/pages/stair-parts.html')}`, { method: 'PUT' })).json();
         const cdp = new CDP(target.webSocketDebuggerUrl);
         await cdp.send('Runtime.enable');
         await cdp.send('Page.enable');
@@ -153,7 +153,7 @@ async function main() {
         check('WebGL canvas created', gallery.canvas);
 
         console.log('\nEditor boot');
-        await load(BASE + '/Editor.html');
+        await load(BASE + '/pages/Editor.html');
         check('stair kit is installed', await waitFor('Boolean(window.stairKit)'));
         check('landscape kit is installed', await waitFor('Boolean(window.landscapeKit)'));
         const boot = await cdp.evaluate(`({
@@ -202,7 +202,7 @@ async function main() {
             window.setStairField('model', 'alt-tread');
             const design = window.stairKit.design();
             const item = window.stairKit.selected();
-            const { buildStairGeometry } = await import('./features/stairs/geometry.js');
+            const { buildStairGeometry } = await import('../features/stairs/geometry.js');
             const group = buildStairGeometry(item, { storeyHeight: 2.7 });
             let altTreads = 0;
             group.traverse((child) => { if (child.name && child.name.startsWith('alt-tread-')) altTreads += 1; });
@@ -246,7 +246,7 @@ async function main() {
         check('3D rebuilt after model changes', modelFlow.convert === true);
 
         const geometry = await cdp.evaluate(`(async () => {
-            const { buildStairGeometry, buildStairAssembly, computeOutdoorStair } = await import('./features/stairs/index.js');
+            const { buildStairGeometry, buildStairAssembly, computeOutdoorStair } = await import('../features/stairs/index.js');
             const item = { type: 'stair_deck', x: 300, y: 300, rotation: 0,
                 metadata: { width: 0.9144, depth: 4.4, height: 2.7 },
                 stair: { system: 'deck', type: 'straight', code: 'IRC2021', width: 0.9144, availableRun: 4.4, availableWidth: 1.2 } };
@@ -288,7 +288,7 @@ async function main() {
         check('3D rebuilt with the water feature', landscapeFlow.convert && landscapeFlow.convert.stories >= 1);
 
         const waterGeometry = await cdp.evaluate(`(async () => {
-            const { buildWaterFeature, computeWaterFeature } = await import('./features/landscape/index.js');
+            const { buildWaterFeature, computeWaterFeature } = await import('../features/landscape/index.js');
             const item = { type: 'pool', x: 100, y: 100, rotation: 0,
                 metadata: { width: 4, depth: 9, height: 0.1 },
                 landscape: { type: 'pool', shape: 'rectangle', width: 4, length: 9, shallow: 1.1, deep: 1.9, deck: 1.22 } };
@@ -315,7 +315,7 @@ async function main() {
 
         console.log('\nPlan footprint');
         const planBounds = await cdp.evaluate(`(async () => {
-            const { stairPlanBounds, buildStairGeometry } = await import('./features/stairs/index.js');
+            const { stairPlanBounds, buildStairGeometry } = await import('../features/stairs/index.js');
             const THREE = await import('three');
             const item = { type: 'stair_deck', x: 300, y: 300, rotation: 0,
                 metadata: { width: 0.9144, depth: 4.6, height: 2.7 },
@@ -341,8 +341,8 @@ async function main() {
             `${planBounds.sizeDepth?.toFixed(2)} m size vs ${planBounds.depth.toFixed(2)} m bounds`);
 
         const picking = await cdp.evaluate(`(async () => {
-            const { stairPlanBounds } = await import('./features/stairs/index.js');
-            const { PIXELS_PER_METER } = await import('./world-space.js');
+            const { stairPlanBounds } = await import('../features/stairs/index.js');
+            const { PIXELS_PER_METER } = await import('../world-space.js');
             const canvas = document.getElementById('blueprint-canvas');
             const rect = canvas.getBoundingClientRect();
             const click = (x, y) => {
@@ -391,7 +391,7 @@ async function main() {
         check('plan canvas has the drawn stair', plan.painted > 500, `${plan.painted} painted pixels`);
 
         console.log('\nStoreys, cutouts and roof');
-        await load(BASE + '/Editor.html');
+        await load(BASE + '/pages/Editor.html');
         check('studio kit survives the reload', await waitFor('Boolean(window.studioKit)'));
         const storeyFlow = await cdp.evaluate(`(() => {
             window.clearProject();
@@ -778,7 +778,7 @@ async function main() {
         check('clearing OCR removes the boxes', ocrFlow.afterClear.restored === true);
 
         console.log('\nStair gallery');
-        await load(BASE + '/stair-gallery.html');
+        await load(BASE + '/pages/stair-gallery.html');
         check('gallery page boots', await waitFor('Boolean(window.stairGallery)'));
         const stairGallery = await cdp.evaluate(`(() => {
             const gallery = window.stairGallery;
@@ -892,7 +892,7 @@ async function main() {
             `${stairGallery.canvas.width}×${stairGallery.canvas.height}`);
 
         console.log('\nStair glossary');
-        await load(BASE + '/stair-glossary.html');
+        await load(BASE + '/pages/stair-glossary.html');
         check('glossary page boots', await waitFor('Boolean(window.stairGlossary)'));
         const glossary = await cdp.evaluate(`(() => {
             const api = window.stairGlossary;
@@ -948,7 +948,7 @@ async function main() {
         check('glossary page fits without sideways scroll', glossary.overflow <= 1, `${glossary.overflow}px`);
 
         console.log('\nStair designer');
-        await load(BASE + '/stair-designer.html');
+        await load(BASE + '/pages/stair-designer.html');
         check('designer page boots', await waitFor('Boolean(window.stairDesigner)'));
         const designer = await cdp.evaluate(`(() => {
             const result = window.stairDesigner.compute();
@@ -1090,7 +1090,7 @@ async function main() {
         check('placed preset is sized with its landings', placedPreset.first.width > 1 && placedPreset.first.depth > 2, `${placedPreset.first.width?.toFixed(2)} × ${placedPreset.first.depth?.toFixed(2)} m`);
         check('preset is one-shot', placedPreset.second.count === placedPreset.first.count + 1 && placedPreset.second.model === null, placedPreset.second.model || 'type default');
 
-        await load(BASE + '/Editor.html');
+        await load(BASE + '/pages/Editor.html');
         const persisted = await cdp.evaluate(`(() => {
             const buttons = document.querySelectorAll('#stair-preset-items button.item-button');
             const stored = JSON.parse(localStorage.getItem('stair-presets') || '[]');
@@ -1108,7 +1108,7 @@ async function main() {
         check('preset removal clears the palette', persisted.after === 0 && persisted.stored === 0 && persisted.empty.includes('bookmark'), persisted.empty.slice(0, 50));
 
         console.log('\nRoof suite');
-        await load(BASE + '/roof-designer.html');
+        await load(BASE + '/pages/roof-designer.html');
         check('roof suite boots', await waitFor('Boolean(window.roofSuite && window.roofSuite.design)'));
         const roofPage = await cdp.evaluate(`(() => {
             const design = window.roofSuite.design;
@@ -1237,7 +1237,7 @@ async function main() {
         check('editor builds the roof from the draft', roofEditor.roofBuilt === true && roofEditor.builtStyle === 'hip', `${roofEditor.builtStyle}`);
 
         console.log('\nWall suite');
-        await load(BASE + '/wall-designer.html');
+        await load(BASE + '/pages/wall-designer.html');
         check('wall suite boots', await waitFor('Boolean(window.wallSuite && window.wallSuite.design)'));
         const wallPage = await cdp.evaluate(`(() => {
             const design = window.wallSuite.design;

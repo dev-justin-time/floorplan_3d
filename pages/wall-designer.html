@@ -195,7 +195,7 @@
             <p class="text-[10px] text-slate-400 leading-snug">
                 Metric design aid. Areas, litres, packs, labour and checks are illustrative; the substrate, wet-area, vapour, fire, WRB and grade rules follow IRC 2021 Chapter 7 and the product data sheets.
                 <a href="#reference" id="glossary-link" class="underline hover:text-sky-700">Glossary &amp; formulas</a> ·
-                <a href="wall-suite.md" class="underline hover:text-sky-700">Suite notes</a>.
+                <a href="../wall-suite.md" class="underline hover:text-sky-700">Suite notes</a>.
             </p>
             <p id="status" class="text-[10px] text-sky-700 min-h-[1rem]"></p>
         </aside>
@@ -325,7 +325,7 @@
         WALL_DEFAULTS,
         computeWallDesign,
         wallTakeoffCsv
-    } from './features/wall/design.js';
+    } from '../features/wall/design.js';
     import {
         WALL_COVERINGS,
         PAINT_COLOURS,
@@ -340,14 +340,14 @@
         paintCoveringForSheen,
         colourById,
         lrvOf
-    } from './features/wall/materials.js';
+    } from '../features/wall/materials.js';
     import {
         WALL_GLOSSARY,
         WALL_FORMULAS,
         wallGlossaryByCategory,
         searchWallGlossary
-    } from './features/wall/glossary.js';
-    import { createWallViewer, drawWallElevation } from './features/wall/preview.js';
+    } from '../features/wall/glossary.js';
+    import { createWallViewer, drawWallElevation } from '../features/wall/preview.js';
 
     const $ = (id) => document.getElementById(id);
     const DRAFT_KEY = 'wall-suite-draft';

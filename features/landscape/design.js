@@ -3,7 +3,7 @@
  *
  * Sizes a pool, spa, fountain, pond, waterfall or water wall from the space and
  * the water body, then checks it against ISPSC 2021, IRC Appendix G, NEC 680 and
- * the VGB anti-entrapment rules. See landscape.md for the clause reference.
+ * the VGB anti-entrapment rules. See landrules.md for the clause reference.
  *
  * All dimensions are metres; volumes are reported in m³ and US gallons; flows in
  * US gallons per minute; temperatures in °C with °F alongside.
@@ -289,7 +289,7 @@ export function computeWaterFeature(input = {}) {
     const gallons = volumeM3 * GALLONS_PER_M3;
     const turnoverHours = clamp(number(config.turnoverHours, base.turnoverHours), 0.25, 24);
     const flowGpm = gallons / (turnoverHours * 60);
-    const head = number(config.head, 40 * FT) / FT * 1; // feet
+    const head = number(config.head, 40); // total dynamic head, feet of water
     const pumpHp = (flowGpm * head) / (3960 * 0.65);
     const batherArea = avgDepth > 1.4 ? code.batherAreaDeep : code.batherAreaShallow;
     const bathers = Math.floor(area / batherArea);

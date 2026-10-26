@@ -177,11 +177,11 @@
 
         try {
             const [app, testPage, upload, floorPlan3D, testData] = await Promise.all([
-                window.loadModule('./App.jsx'),
-                window.loadModule('./page.tsx'),
-                window.loadModule('./UploadFloorPlan.tsx'),
-                window.loadModule('./FloorPlan3D.tsx'),
-                window.loadModule('./testData.ts')
+                window.loadModule('../App.jsx'),
+                window.loadModule('../page.tsx'),
+                window.loadModule('../UploadFloorPlan.tsx'),
+                window.loadModule('../FloorPlan3D.tsx'),
+                window.loadModule('../testData.ts')
             ]);
 
             const plan = testData.default;
