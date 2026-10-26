@@ -1,5 +1,6 @@
 import { computeDeckDesign } from '../deck/engine.js';
 import { computeElectricalDesign } from '../electrical/engine.js';
+import { computeFramingDesign } from '../framing/engine.js';
 import { designLandscape } from '../landscape/engine.js';
 import { designLighting } from '../lighting/engine.js';
 import { designPlumbing } from '../plumbing/engine.js';
@@ -21,6 +22,7 @@ import { computeWallDesign } from '../wall/design.js';
 export const SUITES = [
     { key: 'deck', label: 'Deck and framing', draftKeys: ['deck-editor-draft', 'deck-suite-draft'] },
     { key: 'electrical', label: 'Electrical', draftKeys: ['electrical-editor-draft', 'electrical-suite-draft'] },
+    { key: 'framing', label: 'Framing', draftKeys: ['framing-editor-draft', 'framing-suite-draft'] },
     { key: 'landscape', label: 'Landscape and water features', draftKeys: ['landscape-suite-plan'] },
     { key: 'lighting', label: 'Lighting', draftKeys: ['lighting-suite-plan'] },
     { key: 'plumbing', label: 'Plumbing', draftKeys: ['plumbing-suite-plan'] },
@@ -89,6 +91,16 @@ const ADAPTERS = {
         const config = draft.config || draft;
         const design = computeElectricalDesign(config);
         return withLines('electrical', 'Electrical', [{ rows: design.bom.rows, group: 'Electrical' }]);
+    },
+    framing: (draft) => {
+        const config = draft.config || draft;
+        const design = computeFramingDesign(config);
+        // Labour is priced by the bid builder's own markup, so only material
+        // rows are harvested here.
+        return withLines('framing', 'Framing', [{
+            rows: design.bom.rows.filter((row) => row.group !== 'Labour'),
+            group: 'Framing'
+        }]);
     },
     landscape: (draft) => {
         const plan = draft.feature ? draft : { feature: draft, site: {} };

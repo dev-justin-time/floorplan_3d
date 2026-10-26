@@ -17,6 +17,7 @@ const escape = (value) => String(value ?? '')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 const money = (value) => `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const slug = (text) => String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 const round = (value, digits = 2) => {
     const factor = 10 ** digits;
     return Math.round((Number(value) || 0) * factor) / factor;
@@ -280,6 +281,7 @@ function addManual(entry) {
     }
     const line = {
         id: `manual-${nextManualId += 1}`,
+        code: slug(description),
         description,
         qty: Math.max(Number(entry.qty) || 1, 0),
         unit: entry.unit || 'ea',
@@ -303,6 +305,7 @@ function addAlternate(entry) {
     }
     const line = {
         id: `alternate-${nextManualId += 1}`,
+        code: slug(description),
         description,
         qty: Math.max(Number(entry.qty) || 1, 0),
         unit: entry.unit || 'ea',
@@ -319,10 +322,7 @@ function addAlternate(entry) {
 
 function removeManual(code) {
     const before = state.manual.length;
-    state.manual = state.manual.filter((line) => {
-        const key = line.description.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        return key !== code;
-    });
+    state.manual = state.manual.filter((line) => line.code !== code && line.id !== code && slug(line.description) !== code);
     rebuild();
     saveState();
     return state.manual.length < before;
@@ -330,10 +330,7 @@ function removeManual(code) {
 
 function removeAlternate(code) {
     const before = state.alternates.length;
-    state.alternates = state.alternates.filter((line) => {
-        const key = line.description.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        return key !== code;
-    });
+    state.alternates = state.alternates.filter((line) => line.code !== code && line.id !== code && slug(line.description) !== code);
     rebuild();
     saveState();
     return state.alternates.length < before;

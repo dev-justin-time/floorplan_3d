@@ -95,6 +95,13 @@
                             </div>
                             <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Roof</span>
                         </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none" title="Show the wall studs instead of the finished walls">
+                            <div class="relative">
+                                <input type="checkbox" id="framing-header-toggle" class="sr-only peer" onchange="window.toggleFraming(this.checked)">
+                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Framing</span>
+                        </label>
                     </div>
                 </div>
                 <div class="flex gap-2">
@@ -110,6 +117,7 @@
                         <span class="material-symbols-outlined text-base">pool</span>
                         <span class="truncate">Landscape</span>
                     </a>
+            <a href="framing-designer.html" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-gray-800 dark:text-white text-sm font-bold tracking-[0.015em] hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors gap-2" title="Open the wall framing suite">Framing</a>
             <a href="deck-designer.html" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-gray-800 dark:text-white text-sm font-bold tracking-[0.015em] hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors gap-2">Deck</a>
             <a href="electrical-designer.html" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-gray-800 dark:text-white text-sm font-bold tracking-[0.015em] hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors gap-2">Electrical</a>
             <a href="bid-builder.html" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-gray-800 dark:text-white text-sm font-bold tracking-[0.015em] hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors gap-2">Bid</a>
@@ -231,6 +239,21 @@
                         <div id="openings-list" class="space-y-0.5 max-h-28 overflow-y-auto pr-1"></div>
                         <p class="text-[10px] text-gray-400 leading-snug">Cutout tool (C): drag over the slab; drag a point to reshape; double-click an edge to add one.</p>
                     </div>
+                </div>
+
+                <!-- Framing overlay (features/framing/scene.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Framing</h3>
+                        <span id="framing-summary" class="text-[10px] font-mono text-gray-400">off</span>
+                    </div>
+                    <label class="flex items-center gap-2 mt-2 cursor-pointer select-none text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                        <input id="framing-check" type="checkbox" onchange="window.toggleFraming(this.checked)">
+                        Show wall framing
+                    </label>
+                    <div id="framing-rows" class="mt-1.5 space-y-0.5 text-[10px] leading-snug"></div>
+                    <p id="framing-note" class="text-[10px] text-gray-400 leading-snug mt-1"></p>
+                    <p class="text-[10px] text-gray-400 leading-snug mt-1">16 in on center studs, kings and jacks at the openings, sized headers, treated sole plate and a double top plate. <a href="framing-designer.html" class="text-primary underline hover:text-sky-700">Framing suite</a></p>
                 </div>
 
                 <!-- Roof suite (features/studio/roof.js + features/roof) -->

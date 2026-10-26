@@ -7,7 +7,7 @@ import { StorageManager } from './storage.js';
 import { FloorPlanProcessor } from './floorPlanProcessor.js';
 import { graphFromWalls } from './floorplan-graph.js';
 import { measurePlan } from './measurements.js';
-import { PIXELS_PER_METER, WALL_HEIGHT } from './world-space.js';
+import { PIXELS_PER_METER, WALL_HEIGHT, INCH, planToCanvas } from './world-space.js';
 import { fitCameraToGraph } from './scene-camera.js';
 import { fixtureAt, beginDrag, dragTo } from './scene-drag.js';
 import { snapToWalls } from './wall-snap.js';
@@ -178,6 +178,8 @@ import { computeDeckDesign } from './features/deck/engine.js';
 import { deckEditorSummary, deckDraftLines } from './features/deck/panel.js';
 import { computeElectricalDesign } from './features/electrical/engine.js';
 import { electricalEditorSummary, electricalDraftLines } from './features/electrical/panel.js';
+import { computeEditorFraming, buildFramingGroup, disposeFramingGroup, framingSceneStats, readFramingDraft } from './features/framing/scene.js';
+import { framingEditorSummary, framingDraftLines } from './features/framing/panel.js';
 
 // Application State
 const AppState = {
@@ -204,6 +206,10 @@ const AppState = {
     deckDraft: null,
     // Electrical draft sent from electrical-designer.html.
     electricalDraft: null,
+    // Framing member choices sent from framing-designer.html, and whether the
+    // stud overlay is drawn in place of the finished walls.
+    framingDraft: null,
+    framingEnabled: false,
     // Settings
     showDimensions: true,
     showCeiling: false,
@@ -314,6 +320,9 @@ let elevationBounds = null, elevationDrag = null;
 let abilities = null;
 let gridHelper3D = null, axesHelper3D = null;
 let conversionEngine;
+// 3D framing overlay (features/framing/scene.js) and its last computed design.
+let framingGroup = null;
+let framingResult = null;
 let itemGizmo;
 let gizmoMode = 'translate';
 let stateManager;
@@ -403,7 +412,8 @@ function init() {
     const deckDraft = applyDeckEditorDraft();
     const electricalDraft = applyElectricalEditorDraft();
     const landscapeDraft = applyLandscapeEditorDraft();
-    if (roofDraft || wallDraft || lightingDraft || landscapeDraft) update3D();
+    const framingDraft = applyFramingEditorDraft();
+    if (roofDraft || wallDraft || lightingDraft || landscapeDraft || framingDraft) update3D();
     void deckDraft;
     void electricalDraft;
 
@@ -681,6 +691,21 @@ function init() {
         circuits: () => window.electricalKit.design()?.circuits || [],
         lines: () => electricalDraftLines(window.electricalKit.design())
     };
+
+    // Framing suite handle: the member choices from framing-designer.html and
+    // the frame built from the plan that is actually on screen.
+    window.framingKit = {
+        draft: () => AppState.framingDraft || null,
+        enabled: () => AppState.framingEnabled,
+        toggle: (force) => { toggleFraming(force); return AppState.framingEnabled; },
+        design: () => framingResult?.design || null,
+        summary: () => framingEditorSummary(framingResult?.design || null),
+        scene: () => ({ ...framingSceneStats(framingGroup), wallRoot: conversionEngine?.wallRoot?.visible !== false }),
+        lines: () => framingDraftLines(framingResult?.design || null),
+        refresh: () => { refreshFramingOverlay(); return framingResult?.design || null; }
+    };
+    window.toggleFraming = toggleFraming;
+    refreshFramingPanel();
 
     window.addCommentHere = () => addCommentAt(AppState.cursor || planCenter());
     window.resolveComment = (id) => resolveComment(id);
@@ -2518,6 +2543,87 @@ function applyElectricalEditorDraft() {
     return true;
 }
 
+function applyFramingEditorDraft() {
+    // The framing designer sends its member choices (stud size, spacing,
+    // precut length, sheathing). When the editor has no plan of its own, the
+    // suite's walls are imported so there is something to frame; an existing
+    // plan is never replaced.
+    const draft = readFramingDraft();
+    if (!draft?.config) return false;
+    AppState.framingDraft = draft;
+    AppState.framingEnabled = true;
+    try {
+        importFramingDraftPlan(draft);
+    } catch (error) {
+        console.warn('Framing plan could not be imported', error);
+    }
+    return true;
+}
+
+/** Build editor walls and openings from the suite plan, only into an empty plan. */
+function importFramingDraftPlan(draft) {
+    const existing = (AppState.stories || []).some((storey) => (storey.walls || []).length)
+        || (AppState.walls || []).length;
+    if (existing || !blueprintCanvas) return false;
+    const suiteStoreys = (draft.config?.storeys || []).filter((storey) => (storey.walls || []).length);
+    if (!suiteStoreys.length) return false;
+
+    const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+    const stories = suiteStoreys.map((storey, index) => {
+        const wallHeight = ((Number(storey.studLengthIn) || 92.5) + 4.5) * INCH;
+        const walls = [];
+        const fixtures = [];
+        (storey.walls || []).forEach((source, wallIndex) => {
+            const a = planToCanvas({ x: source.x1, z: source.z1 }, view);
+            const b = planToCanvas({ x: source.x2, z: source.z2 }, view);
+            if (Math.hypot(b.x - a.x, b.y - a.y) < 3) return;
+            const wall = new Wall(a.x, a.y, b.x, b.y, 10, source.id || `framing-wall-${index}-${wallIndex}`);
+            walls.push(wall);
+            const runPx = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+            const rotation = Math.atan2(b.y - a.y, b.x - a.x);
+            (source.openings || []).forEach((opening, openingIndex) => {
+                const t = Math.min(Math.max((Number(opening.offsetM) || 0) * PIXELS_PER_METER / runPx, 0), 1);
+                const fixture = ItemFactory.create(
+                    opening.type === 'door' ? 'door' : 'window',
+                    a.x + (b.x - a.x) * t,
+                    a.y + (b.y - a.y) * t,
+                    rotation,
+                    opening.id || `framing-opening-${index}-${wallIndex}-${openingIndex}`
+                );
+                fixture.boundToWallId = wall.id;
+                fixture.metadata = {
+                    ...fixture.metadata,
+                    width: Math.max(0.3, Number(opening.widthM) || 1),
+                    height: Math.max(0.3, Number(opening.heightM) || 1),
+                    sillHeight: opening.type === 'door' ? 0 : Math.max(0, Number(opening.sillM) || 0)
+                };
+                fixtures.push(fixture);
+            });
+        });
+        return {
+            id: `framing-storey-${index}`,
+            name: storey.name || `Floor ${index + 1}`,
+            wallHeight,
+            floorDepth: 8 * INCH,
+            height: wallHeight + 8 * INCH,
+            visible: true,
+            walls,
+            fixtures,
+            openings: []
+        };
+    }).filter((storey) => storey.walls.length);
+
+    if (!stories.length) return false;
+    AppState.stories = stories;
+    AppState.currentStoryIndex = 0;
+    AppState.walls = stories[0].walls;
+    AppState.fixtures = stories[0].fixtures;
+    AppState.selectedWallId = null;
+    AppState.selectedFixture = null;
+    AppState.hasFramed3D = false;
+    return true;
+}
+
 function applyDeckEditorDraft() {
     // The deck designer hands its framing config over so the editor can price
     // and schedule the same deck. The key is left in place: the bid builder and
@@ -4075,7 +4181,94 @@ function update3D() {
     // The rebuild replaced every mesh, so the height annotations anchored to
     // them are rebuilt too.
     refreshElevationAnnotations();
+    // Framing is rebuilt from the same plan, after the walls it replaces.
+    refreshFramingOverlay();
     renderLoop?.requestRender();
+}
+
+/**
+ * Swap the finished walls for the stud frame, or back. The overlay is built by
+ * features/framing/scene.js from the editor's actual walls, so it follows every
+ * storey and every opening without a second copy of the plan.
+ */
+function refreshFramingOverlay() {
+    if (framingGroup) {
+        disposeFramingGroup(framingGroup);
+        framingGroup = null;
+    }
+    if (conversionEngine?.wallRoot) {
+        conversionEngine.wallRoot.visible = !AppState.framingEnabled;
+    }
+
+    framingResult = null;
+    if (AppState.framingEnabled && scene3D && conversionEngine && blueprintCanvas) {
+        try {
+            const stories = engineStories(AppState);
+            const stack = storeyStack(AppState.stories);
+            if (stories.length) {
+                framingResult = computeEditorFraming({
+                    stories,
+                    view: { width: blueprintCanvas.width, height: blueprintCanvas.height },
+                    fixturesByStorey: stories.map((story) => story.fixtures || []),
+                    draft: AppState.framingDraft
+                });
+                framingGroup = buildFramingGroup(framingResult.design, {
+                    elevations: stack.map((entry) => entry.elevation),
+                    visible: stack.map((entry) => entry.visible)
+                });
+                scene3D.add(framingGroup);
+            }
+        } catch (error) {
+            console.warn('Framing overlay could not be built', error);
+            framingGroup = null;
+            framingResult = null;
+        }
+    }
+    refreshFramingPanel();
+}
+
+function refreshFramingPanel() {
+    const summary = framingEditorSummary(framingResult?.design || null);
+    const heading = document.getElementById('framing-summary');
+    if (heading) {
+        heading.textContent = AppState.framingEnabled
+            ? referenceFramingHeadline()
+            : 'off';
+    }
+    const toggle = document.getElementById('framing-check');
+    if (toggle) toggle.checked = Boolean(AppState.framingEnabled);
+    const headerToggle = document.getElementById('framing-header-toggle');
+    if (headerToggle) headerToggle.checked = Boolean(AppState.framingEnabled);
+    const rows = document.getElementById('framing-rows');
+    if (rows) {
+        rows.innerHTML = AppState.framingEnabled
+            ? summary.rows.map((row) => `<div class="flex justify-between gap-2"><span class="text-gray-400">${row.label}</span><span class="font-mono">${row.value}</span></div>`).join('')
+            : '<p class="text-[10px] text-gray-400">Turn the overlay on to frame the current plan with studs, kings, jacks and headers.</p>';
+    }
+    const note = document.getElementById('framing-note');
+    if (note) {
+        if (!AppState.framingEnabled) {
+            note.textContent = 'Framing view replaces the finished walls with the stud frame.';
+        } else if (!framingResult || framingResult.empty) {
+            note.textContent = 'Draw walls on the plan to frame them.';
+        } else {
+            const errors = framingResult.design.errors;
+            note.textContent = `${framingSceneStats(framingGroup).meshes} framing members · ${errors ? `${errors} error${errors === 1 ? '' : 's'}` : 'checks pass'} · 16 in on center`;
+        }
+    }
+}
+
+// The suite's own headline is friendlier than the design object's stack of
+// metrics; the panel keeps the short version above the rows.
+function referenceFramingHeadline() {
+    const storeys = framingResult?.design?.storeys?.length || 0;
+    const linear = framingResult?.design?.metrics?.linearM || 0;
+    return storeys ? `${storeys} storey${storeys === 1 ? '' : 's'} · ${linear} m` : 'no walls';
+}
+
+function toggleFraming(force) {
+    AppState.framingEnabled = typeof force === 'boolean' ? force : !AppState.framingEnabled;
+    update3D();
 }
 
 // ------------------------------------------------------------------

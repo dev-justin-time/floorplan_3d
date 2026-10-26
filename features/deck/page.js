@@ -360,12 +360,9 @@ function drawPlan() {
 }
 
 function planPoint(event) {
-    const canvas = $('plan');
-    const rect = canvas.getBoundingClientRect();
-    const dprTransform = canvas.width / rect.width;
-    // The renderer scales the context by dpr and takes CSS pixels, so the
-    // pointer has to come back through the same transform.
-    void dprTransform;
+    // The renderer takes CSS pixels and scales the context itself, so pointer
+    // positions need no devicePixelRatio correction.
+    const rect = $('plan').getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
