@@ -1,1055 +1,430 @@
 <!DOCTYPE html>
-<html class="h-full" lang="en">
+<html lang="en" class="h-full">
 <head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>Plumbing Suite · Blueprint Interactive & Animated Edition</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plumbing suite · rough-in and finish</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --bp-bg: #071326;
-            --bp-panel: #0a192f;
-            --bp-surface: #0d213f;
-            --bp-border: #1e3a63;
-            --bp-cyan: #38bdf8;
-            --bp-glow: #00f2fe;
-            --bp-gold: #fbbf24;
-            --bp-hot: #ff4d4d;
-            --bp-vent: #c084fc;
-        }
-        html, body {
-            margin: 0;
-            height: 100%;
-            overflow: hidden;
-            background: #071326;
-            color: #f0fdf4;
-            font-family: 'Inter', -apple-system, sans-serif;
-            user-select: none;
-        }
-        .font-mono, input.font-mono, select.font-mono, code {
-            font-family: 'JetBrains Mono', monospace;
-        }
-        .blueprint-canvas-bg {
-            background-color: #06152d;
-            background-image:
-                linear-gradient(rgba(56, 189, 248, 0.16) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(56, 189, 248, 0.16) 1px, transparent 1px),
-                linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
-            background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
-        }
-        .tab {
-            position: relative;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .tab.active {
-            background: #0284c7;
-            color: #ffffff;
-            border-color: #38bdf8;
-            box-shadow: 0 0 14px rgba(0, 242, 254, 0.45);
-        }
-        .tab.active::after {
-            content: '';
-            position: absolute;
-            bottom: -5px;
-            left: 15%;
-            right: 15%;
-            height: 2px;
-            background: #00f2fe;
-            box-shadow: 0 0 8px #00f2fe;
-            border-radius: 999px;
-        }
-        .part { transition: all 0.2s ease; }
-        .part.active {
-            background: #0284c7;
-            color: #ffffff;
-            border-color: #38bdf8;
-            box-shadow: 0 0 12px rgba(0, 242, 254, 0.35);
-        }
-        .tool.active {
-            background: #0284c7;
-            color: #ffffff;
-            border-color: #38bdf8;
-            box-shadow: 0 0 10px rgba(0, 242, 254, 0.35);
-        }
-        .table-scroll {
-            scrollbar-width: thin;
-            scrollbar-color: #1e3a63 #0a192f;
-        }
-        .table-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
-        .table-scroll::-webkit-scrollbar-track { background: #0a192f; }
-        .table-scroll::-webkit-scrollbar-thumb { background: #1e3a63; border-radius: 3px; }
-        .table-scroll::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
-        .metric-value { font-variant-numeric: tabular-nums; transition: all 0.3s ease; }
-        .glow-legend { width: 8px; height: 8px; border-radius: 999px; display: inline-block; box-shadow: 0 0 6px currentColor; }
-        select, input[type="text"], input[type="number"], input[type="search"] {
-            background-color: #081a38 !important;
-            border-color: #1e3a63 !important;
-            color: #f0fdf4 !important;
-            outline: none !important;
-        }
-        select:focus, input:focus {
-            border-color: #38bdf8 !important;
-            box-shadow: 0 0 0 1px #00f2fe, 0 0 10px rgba(0, 242, 254, 0.4) !important;
-        }
-        @keyframes flowDashForward { 0% { stroke-dashoffset: 40; } 100% { stroke-dashoffset: 0; } }
-        @keyframes flowDashReverse { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 40; } }
-        .pipe-flow-cold { stroke-dasharray: 6, 4; animation: flowDashForward 1.3s linear infinite; }
-        .pipe-flow-hot { stroke-dasharray: 6, 4; animation: flowDashForward 1.0s linear infinite; }
-        .pipe-flow-dwv { stroke-dasharray: 7, 5; animation: flowDashReverse 1.7s linear infinite; }
-        .pipe-flow-vent { stroke-dasharray: 4, 6; animation: flowDashForward 2.2s linear infinite; }
-        .pipe-flow-gas { stroke-dasharray: 8, 4; animation: flowDashForward 1.9s linear infinite; }
-        .pressure-surge { animation: surgeAnim 0.7s cubic-bezier(0.1, 0.8, 0.3, 1) forwards; }
-        @keyframes surgeAnim {
-            0% { stroke-width: 3; filter: drop-shadow(0 0 2px #00f2fe); }
-            50% { stroke-width: 8; filter: drop-shadow(0 0 18px #00f2fe); }
-            100% { stroke-width: 3; filter: drop-shadow(0 0 3px #00f2fe); }
-        }
-        .fixture-node { cursor: pointer; transition: transform 0.15s ease; }
-        .fixture-node:hover rect, .fixture-node:hover ellipse, .fixture-node:hover circle {
-            filter: drop-shadow(0 0 10px #00f2fe);
-        }
-        .fixture-node.active-fixture rect, .fixture-node.active-fixture ellipse {
-            stroke: #00f2fe !important;
-            stroke-width: 2.5px !important;
-            filter: drop-shadow(0 0 14px rgba(0,242,254,0.85));
-        }
-        .cursor-crosshair-x, .cursor-crosshair-y {
-            position: absolute;
-            pointer-events: none;
-            background: rgba(56, 189, 248, 0.25);
-            z-index: 5;
-        }
-        .cursor-crosshair-x { height: 1px; left: 0; right: 0; }
-        .cursor-crosshair-y { width: 1px; top: 0; bottom: 0; }
-        .panel-fade { animation: fadeInTab 0.2s ease-out forwards; }
-        @keyframes fadeInTab { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes radarSweep { 0% { transform: scale(0.9); opacity: 0.8; } 50% { transform: scale(1.3); opacity: 0.3; } 100% { transform: scale(0.9); opacity: 0.8; } }
-        .sync-pulse { animation: radarSweep 2.2s infinite ease-in-out; }
-        @media (prefers-reduced-motion: reduce) {
-            .pipe-flow-cold, .pipe-flow-hot, .pipe-flow-dwv, .pipe-flow-vent, .pipe-flow-gas, .sync-pulse, .pressure-surge {
-                animation: none !important;
-            }
-        }
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #f8fafc; }
+        canvas { display: block; }
+        #plan-rough, #plan-finish { width: 100%; height: 100%; touch-action: none; }
+        .tab.active { background: #0f172a; color: white; }
+        .part.active { background: #0f172a; color: white; border-color: #0f172a; }
+        .tool.active { background: #0f172a; color: white; border-color: #0f172a; }
+        .severity-ok { color: #15803d; }
+        .severity-info { color: #475569; }
+        .severity-warn { color: #b45309; }
+        .severity-error { color: #dc2626; }
+        .rule-body { display: none; }
+        .rule.open .rule-body { display: block; }
+        .rule.open .rule-caret { transform: rotate(90deg); }
+        .rule-caret { transition: transform .15s ease; }
+        .chip.active { background: #0f172a; color: white; border-color: #0f172a; }
+        .status-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; }
+        .table-scroll { scrollbar-width: thin; }
+        th { position: sticky; top: 0; background: #f8fafc; z-index: 1; }
+        .finish-card { transition: border-color .12s ease, background .12s ease; }
+        .finish-card:hover { border-color: #7dd3fc; background: #f0f9ff; }
+        .finish-card.selected { border-color: #0284c7; background: #e0f2fe; }
+        .metric-value { font-variant-numeric: tabular-nums; }
+        .glow-legend { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+        input[type="range"] { accent-color: #0ea5e9; }
+        input[readonly] { background: #f1f5f9; color: #475569; }
+        .prose-sm p { margin: 0 0 .4rem; }
     </style>
 </head>
-<body class="h-full text-slate-100 bg-[#071326]">
+<body class="h-full text-slate-800">
 <div class="h-full flex flex-col">
-    <!-- Top Engineering Header -->
-    <header class="flex items-center justify-between gap-3 px-4 py-2 bg-[#0a192f] border-b border-[#1e3a63]">
-        <div class="flex items-center gap-3 min-w-0">
-            <div class="flex items-center gap-2">
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-widest bg-cyan-950 text-cyan-300 border border-cyan-700/60 shadow-[0_0_8px_rgba(0,242,254,0.3)]">DWG // PLB-01</span>
-                <h1 class="text-base font-bold whitespace-nowrap text-white tracking-wide">Plumbing Suite <span class="text-xs font-normal text-cyan-400 font-mono">:: PRECISION DRAFT · INTERACTIVE EDITION</span></h1>
-            </div>
-            <div class="hidden lg:flex items-center gap-2 text-[10px] text-cyan-300/70 font-mono border-l border-[#1e3a63] pl-3">
-                <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 sync-pulse"></span> HYDRAULIC SOLVER: SYNCED</span>
-                <span>·</span>
-                <span>IPC/IRC/IFGC ENGINE v4.2</span>
-                <span>·</span>
-                <span class="text-cyan-400">SCALE 1:50</span>
-            </div>
+    <header class="flex items-center justify-between gap-3 px-4 py-2 bg-white border-b border-slate-200">
+        <div class="flex items-baseline gap-3 min-w-0">
+            <h1 class="text-base font-bold whitespace-nowrap">Plumbing suite</h1>
+            <span class="text-[11px] text-slate-500 truncate">1 rough-in · 2 finish · sewer, water and gas from the hookups</span>
         </div>
         <div class="flex items-center gap-1.5 text-[11px] font-semibold shrink-0">
-            <button class="px-2 py-1 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-200 hover:bg-[#153460] hover:border-cyan-400 transition" id="action-editor">Editor</button>
-            <button class="px-2 py-1 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-200 hover:bg-[#153460] hover:border-cyan-400 transition" id="action-lighting">Lighting</button>
-            <button class="px-2 py-1 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-200 hover:bg-[#153460] hover:border-cyan-400 transition" id="action-stairs">Stairs</button>
-            <button class="px-2 py-1 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-200 hover:bg-[#153460] hover:border-cyan-400 transition" id="action-roof">Roof</button>
-            <button class="px-2 py-1 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-200 hover:bg-[#153460] hover:border-cyan-400 transition" onclick="window.location.href='landscape-designer.html'">Landscape</button>
-            <button class="px-2 py-1 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-200 hover:bg-[#153460] hover:border-cyan-400 transition" id="action-rules">Rules</button>
-            <button class="px-2 py-1 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-200 hover:bg-[#153460] hover:border-cyan-400 transition" id="reset">Reset</button>
-            <button class="px-2 py-1 rounded border border-cyan-800/80 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60 hover:border-cyan-400 transition font-mono text-[10px]" id="rough-csv">Rough CSV</button>
-            <button class="px-2 py-1 rounded border border-cyan-800/80 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60 hover:border-cyan-400 transition font-mono text-[10px]" id="finish-csv">Finish CSV</button>
+            <a href="Editor.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Editor</a>
+            <a href="lighting-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Lighting</a>
+            <a href="stair-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Stairs</a>
+            <a href="landscape-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Landscape</a>
+            <a href="roof-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Roof</a>
+            <a href="../PLUMBING.MD" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50" title="Rules and regulations">Rules</a>
+            <button id="reset" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Reset</button>
+            <button id="rough-csv" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Rough CSV</button>
+            <button id="finish-csv" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Finish CSV</button>
         </div>
     </header>
 
     <main class="flex-1 min-h-0 flex">
-        <!-- Sidebar Controls -->
-        <aside class="w-[390px] shrink-0 overflow-y-auto bg-[#0a192f] border-r border-[#1e3a63] p-4 space-y-4 table-scroll">
-            <!-- Mode Switcher -->
-            <div class="grid grid-cols-2 gap-1.5 p-1 bg-[#071326] rounded-lg border border-[#1e3a63]">
-                <button class="part active px-2 py-1.5 rounded border border-transparent text-[11px] font-mono font-bold tracking-wider" data-part="rough" id="btn-mode-rough">01 // ROUGH-IN</button>
-                <button class="part px-2 py-1.5 rounded border border-transparent text-[11px] font-mono font-bold tracking-wider text-cyan-300 hover:bg-[#0d213f]" data-part="finish" id="btn-mode-finish">02 // FINISH</button>
+        <aside class="w-[390px] shrink-0 overflow-y-auto bg-white border-r border-slate-200 p-4 space-y-4">
+            <div class="grid grid-cols-2 gap-1.5">
+                <button class="part active px-2 py-1.5 rounded border border-slate-200 text-[11px] font-bold" data-part="rough">1 · Rough-in</button>
+                <button class="part px-2 py-1.5 rounded border border-slate-200 text-[11px] font-bold" data-part="finish">2 · Finish</button>
             </div>
 
-            <!-- Rough-in Panel -->
-            <div class="space-y-4" id="rough-panel">
-                <section class="p-3 rounded-lg border border-[#1e3a63] bg-[#0d213f]/60">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-[10px] uppercase tracking-widest font-mono font-bold text-cyan-400">Project &amp; Template</h2>
-                        <span class="text-[9px] font-mono text-cyan-300/60">SYS-CFG</span>
-                    </div>
-                    <label class="block text-[11px] text-cyan-200/80">Plan template
-                        <select class="mt-1 w-full rounded border border-[#1e3a63] bg-[#081a38] text-white px-2 py-1 text-[11px]" id="template">
-                            <option value="residential-master">Modern Villa (Bath + Powder + Kitchen + Laundry)</option>
-                            <option value="compact-suite">Compact Studio Ensuite</option>
-                            <option value="commercial-office">Commercial Core Restrooms</option>
-                        </select>
+            <div id="rough-panel" class="space-y-4">
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Project &amp; template</h2>
+                    <label class="block text-[11px] text-slate-500">Plan template
+                        <select id="template" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
                     </label>
                     <div class="grid grid-cols-3 gap-2 mt-2">
-                        <label class="block text-[10px] text-cyan-300/80">Width (m)
-                            <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1.5 py-0.5 font-mono text-[11px]" id="width" max="40" min="3" step="0.1" type="number" value="12.0"/>
+                        <label class="block text-[11px] text-slate-500">Width (m)
+                            <input type="number" id="width" min="3" max="40" step="0.1" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[11px]">
                         </label>
-                        <label class="block text-[10px] text-cyan-300/80">Depth (m)
-                            <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1.5 py-0.5 font-mono text-[11px]" id="depth" max="40" min="3" step="0.1" type="number" value="8.0"/>
+                        <label class="block text-[11px] text-slate-500">Depth (m)
+                            <input type="number" id="depth" min="3" max="40" step="0.1" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[11px]">
                         </label>
-                        <label class="block text-[10px] text-cyan-300/80">Wall (m)
-                            <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1.5 py-0.5 font-mono text-[11px]" id="wall-height" max="6" min="2.2" step="0.05" type="number" value="2.80"/>
+                        <label class="block text-[11px] text-slate-500">Wall (m)
+                            <input type="number" id="wall-height" min="2.2" max="6" step="0.05" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[11px]">
                         </label>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 mt-2.5">
-                        <button class="px-2 py-1.5 rounded bg-cyan-500 hover:bg-cyan-400 text-[#071326] text-[11px] font-mono font-bold transition shadow-[0_0_10px_rgba(0,242,254,0.3)] active:scale-95" id="apply-template">Apply template</button>
-                        <button class="px-2 py-1.5 rounded border border-[#1e3a63] bg-[#081a38] text-cyan-300 hover:border-cyan-400 hover:bg-[#0c2448] text-[11px] font-mono font-bold transition active:scale-95" id="auto-layout">Auto layout</button>
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <button id="apply-template" class="px-2 py-1.5 rounded bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800">Apply template</button>
+                        <button id="auto-layout" class="px-2 py-1.5 rounded border border-slate-200 text-[11px] font-bold hover:bg-slate-50">Auto layout</button>
                     </div>
+                    <p class="text-[10px] text-slate-400 leading-snug mt-1.5">Templates set the room size and fixture set. Auto layout keeps the bathroom, kitchen and laundry on their usual walls; drag any fixture afterwards.</p>
                 </section>
 
-                <section class="space-y-2">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-[10px] uppercase tracking-widest font-mono font-bold text-cyan-400">Service Hookups</h2>
-                        <span class="text-[9px] font-mono text-cyan-300/60">INLET/OUTLET</span>
-                    </div>
-                    <!-- Water Hookup -->
-                    <div class="rounded-lg border border-cyan-900/80 bg-[#09203f]/70 p-2.5">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-[10px] font-mono font-bold text-cyan-300 flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span> WATER INLET · W
-                            </h3>
-                            <span class="text-[9px] font-mono text-cyan-400/80">COLD MAIN</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 mt-1.5">
-                            <label class="block text-[10px] text-cyan-300/80">Wall
-                                <select class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 text-[10px]" id="water-side">
-                                    <option value="south" selected>South (Front)</option>
-                                    <option value="west">West (Left)</option>
-                                    <option value="north">North (Rear)</option>
-                                    <option value="east">East (Right)</option>
-                                </select>
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Service hookups</h2>
+                    <div class="rounded-lg border border-sky-100 bg-sky-50/40 p-2">
+                        <h3 class="text-[10px] font-bold text-sky-800">Water · W</h3>
+                        <div class="grid grid-cols-2 gap-2 mt-1">
+                            <label class="block text-[10px] text-slate-500">Wall
+                                <select id="water-side" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]"></select>
                             </label>
-                            <label class="block text-[10px] text-cyan-300/80">Along (m)
-                                <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="water-along" min="0" step="0.05" type="number" value="1.80"/>
+                            <label class="block text-[10px] text-slate-500">Along (m)
+                                <input type="number" id="water-along" min="0" step="0.05" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
                             </label>
-                            <label class="block text-[10px] text-cyan-300/80">Pressure (psi)
-                                <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="water-pressure" max="150" min="20" step="1" type="number" value="62"/>
+                            <label class="block text-[10px] text-slate-500">Pressure (psi)
+                                <input type="number" id="water-pressure" min="20" max="150" step="1" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
                             </label>
-                            <label class="block text-[10px] text-cyan-300/80">Meter
-                                <select class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 text-[10px]" id="meter-size">
+                            <label class="block text-[10px] text-slate-500">Meter
+                                <select id="meter-size" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]">
                                     <option value="5/8">5/8 in</option>
-                                    <option value="3/4" selected>3/4 in</option>
+                                    <option value="3/4">3/4 in</option>
                                     <option value="1">1 in</option>
+                                    <option value="1-1/4">1-1/4 in</option>
                                 </select>
                             </label>
                         </div>
                     </div>
-                    <!-- Sewer Hookup -->
-                    <div class="rounded-lg border border-[#1e3a63] bg-[#081d3a]/70 p-2.5">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-[10px] font-mono font-bold text-slate-300 flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span> SEWER DISCHARGE · S
-                            </h3>
-                            <span class="text-[9px] font-mono text-slate-400">GRAVITY DWV</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 mt-1.5">
-                            <label class="block text-[10px] text-cyan-300/80">Wall
-                                <select class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 text-[10px]" id="sewer-side">
-                                    <option value="south" selected>South (Front)</option>
-                                    <option value="west">West (Left)</option>
-                                </select>
+                    <div class="rounded-lg border border-slate-200 bg-slate-50/60 p-2 mt-2">
+                        <h3 class="text-[10px] font-bold text-slate-700">Sewer · S</h3>
+                        <div class="grid grid-cols-2 gap-2 mt-1">
+                            <label class="block text-[10px] text-slate-500">Wall
+                                <select id="sewer-side" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]"></select>
                             </label>
-                            <label class="block text-[10px] text-cyan-300/80">Along (m)
-                                <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="sewer-along" min="0" step="0.05" type="number" value="2.90"/>
+                            <label class="block text-[10px] text-slate-500">Along (m)
+                                <input type="number" id="sewer-along" min="0" step="0.05" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
                             </label>
-                            <label class="block text-[10px] text-cyan-300/80">Invert (m)
-                                <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="sewer-invert" max="0.5" min="-5" step="0.01" type="number" value="-1.20"/>
+                            <label class="block text-[10px] text-slate-500">Invert (m)
+                                <input type="number" id="sewer-invert" min="-5" max="0.5" step="0.01" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
                             </label>
-                            <label class="block text-[10px] text-cyan-300/80">Slope (%)
-                                <input class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="sewer-slope" max="10" min="0.5" step="0.1" type="number" value="2.0"/>
+                            <label class="block text-[10px] text-slate-500">Slope (%)
+                                <input type="number" id="sewer-slope" min="0.5" max="10" step="0.1" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
                             </label>
                         </div>
+                        <p class="text-[9px] text-slate-400 mt-1">2% = 1/4 in per ft. Use 1% for 4 in pipe where allowed.</p>
                     </div>
-                    <!-- Gas Hookup -->
-                    <div class="rounded-lg border border-amber-900/60 bg-[#241a0d]/50 p-2.5">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-[10px] font-mono font-bold text-amber-400 flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-amber-400"></span> GAS SUPPLY · G
-                            </h3>
-                            <span class="text-[9px] font-mono text-amber-400/80">FUEL LINE</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 mt-1.5">
-                            <label class="block text-[10px] text-amber-200/80">Wall
-                                <select class="mt-0.5 w-full rounded border border-amber-900/60 bg-[#081a38] px-1 py-0.5 text-[10px]" id="gas-side">
-                                    <option value="east" selected>East (Right)</option>
-                                    <option value="north">North (Rear)</option>
+                    <div class="rounded-lg border border-amber-100 bg-amber-50/50 p-2 mt-2">
+                        <h3 class="text-[10px] font-bold text-amber-800">Gas · G</h3>
+                        <div class="grid grid-cols-2 gap-2 mt-1">
+                            <label class="block text-[10px] text-slate-500">Wall
+                                <select id="gas-side" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]"></select>
+                            </label>
+                            <label class="block text-[10px] text-slate-500">Along (m)
+                                <input type="number" id="gas-along" min="0" step="0.05" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
+                            </label>
+                            <label class="block text-[10px] text-slate-500">Pressure (in w.c.)
+                                <input type="number" id="gas-pressure" min="3" max="60" step="0.5" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
+                            </label>
+                            <label class="block text-[10px] text-slate-500">Gas
+                                <select id="gas-type" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]">
+                                    <option value="natural">Natural gas</option>
+                                    <option value="propane">Propane</option>
                                 </select>
                             </label>
-                            <label class="block text-[10px] text-amber-200/80">Along (m)
-                                <input class="mt-0.5 w-full rounded border border-amber-900/60 bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="gas-along" min="0" step="0.05" type="number" value="1.20"/>
-                            </label>
-                            <label class="block text-[10px] text-amber-200/80">Pressure (in w.c.)
-                                <input class="mt-0.5 w-full rounded border border-amber-900/60 bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="gas-pressure" max="60" min="3" step="0.5" type="number" value="7.0"/>
-                            </label>
-                            <label class="block text-[10px] text-amber-200/80">Meter CFH
-                                <input class="mt-0.5 w-full rounded border border-amber-900/60 bg-[#081a38] px-1 py-0.5 font-mono text-[10px]" id="gas-meter" max="5000" min="50" step="10" type="number" value="425"/>
+                            <label class="block text-[10px] text-slate-500 col-span-2">Meter capacity (CFH)
+                                <input type="number" id="gas-meter" min="50" max="5000" step="10" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
                             </label>
                         </div>
                     </div>
                 </section>
 
-                <!-- Materials Section -->
-                <section class="p-3 rounded-lg border border-[#1e3a63] bg-[#0d213f]/60">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-[10px] uppercase tracking-widest font-mono font-bold text-cyan-400">Rough Materials</h2>
-                        <span class="text-[9px] font-mono text-cyan-300/60">SPEC</span>
-                    </div>
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Rough materials</h2>
                     <div class="grid grid-cols-2 gap-2">
-                        <label class="block text-[10px] text-cyan-300/80">Water pipe
-                            <select class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 text-[10px]" id="water-material">
-                                <option value="pex-a" selected>PEX-A (Expansion)</option>
-                                <option value="copper-l">Copper Type L</option>
-                            </select>
+                        <label class="block text-[10px] text-slate-500">Water pipe
+                            <select id="water-material" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]"></select>
                         </label>
-                        <label class="block text-[10px] text-cyan-300/80">DWV pipe
-                            <select class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1 py-0.5 text-[10px]" id="dwv-material">
-                                <option value="pvc-dwv" selected>PVC Sch-40 DWV</option>
-                                <option value="cast-iron">No-Hub Cast Iron</option>
+                        <label class="block text-[10px] text-slate-500">DWV pipe
+                            <select id="dwv-material" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]"></select>
+                        </label>
+                        <label class="block text-[10px] text-slate-500">Gas pipe
+                            <select id="gas-material" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]"></select>
+                        </label>
+                        <label class="block text-[10px] text-slate-500">Backflow
+                            <select id="backflow" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]">
+                                <option value="dual-check">Dual check</option>
+                                <option value="rpz">RPZ</option>
+                                <option value="none">None</option>
                             </select>
                         </label>
                     </div>
-                    <label class="flex items-center gap-1.5 text-[10px] text-cyan-200 mt-2 font-mono"><input id="water-insulation" type="checkbox" checked/> Insulate hot-water pipe</label>
+                    <label class="flex items-center gap-1.5 text-[11px] text-slate-600 mt-2"><input type="checkbox" id="water-insulation"> Insulate hot-water pipe</label>
+                    <p id="material-note" class="text-[10px] text-slate-400 leading-snug mt-1.5"></p>
                 </section>
 
-                <!-- Tools & Layers -->
-                <section class="p-3 rounded-lg border border-[#1e3a63] bg-[#0d213f]/60">
+                <section>
                     <div class="flex items-center justify-between">
-                        <h2 class="text-[10px] uppercase tracking-widest font-mono font-bold text-cyan-400">Draft Layers</h2>
-                        <span class="text-[9px] font-mono text-cyan-300/60">ROUGH-VIS</span>
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Water heater</h2>
+                        <span class="text-[9px] text-slate-400">equipment</span>
                     </div>
-                    <div class="grid grid-cols-2 gap-x-2 gap-y-1.5 mt-2 text-[10px] font-mono text-cyan-200">
-                        <label class="flex items-center gap-1.5"><input checked id="layer-cold" type="checkbox"/> Cold supply</label>
-                        <label class="flex items-center gap-1.5"><input checked id="layer-hot" type="checkbox"/> Hot supply</label>
-                        <label class="flex items-center gap-1.5"><input checked id="layer-drain" type="checkbox"/> DWV drain</label>
-                        <label class="flex items-center gap-1.5"><input checked id="layer-vent" type="checkbox"/> Venting</label>
-                        <label class="flex items-center gap-1.5"><input checked id="layer-gas" type="checkbox"/> Gas piping</label>
-                        <label class="flex items-center gap-1.5"><input checked id="layer-clearances" type="checkbox"/> Clearances</label>
+                    <label class="block text-[11px] text-slate-500 mt-1">Type
+                        <select id="heater-type" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
+                    </label>
+                    <div class="grid grid-cols-2 gap-2 mt-1.5">
+                        <label class="block text-[10px] text-slate-500">Stored (°F)
+                            <input type="number" id="heater-temp" min="100" max="160" step="1" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[10px]">
+                        </label>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600 mt-4"><input type="checkbox" id="heater-pan"> Drain pan</label>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="heater-expansion"> Expansion tank</label>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="heater-relief"> T&amp;P pipe</label>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="heater-insulated"> Insulate tank</label>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Place fixtures</h2>
+                        <span class="text-[9px] text-slate-400">click the plan</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 mt-1.5">
+                        <button class="tool active px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="select">Select</button>
+                        <button class="tool px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="add">Add</button>
+                        <button class="tool px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="delete">Delete</button>
+                    </div>
+                    <label class="block text-[10px] text-slate-500 mt-2">Fixture to add
+                        <select id="fixture-type" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[10px]"></select>
+                    </label>
+                    <p class="text-[10px] text-slate-400 leading-snug mt-1.5">Select a fixture and drag it. Wall fixtures slide along the nearest wall; a floor drain moves freely. Click a WATER, SEWER or GAS marker to drag that hookup too.</p>
+                </section>
+
+                <section>
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Plan layers</h2>
+                        <span class="text-[9px] text-slate-400">rough view</span>
+                    </div>
+                    <div id="layers" class="grid grid-cols-2 gap-x-2 gap-y-1 mt-1.5 text-[10px] text-slate-600">
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="cold" checked> Cold water</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="hot" checked> Hot water</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="drain" checked> DWV</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="vent" checked> Vents</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="gas" checked> Gas</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="zones" checked> Zones</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="labels" checked> Labels</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-layer="clearances"> Clearances</label>
                     </div>
                 </section>
             </div>
 
-            <!-- Finish Panel -->
-            <div class="hidden space-y-4" id="finish-panel">
-                <section class="p-3 rounded-lg border border-[#1e3a63] bg-[#0d213f]/60">
-                    <h2 class="text-[10px] uppercase tracking-widest font-mono font-bold text-cyan-400 mb-2">Finish Grade Spec</h2>
-                    <label class="block text-[11px] text-cyan-200">Default grade
-                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1.5 py-1 text-[11px]" id="fixture-grade">
-                            <option value="standard">Builder Standard (Vitreous China)</option>
-                            <option value="premium" selected>Architectural Premium (Cast Iron / Quartz)</option>
-                            <option value="luxury">Luxury Custom (Bespoke Solid Brass)</option>
-                        </select>
+            <div id="finish-panel" class="hidden space-y-4">
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Finish grade</h2>
+                    <label class="block text-[11px] text-slate-500">Default grade
+                        <select id="fixture-grade" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
                     </label>
-                    <label class="block text-[11px] text-cyan-200 mt-2">Default faucet finish
-                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] bg-[#081a38] px-1.5 py-1 text-[11px]" id="faucet-finish">
-                            <option value="matte-black" selected>Matte Black (PVD Coated)</option>
-                            <option value="brushed-gold">Brushed Brass / Gold</option>
-                            <option value="chrome">Polished Chrome</option>
-                        </select>
+                    <label class="block text-[11px] text-slate-500 mt-1.5">Default faucet finish
+                        <select id="faucet-finish" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
                     </label>
-                    <button class="mt-2.5 w-full px-2 py-1.5 rounded bg-cyan-500 hover:bg-cyan-400 text-[#071326] text-[11px] font-mono font-bold shadow transition active:scale-95" id="apply-finish">Apply to fixtures</button>
-                </section>
-                <section class="rounded-lg border border-[#1e3a63] bg-[#0d213f]/60 p-3">
-                    <h2 class="text-[10px] uppercase tracking-widest font-mono font-bold text-cyan-400 mb-2">Finish Summary</h2>
-                    <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] font-mono">
-                        <span class="text-cyan-300/70">Fixtures base</span><b class="text-right metric-value text-white">$3,420</b>
-                        <span class="text-cyan-300/70">Grade premium</span><b class="text-right metric-value text-white">$1,150</b>
-                        <span class="text-cyan-300/70">Faucets &amp; trim</span><b class="text-right metric-value text-white">$1,280</b>
-                        <span class="text-cyan-300/70">Finish total</span><b class="text-right metric-value text-cyan-400 font-bold">$5,850</b>
+                    <button id="apply-finish" class="mt-2 w-full px-2 py-1.5 rounded bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800">Apply to every fixture</button>
+                    <div class="grid grid-cols-1 gap-1 mt-2 text-[10px] text-slate-600">
+                        <label class="flex items-center gap-1.5"><input type="checkbox" id="finish-airgap" checked> Dishwasher air gap / high loop</label>
+                        <label class="flex items-center gap-1.5"><input type="checkbox" id="finish-washer" checked> Washing-machine standpipe</label>
+                        <label class="flex items-center gap-1.5"><input type="checkbox" id="finish-stops" checked> Supply stops and escutcheons</label>
                     </div>
+                </section>
+
+                <section>
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Fixture finish schedule</h2>
+                        <span id="finish-count" class="text-[10px] font-mono text-slate-400">—</span>
+                    </div>
+                    <div id="finish-fixtures" class="space-y-1.5 mt-2"></div>
+                </section>
+
+                <section class="rounded-lg border border-slate-200 p-3">
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Finish summary</h2>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono">
+                        <span class="text-slate-500">Fixtures</span><b id="finish-fixture-total" class="text-right metric-value">—</b>
+                        <span class="text-slate-500">Premium</span><b id="finish-premium" class="text-right metric-value">—</b>
+                        <span class="text-slate-500">Faucets</span><b id="finish-faucets" class="text-right metric-value">—</b>
+                        <span class="text-slate-500">Finish total</span><b id="finish-total" class="text-right metric-value">—</b>
+                    </div>
+                    <p class="text-[10px] text-slate-400 leading-snug mt-2">Finish prices are planning allowances. A premium grade multiplies the fixture base; the faucet finish adds a trim allowance.</p>
                 </section>
             </div>
 
-            <!-- Result Metrics Box -->
-            <section class="rounded-lg border border-[#1e3a63] bg-[#07172f] p-3 shadow-inner">
-                <div class="flex items-center justify-between mb-2">
-                    <h2 class="text-[10px] uppercase tracking-widest font-mono font-bold text-cyan-400">Hydraulic &amp; Cost Output</h2>
-                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> REALTIME
-                    </span>
-                </div>
+            <section class="rounded-lg border border-slate-200 p-3">
+                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Result</h2>
                 <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono">
-                    <span class="text-cyan-300/70">Rough-in</span><b class="text-right metric-value text-white" id="m-rough">$6,840</b>
-                    <span class="text-cyan-300/70">Finish trim</span><b class="text-right metric-value text-white" id="m-finish">$5,850</b>
-                    <span class="text-cyan-300/70">Water demand</span><b class="text-right metric-value text-cyan-300" id="m-demand">14.5 WSFU (17 GPM)</b>
-                    <span class="text-cyan-300/70">Worst pressure</span><b class="text-right metric-value text-cyan-300" id="m-pressure">48.2 PSI</b>
-                    <span class="text-cyan-300/70">Drain load</span><b class="text-right metric-value text-cyan-300" id="m-dfu">18.0 DFU</b>
-                    <span class="text-cyan-300/70">Gas load</span><b class="text-right metric-value text-amber-300" id="m-gas">285 kBTU/hr</b>
-                    <span class="text-cyan-300/70">Main drain</span><b class="text-right metric-value text-white" id="m-main">3" @ 2% Fall</b>
+                    <span class="text-slate-500">Rough-in</span><b id="m-rough" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Finish</span><b id="m-finish" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Water demand</span><b id="m-demand" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Worst pressure</span><b id="m-pressure" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Drain load</span><b id="m-dfu" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Gas load</span><b id="m-gas" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Fixtures</span><b id="m-fixtures" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Main drain</span><b id="m-main" class="text-right metric-value">—</b>
                 </div>
-                <div class="mt-3 pt-2 border-t border-[#1e3a63] flex items-baseline justify-between">
-                    <span class="text-[10px] uppercase tracking-wider font-mono text-cyan-300/80">Total Estimate</span>
-                    <b class="text-lg font-mono text-cyan-300 tracking-tight metric-value" id="m-total">$12,690</b>
+                <div class="mt-3 pt-2 border-t border-slate-100 flex items-baseline justify-between">
+                    <span class="text-[10px] uppercase tracking-wide text-slate-400">Two-part estimate</span>
+                    <b id="m-total" class="text-base font-mono">—</b>
                 </div>
-                <p class="text-[10px] font-mono mt-1 text-emerald-400 flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#4ade80]"></span> All 14 Code Rules Passed (IPC/IRC 2021)
-                </p>
+                <p id="check-summary" class="text-[10px] font-mono mt-1">—</p>
+                <p class="text-[9px] text-slate-400 mt-1">Planning allowances, not quotes. Local amendments, utility capacity and a licensed plumber govern the final design.</p>
             </section>
+
+            <section>
+                <div class="flex items-center justify-between">
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Plan checks</h2>
+                    <span id="issue-count" class="text-[10px] font-mono text-slate-400">—</span>
+                </div>
+                <ul id="checks" class="space-y-1 mt-1.5 text-[11px] leading-snug"></ul>
+                <button id="show-all-checks" class="mt-1.5 text-[10px] text-sky-700 underline hover:text-sky-900">Show all checks</button>
+            </section>
+
+            <p class="text-[10px] text-slate-400 leading-snug">
+                Metric design aid. Pipe sizes, fixture units, clearances and costs are a planning model checked against the 2021 IPC, IRC and IFGC. Confirm local amendments and have a licensed plumber review the plan.
+                <a href="../PLUMBING.MD" class="underline hover:text-sky-700">Rules &amp; regulations</a>.
+            </p>
+            <p id="status" class="text-[10px] text-sky-700 min-h-[1rem]"></p>
         </aside>
 
-        <!-- Main Draft Canvas & Data Tabs -->
-        <div class="flex-1 min-w-0 flex flex-col bg-[#071326] relative">
-            <!-- Navigation Tabs -->
-            <nav class="flex items-center gap-1.5 px-3 pt-2.5 pb-1 flex-wrap border-b border-[#1e3a63] bg-[#0a192f]">
-                <button class="tab active px-3 py-1.5 rounded text-[11px] font-mono font-bold border border-[#1e3a63] tracking-wide" data-tab="rough" id="tab-rough">01 // ROUGH PLAN</button>
-                <button class="tab px-3 py-1.5 rounded text-[11px] font-mono font-bold border border-[#1e3a63] bg-[#081a38] text-cyan-300 hover:border-cyan-400 hover:text-white tracking-wide" data-tab="finish" id="tab-finish">02 // FINISH PLAN</button>
-                <button class="tab px-3 py-1.5 rounded text-[11px] font-mono font-bold border border-[#1e3a63] bg-[#081a38] text-cyan-300 hover:border-cyan-400 hover:text-white tracking-wide" data-tab="schedule" id="tab-schedule">SCHEDULE</button>
-                <button class="tab px-3 py-1.5 rounded text-[11px] font-mono font-bold border border-[#1e3a63] bg-[#081a38] text-cyan-300 hover:border-cyan-400 hover:text-white tracking-wide" data-tab="takeoff" id="tab-takeoff">TAKEOFF</button>
-                <button class="tab px-3 py-1.5 rounded text-[11px] font-mono font-bold border border-[#1e3a63] bg-[#081a38] text-cyan-300 hover:border-cyan-400 hover:text-white tracking-wide" data-tab="rules" id="tab-rules">RULES</button>
-                <span class="text-[10px] font-mono text-cyan-400/60 ml-auto pr-1" id="tab-note">SCALE 1:50 · GRID 0.5M · MODEL VIEW ACTIVE</span>
+        <div class="flex-1 min-w-0 flex flex-col">
+            <nav class="flex items-center gap-2 px-3 pt-3 flex-wrap">
+                <button class="tab active px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200" data-tab="rough">1 · Rough plan</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="finish">2 · Finish plan</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="schedule">Fixture schedule</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="takeoff">Takeoff</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="rules">Rules</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="glossary">Glossary</button>
+                <span id="tab-note" class="text-[10px] text-slate-400 ml-auto pr-1">plan, schedule and takeoff share one model</span>
             </nav>
 
-            <!-- Rough-in Plan Tab View -->
-            <div class="flex-1 min-h-0 flex flex-col p-3 tab-panel panel-fade" id="panel-rough">
-                <section class="flex-1 min-h-0 bg-[#06152d] rounded-xl border border-[#1e3a63] shadow-[0_0_20px_rgba(3,15,38,0.8)] flex flex-col overflow-hidden relative">
-                    <!-- Interactive Canvas Engineering Header Strip -->
-                    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 bg-[#091b36] border-b border-[#1e3a63] z-10">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f2fe] animate-pulse"></span>
-                            <h2 class="text-[11px] uppercase tracking-wider font-mono font-bold text-white">DWG-PLB-01 // ROUGH-IN PIPING &amp; FIXTURES MATRIX</h2>
-                            <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-900/40 text-cyan-300 border border-cyan-800">SIMULATION: LIVE</span>
-                        </div>
-                        
-                        <!-- Flow Filter & Test Strip -->
-                        <div class="flex items-center gap-2 font-mono text-[10px]">
-                            <button id="btn-flow-toggle" class="px-2 py-0.5 rounded border border-cyan-500/50 bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900 transition flex items-center gap-1.5">
-                                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
-                                <span id="flow-status-text">FLOW ACTIVE</span>
-                            </button>
-                            <button id="btn-pressure-test" class="px-2 py-0.5 rounded border border-amber-500/50 bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 transition flex items-center gap-1">
-                                <span class="material-symbols-outlined text-[13px]">speed</span>
-                                FLUSH TEST
-                            </button>
-                            <div class="hidden sm:flex items-center gap-1.5 border-l border-[#1e3a63] pl-2 text-cyan-200">
-                                <button class="filter-pipe-btn text-[9px] px-1.5 py-0.5 rounded bg-[#0d213f] hover:border-cyan-400 border border-transparent text-cyan-300 active" data-filter="all">ALL</button>
-                                <button class="filter-pipe-btn text-[9px] px-1.5 py-0.5 rounded bg-[#0d213f] hover:border-cyan-400 border border-transparent text-cyan-300" data-filter="cold">WATER</button>
-                                <button class="filter-pipe-btn text-[9px] px-1.5 py-0.5 rounded bg-[#0d213f] hover:border-cyan-400 border border-transparent text-cyan-300" data-filter="dwv">DRAIN</button>
-                                <button class="filter-pipe-btn text-[9px] px-1.5 py-0.5 rounded bg-[#0d213f] hover:border-cyan-400 border border-transparent text-amber-300" data-filter="gas">GAS</button>
-                            </div>
-                            <button class="px-2 py-0.5 rounded border border-[#1e3a63] bg-[#0d213f] text-cyan-300 hover:border-cyan-400 hover:text-white font-mono font-bold" id="fit-rough">FIT (100%)</button>
+            <div id="panel-rough" class="flex-1 min-h-0 flex flex-col">
+                <section class="flex-1 min-h-0 bg-white m-3 rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-b border-slate-100">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Rough-in plan</h2>
+                        <span class="text-[10px] text-slate-400">hookups → stacks → fixtures</span>
+                        <div class="flex items-center gap-2 ml-auto text-[10px] text-slate-400">
+                            <span><i class="glow-legend" style="background:#0284c7"></i> cold</span>
+                            <span><i class="glow-legend" style="background:#dc2626"></i> hot</span>
+                            <span><i class="glow-legend" style="background:#475569"></i> DWV</span>
+                            <span><i class="glow-legend" style="background:#7c3aed"></i> vent</span>
+                            <span><i class="glow-legend" style="background:#d97706"></i> gas</span>
+                            <button id="fit-rough" class="px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-600 hover:bg-slate-50">Fit</button>
                         </div>
                     </div>
+                    <div class="flex-1 min-h-0 relative">
+                        <canvas id="plan-rough"></canvas>
+                        <div id="plan-hint" class="absolute left-3 bottom-3 text-[10px] font-mono text-slate-400 pointer-events-none">—</div>
+                        <div id="hover-readout" class="absolute right-3 top-2 text-[10px] font-mono text-slate-400 pointer-events-none"></div>
+                    </div>
+                    <div id="inspector" class="hidden border-t border-slate-100 px-3 py-2 text-[11px]"></div>
+                </section>
+            </div>
 
-                    <!-- Canvas Viewport with High-Precision SVG Architecture & Pipes -->
-                    <div class="flex-1 min-h-0 relative blueprint-canvas-bg overflow-hidden cursor-crosshair" id="blueprint-viewport">
-                        <!-- Crosshairs -->
-                        <div class="cursor-crosshair-x" id="crosshair-x" style="top: 50%;"></div>
-                        <div class="cursor-crosshair-y" id="crosshair-y" style="left: 50%;"></div>
-
-                        <!-- Main Blueprint SVG Drawing Surface -->
-                        <svg id="blueprint-svg" class="w-full h-full select-none" viewBox="0 0 1100 660" preserveAspectRatio="xMidYMid meet">
-                            <!-- Architectural Outer Footprint (12.0m x 8.0m) -->
-                            <g id="layer-architecture">
-                                <rect x="90" y="60" width="920" height="540" fill="#091b36" fill-opacity="0.35" stroke="#1e4e8c" stroke-width="3"/>
-                                
-                                <!-- Room Zones -->
-                                <rect x="90" y="60" width="380" height="270" fill="#0c234a" fill-opacity="0.25" stroke="#1e3a63" stroke-width="1.5"/>
-                                <text x="110" y="90" fill="#38bdf8" fill-opacity="0.7" font-family="JetBrains Mono" font-size="11" font-weight="700">01 // MASTER BATH</text>
-
-                                <rect x="470" y="60" width="220" height="270" fill="#0c234a" fill-opacity="0.18" stroke="#1e3a63" stroke-width="1.5"/>
-                                <text x="485" y="90" fill="#38bdf8" fill-opacity="0.7" font-family="JetBrains Mono" font-size="11" font-weight="700">02 // POWDER RM</text>
-
-                                <rect x="690" y="60" width="320" height="270" fill="#14284d" fill-opacity="0.35" stroke="#1e3a63" stroke-width="1.5"/>
-                                <text x="705" y="90" fill="#fbbf24" fill-opacity="0.8" font-family="JetBrains Mono" font-size="11" font-weight="700">03 // MECHANICAL UTILITY</text>
-
-                                <rect x="90" y="330" width="600" height="270" fill="#0c234a" fill-opacity="0.2" stroke="#1e3a63" stroke-width="1.5"/>
-                                <text x="110" y="360" fill="#38bdf8" fill-opacity="0.7" font-family="JetBrains Mono" font-size="11" font-weight="700">04 // KITCHEN WET CORE</text>
-
-                                <rect x="690" y="330" width="320" height="270" fill="#0c234a" fill-opacity="0.25" stroke="#1e3a63" stroke-width="1.5"/>
-                                <text x="705" y="360" fill="#38bdf8" fill-opacity="0.7" font-family="JetBrains Mono" font-size="11" font-weight="700">05 // LAUNDRY UTILITY</text>
-
-                                <text x="550" y="48" text-anchor="middle" fill="#38bdf8" fill-opacity="0.6" font-family="JetBrains Mono" font-size="10">DIM: 12.00 METERS SPAN ◀────────────────────────────────────────▶</text>
-                                <text x="68" y="330" text-anchor="middle" transform="rotate(-90 68 330)" fill="#38bdf8" fill-opacity="0.6" font-family="JetBrains Mono" font-size="10">◀── 8.00 M ──▶</text>
-                            </g>
-
-                            <!-- SERVICE HOOKUPS -->
-                            <g id="service-hookups">
-                                <circle cx="210" cy="600" r="14" fill="#072247" stroke="#00f2fe" stroke-width="2.5" class="animate-pulse"/>
-                                <text x="210" y="605" text-anchor="middle" fill="#00f2fe" font-family="JetBrains Mono" font-size="12" font-weight="bold">W</text>
-                                <text x="210" y="630" text-anchor="middle" fill="#00f2fe" font-family="JetBrains Mono" font-size="9">WATER INLET (3/4")</text>
-
-                                <circle cx="330" cy="600" r="14" fill="#072247" stroke="#38bdf8" stroke-width="2.5"/>
-                                <text x="330" y="605" text-anchor="middle" fill="#38bdf8" font-family="JetBrains Mono" font-size="12" font-weight="bold">S</text>
-                                <text x="330" y="630" text-anchor="middle" fill="#38bdf8" font-family="JetBrains Mono" font-size="9">SEWER INVERT -1.2M</text>
-
-                                <circle cx="1010" cy="180" r="14" fill="#382104" stroke="#fbbf24" stroke-width="2.5"/>
-                                <text x="1010" y="185" text-anchor="middle" fill="#fbbf24" font-family="JetBrains Mono" font-size="12" font-weight="bold">G</text>
-                                <text x="1010" y="210" text-anchor="middle" fill="#fbbf24" font-family="JetBrains Mono" font-size="9">GAS MAIN (7" W.C.)</text>
-                            </g>
-
-                            <!-- HYDRAULIC PIPING INFRASTRUCTURE -->
-                            <!-- DWV Gravity Sewer (3" & 2") -->
-                            <g id="layer-dwv-pipes" class="pipe-layer">
-                                <path id="dwv-main-trunk" d="M 330 600 L 330 460 L 330 260 L 580 260 L 760 260 L 860 260 L 860 460" 
-                                      fill="none" stroke="#0369a1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path id="dwv-flow-path" d="M 330 600 L 330 460 L 330 260 L 580 260 L 760 260 L 860 260 L 860 460" 
-                                      fill="none" stroke="#38bdf8" stroke-width="2" class="pipe-flow-dwv" stroke-linecap="round"/>
-
-                                <path d="M 330 260 L 260 260 L 260 170 L 170 170" fill="none" stroke="#0369a1" stroke-width="4" stroke-linejoin="round"/>
-                                <path d="M 330 260 L 260 260 L 260 170 L 170 170" fill="none" stroke="#38bdf8" stroke-width="1.8" class="pipe-flow-dwv"/>
-
-                                <path d="M 260 260 L 260 290 L 170 290" fill="none" stroke="#0369a1" stroke-width="3" stroke-linejoin="round"/>
-                                <path d="M 260 260 L 260 290 L 170 290" fill="none" stroke="#38bdf8" stroke-width="1.5" class="pipe-flow-dwv"/>
-
-                                <path d="M 330 460 L 250 460 L 250 490" fill="none" stroke="#0369a1" stroke-width="3.5" stroke-linejoin="round"/>
-                                <path d="M 330 460 L 250 460 L 250 490" fill="none" stroke="#38bdf8" stroke-width="1.5" class="pipe-flow-dwv"/>
-
-                                <path d="M 580 260 L 580 170" fill="none" stroke="#0369a1" stroke-width="3.5" stroke-linejoin="round"/>
-                                <path d="M 580 260 L 580 170" fill="none" stroke="#38bdf8" stroke-width="1.5" class="pipe-flow-dwv"/>
-
-                                <path d="M 860 460 L 920 460" fill="none" stroke="#0369a1" stroke-width="3.5" stroke-linejoin="round"/>
-                                <path d="M 860 460 L 920 460" fill="none" stroke="#38bdf8" stroke-width="1.5" class="pipe-flow-dwv"/>
-                            </g>
-
-                            <!-- Vent Stacks -->
-                            <g id="layer-vent-pipes" class="pipe-layer">
-                                <path d="M 170 150 L 170 120 L 260 120 L 260 80" fill="none" stroke="#6b21a8" stroke-width="2.5" stroke-dasharray="4,4"/>
-                                <path d="M 170 150 L 170 120 L 260 120 L 260 80" fill="none" stroke="#c084fc" stroke-width="1.5" class="pipe-flow-vent"/>
-                                <circle cx="260" cy="80" r="5" fill="#c084fc" fill-opacity="0.5" stroke="#c084fc" stroke-width="1.5"/>
-                                <text x="270" y="84" fill="#c084fc" font-family="JetBrains Mono" font-size="8">VTR 2"</text>
-
-                                <path d="M 580 150 L 580 80" fill="none" stroke="#6b21a8" stroke-width="2.5" stroke-dasharray="4,4"/>
-                                <path d="M 580 150 L 580 80" fill="none" stroke="#c084fc" stroke-width="1.5" class="pipe-flow-vent"/>
-                                <circle cx="580" cy="80" r="5" fill="#c084fc" fill-opacity="0.5" stroke="#c084fc" stroke-width="1.5"/>
-                                <text x="590" y="84" fill="#c084fc" font-family="JetBrains Mono" font-size="8">VTR 2"</text>
-                            </g>
-
-                            <!-- Cold Potable Water Supply Main & Drops -->
-                            <g id="layer-cold-pipes" class="pipe-layer">
-                                <path id="cold-main-trunk" d="M 210 600 L 210 440 L 400 440 L 400 240 L 800 240 L 800 170" 
-                                      fill="none" stroke="#0284c7" stroke-width="3" stroke-linejoin="round"/>
-                                <path id="cold-flow-path" d="M 210 600 L 210 440 L 400 440 L 400 240 L 800 240 L 800 170" 
-                                      fill="none" stroke="#00f2fe" stroke-width="1.5" class="pipe-flow-cold"/>
-
-                                <path d="M 400 240 L 170 240 L 170 170" fill="none" stroke="#0284c7" stroke-width="2"/>
-                                <path d="M 400 240 L 170 240 L 170 170" fill="none" stroke="#00f2fe" stroke-width="1.2" class="pipe-flow-cold"/>
-
-                                <path d="M 170 240 L 170 290" fill="none" stroke="#0284c7" stroke-width="2"/>
-                                <path d="M 170 240 L 170 290" fill="none" stroke="#00f2fe" stroke-width="1.2" class="pipe-flow-cold"/>
-
-                                <path d="M 210 440 L 250 440 L 250 490" fill="none" stroke="#0284c7" stroke-width="2"/>
-                                <path d="M 210 440 L 250 440 L 250 490" fill="none" stroke="#00f2fe" stroke-width="1.2" class="pipe-flow-cold"/>
-
-                                <path d="M 400 240 L 580 240 L 580 170" fill="none" stroke="#0284c7" stroke-width="2"/>
-                                <path d="M 400 240 L 580 240 L 580 170" fill="none" stroke="#00f2fe" stroke-width="1.2" class="pipe-flow-cold"/>
-
-                                <path d="M 800 240 L 800 440 L 920 440 L 920 460" fill="none" stroke="#0284c7" stroke-width="2"/>
-                                <path d="M 800 240 L 800 440 L 920 440 L 920 460" fill="none" stroke="#00f2fe" stroke-width="1.2" class="pipe-flow-cold"/>
-                            </g>
-
-                            <!-- Hot Water Supply -->
-                            <g id="layer-hot-pipes" class="pipe-layer">
-                                <path id="hot-main-trunk" d="M 800 170 L 780 170 L 780 220 L 410 220 L 410 420 L 230 420 L 230 490" 
-                                      fill="none" stroke="#991b1b" stroke-width="3" stroke-linejoin="round"/>
-                                <path id="hot-flow-path" d="M 800 170 L 780 170 L 780 220 L 410 220 L 410 420 L 230 420 L 230 490" 
-                                      fill="none" stroke="#ff4d4d" stroke-width="1.5" class="pipe-flow-hot"/>
-
-                                <path d="M 410 220 L 150 220 L 150 170" fill="none" stroke="#991b1b" stroke-width="2"/>
-                                <path d="M 410 220 L 150 220 L 150 170" fill="none" stroke="#ff4d4d" stroke-width="1.2" class="pipe-flow-hot"/>
-
-                                <path d="M 150 220 L 150 290" fill="none" stroke="#991b1b" stroke-width="2"/>
-                                <path d="M 150 220 L 150 290" fill="none" stroke="#ff4d4d" stroke-width="1.2" class="pipe-flow-hot"/>
-
-                                <path d="M 780 220 L 780 420 L 900 420 L 900 460" fill="none" stroke="#991b1b" stroke-width="2"/>
-                                <path d="M 780 220 L 780 420 L 900 420 L 900 460" fill="none" stroke="#ff4d4d" stroke-width="1.2" class="pipe-flow-hot"/>
-                            </g>
-
-                            <!-- Fuel Gas Line -->
-                            <g id="layer-gas-pipes" class="pipe-layer">
-                                <path d="M 1010 180 L 840 180" fill="none" stroke="#78350f" stroke-width="3.5" stroke-linecap="round"/>
-                                <path d="M 1010 180 L 840 180" fill="none" stroke="#fbbf24" stroke-width="1.8" class="pipe-flow-gas"/>
-                                <text x="910" y="172" fill="#fbbf24" font-family="JetBrains Mono" font-size="8">1" CSST 199k BTU</text>
-                            </g>
-
-                            <!-- FIXTURE INTERACTIVE NODES -->
-                            <g id="layer-fixtures">
-                                <!-- Master Lav -->
-                                <g class="fixture-node" id="fix-master-lav" data-title="MASTER LAVATORY (DOUBLE)" data-code="LAV-01" data-zone="01 // Master Bath" data-load="2.0 WSFU / 2.0 DFU" data-conn="1/2\" PEX, 1-1/2\" DWV" data-press="51.4 PSI">
-                                    <rect x="130" y="140" width="70" height="40" rx="3" fill="#081a38" stroke="#38bdf8" stroke-width="1.5"/>
-                                    <ellipse cx="150" cy="160" rx="10" ry="7" fill="#0c2d59" stroke="#38bdf8" stroke-width="1"/>
-                                    <ellipse cx="180" cy="160" rx="10" ry="7" fill="#0c2d59" stroke="#38bdf8" stroke-width="1"/>
-                                    <circle cx="150" cy="160" r="2" fill="#00f2fe"/>
-                                    <circle cx="180" cy="160" r="2" fill="#00f2fe"/>
-                                    <text x="165" y="132" text-anchor="middle" fill="#7dd3fc" font-family="JetBrains Mono" font-size="8" font-weight="bold">LAV-01</text>
-                                    <rect class="clearance-box" x="120" y="130" width="90" height="70" fill="none" stroke="#38bdf8" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.4"/>
-                                </g>
-
-                                <!-- Master Shower -->
-                                <g class="fixture-node" id="fix-master-shower" data-title="WALK-IN SHOWER 60x36" data-code="SHW-01" data-zone="01 // Master Bath" data-load="2.0 WSFU / 2.0 DFU" data-conn="1/2\" PEX, 2\" Drain Trap" data-press="49.8 PSI">
-                                    <rect x="140" y="270" width="60" height="50" rx="2" fill="#081a38" stroke="#38bdf8" stroke-width="1.5"/>
-                                    <circle cx="170" cy="295" r="5" fill="#0c2d59" stroke="#38bdf8" stroke-width="1"/>
-                                    <circle cx="170" cy="295" r="2" fill="#00f2fe"/>
-                                    <text x="170" y="264" text-anchor="middle" fill="#7dd3fc" font-family="JetBrains Mono" font-size="8" font-weight="bold">SHW-01</text>
-                                    <rect class="clearance-box" x="130" y="260" width="80" height="70" fill="none" stroke="#38bdf8" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.4"/>
-                                </g>
-
-                                <!-- Powder Toilet -->
-                                <g class="fixture-node" id="fix-powder-wc" data-title="POWDER WATER CLOSET" data-code="WC-01" data-zone="02 // Powder Room" data-load="2.5 WSFU / 3.0 DFU" data-conn="3/8\" Stop, 3\" Closet Bend" data-press="54.0 PSI">
-                                    <rect x="565" y="140" width="30" height="18" rx="2" fill="#081a38" stroke="#38bdf8" stroke-width="1.5"/>
-                                    <ellipse cx="580" cy="170" rx="11" ry="15" fill="#0c2d59" stroke="#38bdf8" stroke-width="1.5"/>
-                                    <circle cx="580" cy="170" r="3" fill="#38bdf8"/>
-                                    <text x="580" y="132" text-anchor="middle" fill="#7dd3fc" font-family="JetBrains Mono" font-size="8" font-weight="bold">WC-01</text>
-                                    <rect class="clearance-box" x="550" y="130" width="60" height="70" fill="none" stroke="#38bdf8" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.4"/>
-                                </g>
-
-                                <!-- Water Heater -->
-                                <g class="fixture-node" id="fix-mech-hwh" data-title="CONDENSING TANKLESS WATER HEATER" data-code="WH-01" data-zone="03 // Mechanical" data-load="4.0 WSFU / 199k BTU" data-conn="3/4\" PEX In/Out, 1\" Gas" data-press="58.5 PSI">
-                                    <rect x="790" y="140" width="50" height="40" rx="3" fill="#1b2816" stroke="#fbbf24" stroke-width="2"/>
-                                    <circle cx="815" cy="160" r="8" fill="#382104" stroke="#fbbf24" stroke-width="1.5"/>
-                                    <text x="815" y="132" text-anchor="middle" fill="#fbbf24" font-family="JetBrains Mono" font-size="8" font-weight="bold">WH-01</text>
-                                    <rect class="clearance-box" x="780" y="130" width="70" height="60" fill="none" stroke="#fbbf24" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.4"/>
-                                </g>
-
-                                <!-- Kitchen Sink -->
-                                <g class="fixture-node" id="fix-kitchen-sink" data-title="KITCHEN SINK & DISHWASHER" data-code="KS-01" data-zone="04 // Kitchen Core" data-load="2.0 WSFU / 2.0 DFU" data-conn="1/2\" PEX, 1-1/2\" Trap" data-press="52.1 PSI">
-                                    <rect x="220" y="480" width="60" height="40" rx="3" fill="#081a38" stroke="#38bdf8" stroke-width="1.5"/>
-                                    <rect x="225" y="485" width="23" height="30" rx="2" fill="#0c2d59" stroke="#38bdf8" stroke-width="1"/>
-                                    <rect x="252" y="485" width="23" height="30" rx="2" fill="#0c2d59" stroke="#38bdf8" stroke-width="1"/>
-                                    <circle cx="236" cy="500" r="2" fill="#00f2fe"/>
-                                    <circle cx="263" cy="500" r="2" fill="#00f2fe"/>
-                                    <text x="250" y="472" text-anchor="middle" fill="#7dd3fc" font-family="JetBrains Mono" font-size="8" font-weight="bold">KS-01</text>
-                                    <rect class="clearance-box" x="210" y="470" width="80" height="65" fill="none" stroke="#38bdf8" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.4"/>
-                                </g>
-
-                                <!-- Laundry Box -->
-                                <g class="fixture-node" id="fix-laundry-box" data-title="LAUNDRY STANDPIPE & OUTLET" data-code="LND-01" data-zone="05 // Laundry" data-load="2.0 WSFU / 3.0 DFU" data-conn="1/2\" Dual, 2\" Standpipe" data-press="53.8 PSI">
-                                    <rect x="895" y="450" width="45" height="35" rx="3" fill="#081a38" stroke="#38bdf8" stroke-width="1.5"/>
-                                    <rect x="903" y="458" width="12" height="18" fill="#0c2d59" stroke="#00f2fe" stroke-width="1"/>
-                                    <rect x="920" y="458" width="12" height="18" fill="#0c2d59" stroke="#ff4d4d" stroke-width="1"/>
-                                    <circle cx="917" cy="478" r="3" fill="#38bdf8"/>
-                                    <text x="917" y="442" text-anchor="middle" fill="#7dd3fc" font-family="JetBrains Mono" font-size="8" font-weight="bold">LND-01</text>
-                                    <rect class="clearance-box" x="885" y="440" width="65" height="55" fill="none" stroke="#38bdf8" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.4"/>
-                                </g>
-                            </g>
-                        </svg>
-
-                        <!-- Telemetry HUD -->
-                        <div class="absolute left-4 bottom-4 bg-[#071326]/90 border border-cyan-800/80 px-3 py-2 rounded-lg backdrop-blur-md shadow-2xl pointer-events-none font-mono text-[11px] min-w-[210px] space-y-1 z-20">
-                            <div class="text-[9px] uppercase tracking-widest text-cyan-400 font-bold border-b border-[#1e3a63] pb-1 flex items-center justify-between">
-                                <span>CAD Telemetry HUD</span>
-                                <span class="text-emerald-400">ONLINE</span>
-                            </div>
-                            <div class="flex justify-between text-cyan-300/80">
-                                <span>COORDINATES:</span>
-                                <span class="text-white font-bold" id="hud-coords">X: 6.42m  Y: 4.18m</span>
-                            </div>
-                            <div class="flex justify-between text-cyan-300/80">
-                                <span>SYSTEM PRESSURE:</span>
-                                <span class="text-cyan-300 font-bold" id="hud-pressure">58.4 PSI</span>
-                            </div>
-                            <div class="flex justify-between text-cyan-300/80">
-                                <span>DRAIN INVERT:</span>
-                                <span class="text-white font-bold" id="hud-invert">-1.18 m</span>
-                            </div>
-                            <div class="flex justify-between text-cyan-300/80">
-                                <span>ACTIVE TARGET:</span>
-                                <span class="text-amber-400 font-bold truncate max-w-[110px]" id="hud-target">DWV TRUNK</span>
-                            </div>
-                        </div>
-
-                        <!-- Fixture Hover Tooltip -->
-                        <div id="fixture-tooltip" class="absolute hidden bg-[#0a1f3d] border border-cyan-400 rounded-lg p-2.5 shadow-[0_0_20px_rgba(0,242,254,0.3)] z-30 font-mono text-xs pointer-events-none transition-all duration-150 max-w-[230px]">
-                            <div class="flex items-center justify-between border-b border-cyan-700/60 pb-1 mb-1">
-                                <span class="font-bold text-white text-[11px]" id="tt-title">MASTER LAVATORY</span>
-                                <span class="text-[9px] bg-cyan-950 text-cyan-300 px-1 rounded border border-cyan-700" id="tt-id">LAV-01</span>
-                            </div>
-                            <div class="text-[10px] text-cyan-200/80 space-y-0.5">
-                                <div>Zone: <span class="text-white font-semibold" id="tt-zone">01 // Master Bath</span></div>
-                                <div>Load: <span class="text-cyan-300 font-bold" id="tt-load">2.0 WSFU / 2.0 DFU</span></div>
-                                <div>Conn: <span class="text-white" id="tt-conn">1/2" Potable, 1-1/2" DWV</span></div>
-                                <div>Pressure: <span class="text-emerald-400 font-bold" id="tt-press">51.4 PSI</span></div>
-                            </div>
-                        </div>
-
-                        <!-- Legend Overlay -->
-                        <div class="absolute right-4 bottom-4 bg-[#071326]/85 border border-[#1e3a63] px-3 py-1.5 rounded-lg flex items-center gap-3 text-[10px] font-mono text-cyan-200 z-10 pointer-events-none">
-                            <span class="flex items-center gap-1.5"><i class="glow-legend" style="color:#00f2fe; background:#00f2fe"></i> COLD 3/4"</span>
-                            <span class="flex items-center gap-1.5"><i class="glow-legend" style="color:#ff4d4d; background:#ff4d4d"></i> HOT RECIRC</span>
-                            <span class="flex items-center gap-1.5"><i class="glow-legend" style="color:#38bdf8; background:#38bdf8"></i> GRAVITY DWV</span>
-                            <span class="flex items-center gap-1.5"><i class="glow-legend" style="color:#c084fc; background:#c084fc"></i> VENT</span>
-                            <span class="flex items-center gap-1.5"><i class="glow-legend" style="color:#fbbf24; background:#fbbf24"></i> GAS</span>
+            <div id="panel-finish" class="hidden flex-1 min-h-0 flex-col">
+                <section class="flex-1 min-h-0 bg-white m-3 rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-b border-slate-100">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Finish plan</h2>
+                        <span class="text-[10px] text-slate-400">fixtures, trim and clearances · piping hidden</span>
+                        <div class="flex items-center gap-2 ml-auto text-[10px] text-slate-400">
+                            <span><i class="glow-legend" style="background:#94a3b8"></i> standard</span>
+                            <span><i class="glow-legend" style="background:#38bdf8"></i> premium</span>
+                            <span><i class="glow-legend" style="background:#f59e0b"></i> luxury</span>
+                            <button id="fit-finish" class="px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-600 hover:bg-slate-50">Fit</button>
                         </div>
                     </div>
-
-                    <!-- Inspector Bar -->
-                    <div class="border-t border-[#1e3a63] bg-[#091b36] px-4 py-2 text-[11px] font-mono text-cyan-200 flex items-center justify-between" id="inspector">
-                        <div class="flex items-center gap-3">
-                            <span class="text-cyan-400 font-bold">INSPECTOR:</span>
-                            <span id="inspect-desc">Select any fixture node on the plan to inspect parameters.</span>
-                        </div>
-                        <div class="text-[10px] text-cyan-400/60 font-mono">FLOW: 2.2 GPM @ FIXTURE HEAD</div>
+                    <div class="flex-1 min-h-0 relative">
+                        <canvas id="plan-finish"></canvas>
+                        <div id="finish-hint" class="absolute left-3 bottom-3 text-[10px] font-mono text-slate-400 pointer-events-none">—</div>
                     </div>
                 </section>
             </div>
 
-            <!-- Finish Plan Tab View -->
-            <div class="hidden flex-1 min-h-0 flex-col p-3 tab-panel panel-fade" id="panel-finish">
-                <section class="flex-1 min-h-0 bg-[#06152d] rounded-xl border border-[#1e3a63] p-4 overflow-y-auto table-scroll">
-                    <div class="flex items-center justify-between border-b border-[#1e3a63] pb-2 mb-3">
-                        <h2 class="text-xs font-mono font-bold uppercase text-cyan-300">DWG-PLB-02 // FINISH FIXTURES &amp; ARCHITECTURAL CLEARANCES</h2>
-                        <span class="text-[10px] font-mono text-emerald-400">TRIM MATRIX ACTIVE</span>
+            <div id="panel-schedule" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Fixture schedule</h2>
+                        <p id="schedule-summary" class="text-[11px] text-slate-500 mt-0.5">—</p>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 font-mono">
-                        <div class="rounded-lg border border-[#1e3a63] bg-[#0a1f3d]/70 p-3 hover:border-cyan-400 transition">
-                            <div class="flex justify-between items-start text-xs"><b class="text-white">Master Double Vanity</b><span class="text-amber-400">$840</span></div>
-                            <p class="text-[11px] text-cyan-300/70 mt-1">Matte Black PVD Faucets · Quartz Top</p>
-                            <div class="mt-2 text-[10px] text-emerald-400">Clearance: 30" × 48" PASSED</div>
-                        </div>
-                        <div class="rounded-lg border border-[#1e3a63] bg-[#0a1f3d]/70 p-3 hover:border-cyan-400 transition">
-                            <div class="flex justify-between items-start text-xs"><b class="text-white">Walk-in Shower Package</b><span class="text-amber-400">$1,450</span></div>
-                            <p class="text-[11px] text-cyan-300/70 mt-1">Thermostatic Valve with Rain Head</p>
-                            <div class="mt-2 text-[10px] text-emerald-400">Anti-scald: ASSE 1016 VERIFIED</div>
-                        </div>
-                        <div class="rounded-lg border border-[#1e3a63] bg-[#0a1f3d]/70 p-3 hover:border-cyan-400 transition">
-                            <div class="flex justify-between items-start text-xs"><b class="text-white">Powder Water Closet</b><span class="text-amber-400">$480</span></div>
-                            <p class="text-[11px] text-cyan-300/70 mt-1">Dual-Flush 1.28/0.8 GPF</p>
-                            <div class="mt-2 text-[10px] text-emerald-400">Min Clearance: 18" Actual</div>
-                        </div>
-                        <div class="rounded-lg border border-[#1e3a63] bg-[#0a1f3d]/70 p-3 hover:border-cyan-400 transition">
-                            <div class="flex justify-between items-start text-xs"><b class="text-white">Chef Kitchen Sink Suite</b><span class="text-amber-400">$1,120</span></div>
-                            <p class="text-[11px] text-cyan-300/70 mt-1">16-Gauge Undermount + Pull-Down</p>
-                            <div class="mt-2 text-[10px] text-cyan-400">Air Gap / High Loop Integrated</div>
-                        </div>
-                        <div class="rounded-lg border border-[#1e3a63] bg-[#0a1f3d]/70 p-3 hover:border-cyan-400 transition">
-                            <div class="flex justify-between items-start text-xs"><b class="text-white">Recessed Laundry Box</b><span class="text-amber-400">$360</span></div>
-                            <p class="text-[11px] text-cyan-300/70 mt-1">1/4-Turn Valves + Hammer Arrestors</p>
-                            <div class="mt-2 text-[10px] text-emerald-400">Standpipe Height: 30" Compliant</div>
-                        </div>
-                        <div class="rounded-lg border border-[#1e3a63] bg-[#0a1f3d]/70 p-3 hover:border-cyan-400 transition">
-                            <div class="flex justify-between items-start text-xs"><b class="text-white">Tankless Gas Unit</b><span class="text-amber-400">$1,600</span></div>
-                            <p class="text-[11px] text-cyan-300/70 mt-1">0.96 UEF · Concentric Venting</p>
-                            <div class="mt-2 text-[10px] text-emerald-400">T&amp;P Full Bore Drain Verified</div>
-                        </div>
-                    </div>
-                </section>
+                    <div id="schedule-stats" class="flex gap-2 text-[10px] font-mono"></div>
+                </div>
+                <div id="schedule-table" class="p-3 overflow-x-auto table-scroll"></div>
             </div>
 
-            <!-- Schedule Tab View -->
-            <div class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-[#0a192f] rounded-xl border border-[#1e3a63] p-4 table-scroll tab-panel panel-fade" id="panel-schedule">
-                <div class="border-b border-[#1e3a63] pb-2 mb-3 flex items-center justify-between font-mono">
-                    <h2 class="text-xs font-bold uppercase text-cyan-300">Fixture Schedule Matrix (IPC-2021 Table E103.3)</h2>
-                    <span class="text-[11px] text-cyan-400/80">6 FIXTURES CONFIGURED · 14.5 WSFU</span>
+            <div id="panel-takeoff" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div id="takeoff-cards" class="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-slate-100"></div>
+                <div class="px-4 py-3 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <div>
+                        <div class="flex items-baseline justify-between">
+                            <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Part 1 · Rough-in takeoff</h2>
+                            <span id="rough-total" class="text-[11px] font-mono font-bold">—</span>
+                        </div>
+                        <div id="takeoff-rough" class="mt-1 rounded-lg border border-slate-200 overflow-x-auto table-scroll"></div>
+                    </div>
+                    <div>
+                        <div class="flex items-baseline justify-between">
+                            <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Part 2 · Finish takeoff</h2>
+                            <span id="finish-total-2" class="text-[11px] font-mono font-bold">—</span>
+                        </div>
+                        <div id="takeoff-finish" class="mt-1 rounded-lg border border-slate-200 overflow-x-auto table-scroll"></div>
+                    </div>
                 </div>
-                <div class="overflow-x-auto text-xs font-mono">
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="border-b border-[#1e3a63] text-cyan-400 text-[10px]">
-                                <th class="p-2">ID</th><th class="p-2">Type</th><th class="p-2">Zone</th><th class="p-2">WSFU</th><th class="p-2">DFU</th><th class="p-2">Supply</th><th class="p-2">Drain</th><th class="p-2">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-[#1e3a63]/40 text-cyan-200">
-                            <tr><td class="p-2 font-bold text-white">LAV-01</td><td class="p-2">Master Lavatory (Double)</td><td class="p-2">01 // Master Bath</td><td class="p-2">2.0</td><td class="p-2">2.0</td><td class="p-2">1/2" PEX</td><td class="p-2">1-1/2" Trap</td><td class="p-2 text-emerald-400">PASSED</td></tr>
-                            <tr><td class="p-2 font-bold text-white">SHW-01</td><td class="p-2">Walk-in Shower 60x36</td><td class="p-2">01 // Master Bath</td><td class="p-2">2.0</td><td class="p-2">2.0</td><td class="p-2">1/2" PEX</td><td class="p-2">2" Trap</td><td class="p-2 text-emerald-400">PASSED</td></tr>
-                            <tr><td class="p-2 font-bold text-white">WC-01</td><td class="p-2">Powder Water Closet</td><td class="p-2">02 // Powder Room</td><td class="p-2">2.5</td><td class="p-2">3.0</td><td class="p-2">1/2" PEX</td><td class="p-2">3" Closet Bend</td><td class="p-2 text-emerald-400">PASSED</td></tr>
-                            <tr><td class="p-2 font-bold text-white">WH-01</td><td class="p-2">Condensing Tankless HWH</td><td class="p-2">03 // Mechanical</td><td class="p-2">4.0</td><td class="p-2">0.0</td><td class="p-2">3/4" PEX</td><td class="p-2">3/4" T&amp;P</td><td class="p-2 text-emerald-400">PASSED</td></tr>
-                            <tr><td class="p-2 font-bold text-white">KS-01</td><td class="p-2">Kitchen Sink &amp; DW</td><td class="p-2">04 // Kitchen</td><td class="p-2">2.0</td><td class="p-2">2.0</td><td class="p-2">1/2" PEX</td><td class="p-2">1-1/2" Trap</td><td class="p-2 text-emerald-400">PASSED</td></tr>
-                            <tr><td class="p-2 font-bold text-white">LND-01</td><td class="p-2">Washing Machine Box</td><td class="p-2">05 // Laundry</td><td class="p-2">2.0</td><td class="p-2">3.0</td><td class="p-2">1/2" PEX</td><td class="p-2">2" Standpipe</td><td class="p-2 text-emerald-400">PASSED</td></tr>
-                        </tbody>
-                    </table>
+                <div class="px-4 pb-4">
+                    <ul id="takeoff-notes" class="mt-2 space-y-1 text-[10px] text-slate-500 list-disc pl-4"></ul>
                 </div>
             </div>
 
-            <!-- Takeoff Tab View -->
-            <div class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-[#0a192f] rounded-xl border border-[#1e3a63] p-4 table-scroll tab-panel panel-fade" id="panel-takeoff">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 font-mono">
-                    <div class="p-2.5 rounded bg-[#081a38] border border-[#1e3a63]">
-                        <div class="text-[10px] text-cyan-400">POTABLE WATER PIPE</div>
-                        <div class="text-sm font-bold text-white mt-0.5">142 LF (PEX-A)</div>
+            <div id="panel-rules" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div class="px-4 py-3 border-b border-slate-100">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <div>
+                            <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Rules &amp; regulations</h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Model code: 2021 IPC · 2021 IRC plumbing · 2021 IFGC. Confirm local amendments.</p>
+                            <p id="rules-scope" class="text-[10px] text-slate-400 mt-1 max-w-4xl leading-snug"></p>
+                        </div>
+                        <span id="rules-summary" class="text-[10px] font-mono"></span>
                     </div>
-                    <div class="p-2.5 rounded bg-[#081a38] border border-[#1e3a63]">
-                        <div class="text-[10px] text-cyan-400">DWV GRAVITY PIPE</div>
-                        <div class="text-sm font-bold text-white mt-0.5">86 LF (SCH-40)</div>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                        <input id="rules-search" type="search" placeholder="Search a rule, fixture, pipe or code section…" class="w-80 rounded border border-slate-200 px-2 py-1 text-[11px]">
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600 ml-1"><input type="checkbox" id="rules-issues"> Only rules needing attention</label>
                     </div>
-                    <div class="p-2.5 rounded bg-[#081a38] border border-[#1e3a63]">
-                        <div class="text-[10px] text-amber-400">GAS FUEL LINE</div>
-                        <div class="text-sm font-bold text-white mt-0.5">24 LF (CSST)</div>
-                    </div>
-                    <div class="p-2.5 rounded bg-[#081a38] border border-[#1e3a63]">
-                        <div class="text-[10px] text-emerald-400">COMBINED COST</div>
-                        <div class="text-sm font-bold text-cyan-300 mt-0.5">$12,690.00</div>
-                    </div>
+                    <div id="rules-chips" class="flex flex-wrap gap-1 mt-2"></div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
-                    <div class="p-3 rounded-lg border border-[#1e3a63] bg-[#081a38]">
-                        <h3 class="text-cyan-400 font-bold mb-2">Rough-in Material ($6,840.00)</h3>
-                        <ul class="space-y-1.5 text-cyan-200 text-[11px]">
-                            <li class="flex justify-between"><span>PEX-A Tubing 3/4" &amp; 1/2" Coils</span><span class="text-white">$395</span></li>
-                            <li class="flex justify-between"><span>PVC Sch-40 3" &amp; 2" DWV Pipe</span><span class="text-white">$560</span></li>
-                            <li class="flex justify-between"><span>Sanitary Fittings, Wyes &amp; Bends</span><span class="text-white">$315</span></li>
-                            <li class="flex justify-between"><span>CSST Gas Line 1" (30 LF) + Valve</span><span class="text-white">$420</span></li>
-                            <li class="flex justify-between"><span>Tankless Gas Water Heater 199k</span><span class="text-white">$1,650</span></li>
-                            <li class="flex justify-between pt-1 border-t border-[#1e3a63]"><span>Rough Labor (45h)</span><span class="text-white">$3,500</span></li>
-                        </ul>
-                    </div>
-                    <div class="p-3 rounded-lg border border-[#1e3a63] bg-[#081a38]">
-                        <h3 class="text-cyan-400 font-bold mb-2">Finish Trim Takeoff ($5,850.00)</h3>
-                        <ul class="space-y-1.5 text-cyan-200 text-[11px]">
-                            <li class="flex justify-between"><span>Master Bath Vanity Trim &amp; Faucets</span><span class="text-white">$840</span></li>
-                            <li class="flex justify-between"><span>Master Shower Rain Fixture &amp; Valve</span><span class="text-white">$1,450</span></li>
-                            <li class="flex justify-between"><span>Powder Water Closet &amp; Supply Kit</span><span class="text-white">$480</span></li>
-                            <li class="flex justify-between"><span>Kitchen Faucet, Strainer &amp; Air Gap</span><span class="text-white">$1,120</span></li>
-                            <li class="flex justify-between"><span>Washer Box Trim &amp; Arrestors</span><span class="text-white">$360</span></li>
-                            <li class="flex justify-between pt-1 border-t border-[#1e3a63]"><span>Trim Labor (20h)</span><span class="text-white">$1,600</span></li>
-                        </ul>
-                    </div>
-                </div>
+                <div id="rules-list" class="p-3 space-y-2"></div>
             </div>
 
-            <!-- Rules Tab View -->
-            <div class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-[#0a192f] rounded-xl border border-[#1e3a63] p-4 table-scroll tab-panel panel-fade" id="panel-rules">
-                <div class="border-b border-[#1e3a63] pb-2 mb-3">
-                    <h2 class="text-xs font-mono font-bold uppercase text-cyan-300">Code &amp; Compliance Database (2021 IPC / IRC)</h2>
-                </div>
-                <div class="space-y-2.5 font-mono text-xs">
-                    <div class="p-2.5 rounded border border-emerald-900/60 bg-[#081d3a]/60">
-                        <div class="flex justify-between items-center text-emerald-400 font-bold">
-                            <span>§ IRC P3105.1 · Maximum Trap to Vent Distance</span>
-                            <span class="text-[9px] bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800">PASS</span>
-                        </div>
-                        <p class="text-cyan-200/80 text-[11px] mt-1">1-1/2" trap max: 6 ft; 2" trap max: 8 ft. All layout fixtures are within 5.2 ft of vent risers.</p>
+            <div id="panel-glossary" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Glossary</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Rough-in, finish, fixture units, drainage, venting, fuel gas and inspection terms.</p>
                     </div>
-                    <div class="p-2.5 rounded border border-emerald-900/60 bg-[#081d3a]/60">
-                        <div class="flex justify-between items-center text-emerald-400 font-bold">
-                            <span>§ IPC Table 704.1 · Slope of Horizontal Drainage Piping</span>
-                            <span class="text-[9px] bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800">PASS</span>
-                        </div>
-                        <p class="text-cyan-200/80 text-[11px] mt-1">Minimum slope 1/4 in/ft (2.0%). Conforms to continuous grade towards South sewer invert.</p>
-                    </div>
-                    <div class="p-2.5 rounded border border-emerald-900/60 bg-[#081d3a]/60">
-                        <div class="flex justify-between items-center text-emerald-400 font-bold">
-                            <span>§ IFGC 402.4 · Gas Pipe Sizing &amp; Meter Capacity</span>
-                            <span class="text-[9px] bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800">PASS</span>
-                        </div>
-                        <p class="text-cyan-200/80 text-[11px] mt-1">1" CSST provides 285 CFH @ 30 ft run, comfortably within 425 CFH meter rating.</p>
+                    <div class="flex items-center gap-2">
+                        <input id="glossary-search" type="search" placeholder="Search terms…" class="w-56 rounded border border-slate-200 px-2 py-1 text-[11px]">
+                        <span id="glossary-count" class="text-[10px] font-mono text-slate-400"></span>
                     </div>
                 </div>
+                <div id="glossary-list" class="p-3 space-y-3"></div>
             </div>
         </div>
     </main>
 </div>
 
-<!-- Interactive Engine Logic -->
-<script>
-    const $ = (id) => document.getElementById(id);
-    const $$ = (sel) => document.querySelectorAll(sel);
-
-    // Tab Navigation
-    const tabs = ['rough', 'finish', 'schedule', 'takeoff', 'rules'];
-    tabs.forEach(tabKey => {
-        const btn = $(`tab-${tabKey}`);
-        if (!btn) return;
-        btn.addEventListener('click', () => {
-            tabs.forEach(k => {
-                const b = $(`tab-${k}`);
-                const p = $(`panel-${k}`);
-                if (b) {
-                    if (k === tabKey) {
-                        b.classList.add('active');
-                        b.classList.remove('bg-[#081a38]', 'text-cyan-300');
-                    } else {
-                        b.classList.remove('active');
-                        b.classList.add('bg-[#081a38]', 'text-cyan-300');
-                    }
-                }
-                if (p) {
-                    p.classList.toggle('hidden', k !== tabKey);
-                    if (k === tabKey) p.classList.add('panel-fade');
-                }
-            });
-        });
-    });
-
-    // Mode Switcher (Rough-in vs Finish)
-    const btnRough = $('btn-mode-rough');
-    const btnFinish = $('btn-mode-finish');
-    const roughPanel = $('rough-panel');
-    const finishPanel = $('finish-panel');
-
-    function setMode(mode) {
-        if (mode === 'rough') {
-            btnRough.classList.add('active');
-            btnFinish.classList.remove('active');
-            roughPanel.classList.remove('hidden');
-            finishPanel.classList.add('hidden');
-            $('tab-rough').click();
-        } else {
-            btnFinish.classList.add('active');
-            btnRough.classList.remove('active');
-            roughPanel.classList.add('hidden');
-            finishPanel.classList.remove('hidden');
-            $('tab-finish').click();
-        }
-    }
-    btnRough.addEventListener('click', () => setMode('rough'));
-    btnFinish.addEventListener('click', () => setMode('finish'));
-
-    // Crosshairs Tracker
-    const viewport = $('blueprint-viewport');
-    const crosshairX = $('crosshair-x');
-    const crosshairY = $('crosshair-y');
-    const hudCoords = $('hud-coords');
-
-    viewport.addEventListener('mousemove', (e) => {
-        const rect = viewport.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        crosshairX.style.top = `${y}px`;
-        crosshairY.style.left = `${x}px`;
-
-        // Scale to simulated meters (12.0m x 8.0m)
-        const meterX = ((x / rect.width) * 12).toFixed(2);
-        const meterY = ((y / rect.height) * 8).toFixed(2);
-        hudCoords.textContent = `X: ${meterX}m  Y: ${meterY}m`;
-    });
-
-    // Fixture Hover & Click Tooltip & Highlights
-    const tooltip = $('fixture-tooltip');
-    const hudTarget = $('hud-target');
-    const hudPressure = $('hud-pressure');
-    const hudInvert = $('hud-invert');
-    const inspectDesc = $('inspect-desc');
-
-    $$('.fixture-node').forEach(node => {
-        node.addEventListener('mouseenter', (e) => {
-            const title = node.dataset.title;
-            const code = node.dataset.code;
-            const zone = node.dataset.zone;
-            const load = node.dataset.load;
-            const conn = node.dataset.conn;
-            const press = node.dataset.press;
-
-            $('tt-title').textContent = title;
-            $('tt-id').textContent = code;
-            $('tt-zone').textContent = zone;
-            $('tt-load').textContent = load;
-            $('tt-conn').textContent = conn;
-            $('tt-press').textContent = press;
-
-            hudTarget.textContent = code;
-            hudPressure.textContent = press;
-
-            const rect = node.getBoundingClientRect();
-            const viewRect = viewport.getBoundingClientRect();
-            tooltip.style.left = `${rect.left - viewRect.left + rect.width / 2}px`;
-            tooltip.style.top = `${Math.max(10, rect.top - viewRect.top - 100)}px`;
-            tooltip.classList.remove('hidden');
-        });
-
-        node.addEventListener('mouseleave', () => {
-            tooltip.classList.add('hidden');
-            hudTarget.textContent = 'DWV TRUNK';
-            hudPressure.textContent = '58.4 PSI';
-        });
-
-        node.addEventListener('click', () => {
-            $$('.fixture-node').forEach(n => n.classList.remove('active-fixture'));
-            node.classList.add('active-fixture');
-            inspectDesc.textContent = `${node.dataset.code} [${node.dataset.title}]: Connected load ${node.dataset.load}, Operating at ${node.dataset.press}. Verified compliant.`;
-        });
-    });
-
-    // Flow Simulation Toggle
-    let flowActive = true;
-    const btnFlowToggle = $('btn-flow-toggle');
-    const flowText = $('flow-status-text');
-
-    btnFlowToggle.addEventListener('click', () => {
-        flowActive = !flowActive;
-        const animatedPaths = $$('.pipe-flow-cold, .pipe-flow-hot, .pipe-flow-dwv, .pipe-flow-vent, .pipe-flow-gas');
-        animatedPaths.forEach(p => {
-            p.style.animationPlayState = flowActive ? 'running' : 'paused';
-        });
-        flowText.textContent = flowActive ? 'FLOW ACTIVE' : 'FLOW PAUSED';
-        btnFlowToggle.classList.toggle('border-cyan-500/50', flowActive);
-        btnFlowToggle.classList.toggle('border-slate-600', !flowActive);
-    });
-
-    // Flush Pressure Test Animation
-    const btnPressureTest = $('btn-pressure-test');
-    btnPressureTest.addEventListener('click', () => {
-        const trunks = [$('cold-main-trunk'), $('hot-main-trunk'), $('dwv-main-trunk')];
-        trunks.forEach(trunk => {
-            if (!trunk) return;
-            trunk.classList.remove('pressure-surge');
-            void trunk.offsetWidth;
-            trunk.classList.add('pressure-surge');
-        });
-        const prevPressure = hudPressure.textContent;
-        hudPressure.textContent = '74.5 PSI (SURGE)';
-        hudPressure.classList.add('text-amber-400');
-        setTimeout(() => {
-            hudPressure.textContent = prevPressure;
-            hudPressure.classList.remove('text-amber-400');
-        }, 1200);
-    });
-
-    // Filter Buttons (Cold, DWV, Gas, All)
-    $$('.filter-pipe-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            $$('.filter-pipe-btn').forEach(b => b.classList.remove('active', 'border-cyan-400'));
-            btn.classList.add('active', 'border-cyan-400');
-            const filter = btn.dataset.filter;
-
-            const coldPipes = $('layer-cold-pipes');
-            const hotPipes = $('layer-hot-pipes');
-            const dwvPipes = $('layer-dwv-pipes');
-            const ventPipes = $('layer-vent-pipes');
-            const gasPipes = $('layer-gas-pipes');
-
-            if (filter === 'all') {
-                [coldPipes, hotPipes, dwvPipes, ventPipes, gasPipes].forEach(l => l && (l.style.opacity = '1'));
-            } else if (filter === 'cold') {
-                [coldPipes, hotPipes].forEach(l => l && (l.style.opacity = '1'));
-                [dwvPipes, ventPipes, gasPipes].forEach(l => l && (l.style.opacity = '0.15'));
-            } else if (filter === 'dwv') {
-                [dwvPipes, ventPipes].forEach(l => l && (l.style.opacity = '1'));
-                [coldPipes, hotPipes, gasPipes].forEach(l => l && (l.style.opacity = '0.15'));
-            } else if (filter === 'gas') {
-                if (gasPipes) gasPipes.style.opacity = '1';
-                [coldPipes, hotPipes, dwvPipes, ventPipes].forEach(l => l && (l.style.opacity = '0.15'));
-            }
-        });
-    });
-
-    // Layer Checkbox Toggles
-    const layerMap = {
-        'layer-cold': 'layer-cold-pipes',
-        'layer-hot': 'layer-hot-pipes',
-        'layer-drain': 'layer-dwv-pipes',
-        'layer-vent': 'layer-vent-pipes',
-        'layer-gas': 'layer-gas-pipes'
-    };
-    Object.entries(layerMap).forEach(([chkId, layerId]) => {
-        const chk = $(chkId);
-        const layer = $(layerId);
-        if (chk && layer) {
-            chk.addEventListener('change', () => {
-                layer.style.display = chk.checked ? '' : 'none';
-            });
-        }
-    });
-
-    // Clearances Checkbox
-    const chkClear = $('layer-clearances');
-    if (chkClear) {
-        chkClear.addEventListener('change', () => {
-            $$('.clearance-box').forEach(box => {
-                box.style.display = chkClear.checked ? '' : 'none';
-            });
-        });
-    }
-
-    // Reset button feedback
-    $('reset').addEventListener('click', () => {
-        location.reload();
-    });
-</script>
+<script type="module" src="../features/plumbing/page.js"></script>
 </body>
 </html>

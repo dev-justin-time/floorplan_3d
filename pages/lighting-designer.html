@@ -1,1340 +1,261 @@
 <!DOCTYPE html>
-
-<html class="h-full" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Lighting suite · switches, sockets and photometry</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
-<style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .font-mono { font-family: "JetBrains Mono", monospace; }
-    input[type="range"] { accent-color: #06b6d4; }
-    input[readonly] { background: #1e293b; color: #94a3b8; }
-    canvas { display: block; background: #090d16; cursor: crosshair; }
-    #plan { width: 100%; height: 100%; touch-action: none; }
-    
-    /* Interactive micro-interaction states & transitions */
-    .tab {
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .tab.active {
-        background: #0ea5e9;
-        color: #020617;
-        border-color: #38bdf8;
-        box-shadow: 0 0 12px rgba(14, 165, 233, 0.35);
-        transform: translateY(-1px);
-    }
-    .tool {
-        transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
-        position: relative;
-    }
-    .tool:active {
-        transform: scale(0.94);
-    }
-    .tool.active {
-        background: #0ea5e9;
-        color: #020617;
-        border-color: #38bdf8;
-        box-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
-    }
-
-    /* Tactile button presses */
-    .btn-tactile {
-        transition: all 0.15s ease;
-    }
-    .btn-tactile:hover {
-        border-color: #38bdf8;
-        box-shadow: 0 0 8px rgba(14, 165, 233, 0.2);
-    }
-    .btn-tactile:active {
-        transform: scale(0.96);
-    }
-
-    /* Pulse dots */
-    @keyframes pulseGlow {
-        0%, 100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 2px currentColor); }
-        50% { opacity: 0.55; transform: scale(0.85); filter: drop-shadow(0 0 6px currentColor); }
-    }
-    .pulse-dot {
-        animation: pulseGlow 2.2s infinite ease-in-out;
-    }
-
-    /* Subtle row transitions */
-    .metric-row {
-        transition: background-color 0.15s ease, padding-left 0.15s ease;
-        border-radius: 4px;
-        padding: 2px 4px;
-        margin: 0 -4px;
-    }
-    .metric-row:hover {
-        background: rgba(30, 41, 59, 0.7);
-        padding-left: 2px;
-    }
-
-    .table-scroll { scrollbar-width: thin; }
-    th { position: sticky; top: 0; background: #111827; z-index: 1; }
-    .glow-legend { width: 9px; height: 9px; border-radius: 999px; display: inline-block; box-shadow: 0 0 6px currentColor; }
-    .metric-value { font-variant-numeric: tabular-nums; transition: color 0.3s ease, transform 0.2s ease; }
-    
-    /* Content panels with smooth crossfade */
-    .panel-view {
-        animation: panelFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    @keyframes panelFadeIn {
-        from { opacity: 0; transform: translateY(3px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Ambient room glow backdrop on canvas frame */
-    #canvas-container {
-        transition: box-shadow 0.6s ease;
-    }
-    
-    .cct-warm { box-shadow: inset 0 0 60px rgba(245, 158, 11, 0.06); }
-    .cct-soft { box-shadow: inset 0 0 60px rgba(251, 191, 36, 0.05); }
-    .cct-neutral { box-shadow: inset 0 0 60px rgba(186, 230, 253, 0.05); }
-    .cct-cool { box-shadow: inset 0 0 60px rgba(56, 189, 248, 0.07); }
-</style>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lighting suite · switches, sockets and photometry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #f8fafc; }
+        input[type="range"] { accent-color: #0ea5e9; }
+        input[readonly] { background: #f1f5f9; color: #475569; }
+        canvas { display: block; }
+        #plan { width: 100%; height: 100%; touch-action: none; }
+        .tab.active { background: #0f172a; color: white; }
+        .tool.active { background: #0f172a; color: white; border-color: #0f172a; }
+        .severity-ok { color: #15803d; }
+        .severity-info { color: #475569; }
+        .severity-warn { color: #b45309; }
+        .severity-error { color: #dc2626; }
+        .rule-body { display: none; }
+        .rule.open .rule-body { display: block; }
+        .rule.open .rule-caret { transform: rotate(90deg); }
+        .rule-caret { transition: transform .15s ease; }
+        .chip.active { background: #0f172a; color: white; border-color: #0f172a; }
+        .status-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; }
+        .table-scroll { scrollbar-width: thin; }
+        th { position: sticky; top: 0; background: #f8fafc; z-index: 1; }
+        .glow-legend { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+        .device-card { transition: border-color .12s ease, background .12s ease; }
+        .device-card:hover { border-color: #7dd3fc; background: #f0f9ff; }
+        .metric-value { font-variant-numeric: tabular-nums; }
+        .prose-sm p { margin: 0 0 .4rem; }
+    </style>
 </head>
-<body class="h-full text-slate-100 bg-[#0b0f19]">
-<div class="h-full flex flex-col select-none">
-<!-- Header -->
-<header class="flex items-center justify-between gap-3 px-4 py-2 bg-[#111827] border-b border-slate-800">
-<div class="flex items-baseline gap-3 min-w-0">
-<h1 class="text-base font-bold whitespace-nowrap text-slate-100 flex items-center gap-2">
-<span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8] pulse-dot"></span>
-    Lighting suite
-</h1>
-<span class="text-[11px] text-slate-400 truncate">Luminaires · switches · sockets · circuits · photometry</span>
-</div>
-<div class="flex items-center gap-1.5 text-[11px] font-semibold shrink-0">
-<a class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile" href="Editor.html">Editor</a>
-<a class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile" href="landscape-designer.html">Landscape</a>
-<a class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile" href="stair-designer.html">Stairs</a>
-<a class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile" href="roof-designer.html">Roof</a>
-<a class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile" href="#" id="rules-btn" title="Rules and regulations">Rules</a>
-<button class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile active:scale-95" id="reset">Reset</button>
-<button class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile" id="schedule-csv">Schedule CSV</button>
-<button class="px-2 py-1 rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:text-white btn-tactile" id="takeoff-csv">Takeoff CSV</button>
-<button class="px-2.5 py-1 rounded bg-sky-500 text-slate-950 font-bold hover:bg-sky-400 shadow-sm shadow-sky-950/80 active:scale-95 transition-transform" id="send-editor">Send to editor</button>
-</div>
-</header>
-<main class="flex-1 min-h-0 flex bg-[#0b0f19]">
-<!-- Left Sidebar -->
-<aside class="w-[384px] shrink-0 overflow-y-auto bg-[#111827] border-r border-slate-800 p-4 space-y-4 select-text">
-<!-- Room Specs -->
-<section>
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400 mb-2 flex items-center justify-between">
-<span>Room</span>
-<span class="text-[10px] font-mono text-slate-400 font-normal">CAD Level 01</span>
-</h2>
-<label class="block text-[11px] text-slate-400">Room type
-    <select class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-2 py-1 text-[11px] focus:border-sky-500 focus:outline-none transition-colors" id="room-type">
-<option value="living">Open Living &amp; Dining Area</option>
-<option value="kitchen">Commercial Kitchen / Island Prep</option>
-<option value="office">Executive Design Studio</option>
-<option value="bedroom">Master Bedroom Suite</option>
-</select>
-</label>
-<div class="grid grid-cols-2 gap-2 mt-2">
-<label class="block text-[11px] text-slate-400">Width (m)
-    <input class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-2 py-0.5 font-mono text-[11px] focus:border-sky-500 focus:outline-none transition-colors" id="room-width" max="30" min="2" step="0.1" type="number" value="7.8"/>
-</label>
-<label class="block text-[11px] text-slate-400">Depth (m)
-    <input class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-2 py-0.5 font-mono text-[11px] focus:border-sky-500 focus:outline-none transition-colors" id="room-depth" max="30" min="2" step="0.1" type="number" value="5.4"/>
-</label>
-<label class="block text-[11px] text-slate-400">Ceiling (m)
-    <input class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-2 py-0.5 font-mono text-[11px] focus:border-sky-500 focus:outline-none transition-colors" id="ceiling-height" max="6" min="2.2" step="0.05" type="number" value="2.80"/>
-</label>
-<label class="block text-[11px] text-slate-400">Lights at (m)
-    <input class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-2 py-0.5 font-mono text-[11px] focus:border-sky-500 focus:outline-none transition-colors" id="mount-height" max="5.9" min="1.8" step="0.05" type="number" value="2.75"/>
-</label>
-</div>
-<p class="text-[10px] text-slate-400 leading-snug mt-1.5" id="room-note">Area: 42.12 m² · Effective cavity ratio: 1.48 · Target workplane 0.85 m.</p>
-<label class="block text-[11px] text-slate-400 mt-2">Colour temperature
-    <select class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-2 py-0.5 text-[11px] focus:border-sky-500 focus:outline-none transition-colors" id="cct">
-<option selected="" value="2700">2700 K · warm amber</option>
-<option value="3000">3000 K · soft white</option>
-<option value="3500">3500 K · neutral daylight</option>
-<option value="4000">4000 K · cool clean</option>
-</select>
-</label>
-<div class="grid grid-cols-1 gap-1.5 mt-2 text-[11px] text-slate-300">
-<label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-100 transition-colors"><input checked="" class="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0" id="insulation" type="checkbox"/> Insulated ceiling · IC required</label>
-<label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-100 transition-colors"><input class="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0" id="fire-ceiling" type="checkbox"/> Fire-rated ceiling (60 min barrier)</label>
-<label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-100 transition-colors"><input checked="" class="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0" id="neutral" type="checkbox"/> Neutral at switch boxes (NEC 404.2C)</label>
-</div>
-</section>
-<!-- Device Placer -->
-<section>
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400 mb-2">Place devices</h2>
-<div class="grid grid-cols-5 gap-1" id="tool-bar">
-<button class="tool active px-1 py-1 rounded border border-sky-400 bg-sky-500 text-slate-950 text-[10px] font-bold" data-tool="select" title="Select and drag">Select</button>
-<button class="tool px-1 py-1 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold hover:bg-slate-700" data-tool="luminaire" title="Add luminaire">Light</button>
-<button class="tool px-1 py-1 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold hover:bg-slate-700" data-tool="switch" title="Add switch">Switch</button>
-<button class="tool px-1 py-1 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold hover:bg-slate-700" data-tool="socket" title="Add socket">Socket</button>
-<button class="tool px-1 py-1 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold hover:bg-slate-700" data-tool="erase" title="Click a device to remove">Erase</button>
-</div>
-<label class="block text-[11px] text-slate-400 mt-2">Luminaire
-    <select class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-2 py-0.5 text-[11px] focus:border-sky-500 focus:outline-none" id="luminaire-type">
-<option value="can90">90mm Regressed COB LED Downlight (950 lm · 12W)</option>
-<option value="pendant">Suspended Linear Accent Profile (2200 lm · 26W)</option>
-<option value="strip">Cove Grazing Diffused Strip (1400 lm · 18W)</option>
-<option value="wallpack">Sconce Direct/Indirect Wash (800 lm · 9W)</option>
-</select>
-</label>
-<div class="grid grid-cols-2 gap-2 mt-1.5">
-<label class="block text-[11px] text-slate-400">Switch
-    <select class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-1.5 py-0.5 text-[11px] focus:border-sky-500 focus:outline-none" id="switch-type">
-<option value="dimmer">Phase Triac Dimmer</option>
-<option value="smart">0-10V Smart Keypad</option>
-<option value="3way">3-Way Decora Rocker</option>
-</select>
-</label>
-<label class="block text-[11px] text-slate-400">Socket
-    <select class="mt-0.5 w-full rounded border border-slate-700 bg-slate-900/90 text-slate-200 px-1.5 py-0.5 text-[11px] focus:border-sky-500 focus:outline-none" id="socket-type">
-<option value="duplex">Duplex 15A Tamper-Proof</option>
-<option value="gfci">GFCI Protected 20A</option>
-<option value="usb">Duplex USB-C PD 60W</option>
-</select>
-</label>
-</div>
-<div class="grid grid-cols-2 gap-2 mt-2">
-<button class="px-2 py-1.5 rounded bg-sky-600 text-white text-[11px] font-bold hover:bg-sky-500 active:scale-95 transition-all shadow-sm shadow-sky-900" id="auto-design">Auto design</button>
-<button class="px-2 py-1.5 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[11px] font-bold hover:bg-slate-700 hover:text-white active:scale-95 transition-all" id="clear-lights">Clear lights</button>
-</div>
-<p class="text-[10px] text-slate-400 leading-snug mt-1.5">Click plan to place selected item. Drag downlights freely; switches snap to perimeter walls. Click switch to cycle load state.</p>
-</section>
-<!-- Lighting Controls -->
-<section>
-<div class="flex items-center justify-between">
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400">Lighting control</h2>
-<span class="text-[10px] font-mono text-cyan-400 transition-colors duration-300" id="master-state">100% full output</span>
-</div>
-<div class="grid grid-cols-3 gap-1.5 mt-1.5">
-<button class="px-1.5 py-1 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold hover:bg-slate-700 hover:text-white btn-tactile" id="master-on">All on</button>
-<button class="px-1.5 py-1 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold hover:bg-slate-700 hover:text-white btn-tactile" id="master-off">All off</button>
-<button class="px-1.5 py-1 rounded border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold hover:bg-slate-700 hover:text-white btn-tactile" id="dim-half">Dim 50%</button>
-</div>
-<div class="flex flex-wrap gap-1 mt-2" id="layer-toggles">
-<button class="layer-chip px-2 py-0.5 rounded text-[10px] font-mono border border-sky-500/50 bg-sky-950 text-sky-300" data-layer="ambient">C1 Ambient: ON</button>
-<button class="layer-chip px-2 py-0.5 rounded text-[10px] font-mono border border-slate-700 bg-slate-800/80 text-slate-300" data-layer="task">C2 Task: ON</button>
-</div>
-</section>
-<!-- Result Metrics Card -->
-<section class="rounded-lg border border-slate-800 bg-[#162032] p-3 shadow-inner hover:border-slate-700 transition-colors">
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400 mb-2 flex items-center justify-between">
-<span>Result</span>
-<span class="status-dot w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399] pulse-dot"></span>
-</h2>
-<div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono">
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Average illuminance</span>
-<b class="text-right metric-value text-slate-100" id="m-lux">348 lx</b>
-</div>
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Target requirement</span>
-<b class="text-right metric-value text-slate-300" id="m-target">300 lx</b>
-</div>
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Uniformity (Emin/Eavg)</span>
-<b class="text-right metric-value text-emerald-400" id="m-uniformity">0.68 (Pass)</b>
-</div>
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Connected load</span>
-<b class="text-right metric-value text-slate-100" id="m-w">144 W</b>
-</div>
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Lighting power density</span>
-<b class="text-right metric-value text-emerald-400" id="m-lpd">3.42 W/m²</b>
-</div>
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Outlets count</span>
-<b class="text-right metric-value text-slate-100" id="m-count">8 light / 3 sock</b>
-</div>
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Branch circuits</span>
-<b class="text-right metric-value text-slate-100" id="m-circuits">2 (15A &amp; 20A)</b>
-</div>
-<div class="metric-row flex justify-between col-span-2">
-<span class="text-slate-400 font-sans">Loaded capacity</span>
-<b class="text-right metric-value text-slate-100" id="m-load">12.8% max</b>
-</div>
-</div>
-<div class="mt-3 pt-2 border-t border-slate-700/60 flex items-baseline justify-between">
-<span class="text-[10px] uppercase tracking-wide text-slate-400 font-sans">Allowance estimate</span>
-<b class="text-base font-mono text-cyan-300 tracking-tight" id="m-cost">$1,480.00</b>
-</div>
-<p class="text-[10px] font-mono mt-1 text-slate-400 flex items-center gap-1.5" id="check-summary">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> 5 Code verifications · 0 critical alerts
-</p>
-<p class="text-[9px] text-slate-400 mt-1">Photometry calculates installed full output; switches preview dimming levels.</p>
-</section>
-<!-- Plan Checks -->
-<section>
-<div class="flex items-center justify-between">
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400">Plan checks</h2>
-<span class="text-[10px] font-mono text-emerald-400" id="issue-count">3 Passed · 0 Warn</span>
-</div>
-<ul class="space-y-1.5 mt-1.5 text-[11px] leading-snug" id="checks">
-<li class="flex items-start gap-1.5 text-slate-300 bg-slate-900/60 p-1.5 rounded border border-slate-800 hover:border-slate-700 transition-colors">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0 shadow-[0_0_5px_#34d399]"></span>
-<span><strong>IRC E3901.2:</strong> Wall receptacle spacing ≤ 3.6m perimeter compliant.</span>
-</li>
-<li class="flex items-start gap-1.5 text-slate-300 bg-slate-900/60 p-1.5 rounded border border-slate-800 hover:border-slate-700 transition-colors">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0 shadow-[0_0_5px_#34d399]"></span>
-<span><strong>IECC C405.3.2:</strong> Power density well below 6.8 W/m² maximum limit.</span>
-</li>
-<li class="flex items-start gap-1.5 text-slate-300 bg-slate-900/60 p-1.5 rounded border border-slate-800 hover:border-slate-700 transition-colors">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0 shadow-[0_0_5px_#34d399]"></span>
-<span><strong>NEC 404.2(C):</strong> Neutral wire routed to switch junctions.</span>
-</li>
-</ul>
-<button class="mt-1.5 text-[10px] text-sky-400 underline hover:text-sky-300 transition-colors" id="show-all-checks">View full NEC / IRC compliance rulebook</button>
-</section>
-<p class="text-[10px] text-slate-400 leading-snug">
-    Metric design aid. Photometry uses the lumen method plus a 20 × 20 point grid; prices are planning allowances.
-    <a class="underline text-sky-400 hover:text-sky-300" href="#">Rules &amp; regulations</a>.
-</p>
-<p class="text-[10px] text-sky-400 min-h-[1rem] font-mono transition-opacity" id="status">Interactive CAD engine active.</p>
-</aside>
-<!-- Main Workspace Right -->
-<div class="flex-1 min-w-0 flex flex-col bg-[#0b0f19]">
-<!-- Navigation Tabs -->
-<nav class="flex items-center gap-2 px-3 pt-3">
-<button class="tab active px-3 py-1.5 rounded-lg text-[11px] font-bold border border-sky-400 bg-sky-500 text-slate-950" data-tab="design">Design</button>
-<button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-700 bg-[#111827] text-slate-300 hover:bg-slate-800 hover:text-white" data-tab="schedule">Schedule</button>
-<button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-700 bg-[#111827] text-slate-300 hover:bg-slate-800 hover:text-white" data-tab="takeoff">Takeoff</button>
-<button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-700 bg-[#111827] text-slate-300 hover:bg-slate-800 hover:text-white" data-tab="rules">Rules</button>
-<button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-700 bg-[#111827] text-slate-300 hover:bg-slate-800 hover:text-white" data-tab="glossary">Glossary</button>
-<span class="text-[10px] text-slate-400 ml-auto pr-1 flex items-center gap-2" id="tab-note">
-<span class="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block pulse-dot"></span>
-    Live synchronous CAD photometry model
-</span>
-</nav>
-<!-- Tab 1: Design (Plan Canvas) -->
-<div class="flex-1 min-h-0 flex flex-col panel-view" id="panel-design">
-<section class="flex-1 min-h-0 bg-[#0f172a] m-3 rounded-xl border border-slate-800 shadow-xl flex flex-col overflow-hidden">
-<div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-b border-slate-800/80 bg-[#111827]">
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400 flex items-center gap-1.5">
-<span class="w-1.5 h-1.5 rounded-sm bg-sky-400"></span> Plan View (1:50)
-</h2>
-<label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer hover:text-white transition-colors"><input checked="" class="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0" id="show-heatmap" type="checkbox"/> Illuminance heatmap</label>
-<label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer hover:text-white transition-colors"><input checked="" class="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0" id="show-circuits" type="checkbox"/> Circuits &amp; Pulses</label>
-<label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer hover:text-white transition-colors"><input checked="" class="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0" id="show-labels" type="checkbox"/> Tags &amp; Lux Readouts</label>
-<div class="flex items-center gap-3 ml-auto text-[10px] text-slate-400">
-<span class="flex items-center gap-1"><i class="glow-legend" style="background:#f59e0b; color:#f59e0b"></i> ambient</span>
-<span class="flex items-center gap-1"><i class="glow-legend" style="background:#0ea5e9; color:#0ea5e9"></i> task</span>
-<span class="flex items-center gap-1"><i class="glow-legend" style="background:#a855f7; color:#a855f7"></i> accent</span>
-<span class="flex items-center gap-1"><i class="glow-legend" style="background:#ec4899; color:#ec4899"></i> decor</span>
-<button class="px-2 py-0.5 rounded border border-slate-700 bg-slate-800 font-bold text-slate-300 hover:bg-slate-700 hover:text-white btn-tactile text-[10px]" id="fit-plan">Fit zoom</button>
-</div>
-</div>
-<div class="flex-1 min-h-0 relative bg-[#090d16] cct-warm" id="canvas-container">
-<canvas id="plan"></canvas>
-<div class="absolute left-3 bottom-3 text-[10px] font-mono text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-800 pointer-events-none backdrop-blur-sm" id="plan-hint">
-    Interactive: Drag lights · Click switches to toggle · Click plan to add selected device
-</div>
-<div class="absolute right-3 top-2 text-[11px] font-mono text-cyan-400 bg-slate-900/90 px-2.5 py-1 rounded border border-cyan-900/50 pointer-events-none backdrop-blur-sm shadow-lg" id="hover-readout">
-    Cursor: X: 4.20m Y: 2.70m · 382 lux
-</div>
-</div>
-<div class="hidden border-t border-slate-800 bg-[#111827] px-3 py-2 text-[11px] text-slate-300 flex items-center justify-between" id="inspector">
-<div class="flex items-center gap-3" id="inspector-content">
-<!-- populated dynamically when item is clicked -->
-</div>
-<button class="text-xs text-slate-400 hover:text-slate-200" id="close-inspector">✕</button>
-</div>
-</section>
-</div>
-<!-- Tab 2: Schedule -->
-<div class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-[#111827] rounded-xl border border-slate-800 shadow-xl" id="panel-schedule">
-<div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-<div>
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400">Outlet schedule</h2>
-<p class="text-[11px] text-slate-400 mt-0.5" id="schedule-summary">8 Luminaires · 2 Wall switches · 3 Duplex sockets configured</p>
-</div>
-<div class="flex gap-3 text-[10px] font-mono text-slate-300" id="schedule-stats">
-<span class="px-2 py-1 rounded bg-slate-800 border border-slate-700">Total: 13 Devices</span>
-<span class="px-2 py-1 rounded bg-slate-800 border border-slate-700">Connected: 144 W</span>
-</div>
-</div>
-<div class="p-3 overflow-x-auto table-scroll" id="schedule-table">
-<table class="w-full text-left text-[11px] font-mono text-slate-300">
-<thead class="text-slate-400 border-b border-slate-800">
-<tr>
-<th class="py-2 px-3">Tag</th>
-<th class="py-2 px-3">Device Type</th>
-<th class="py-2 px-3">Circuit</th>
-<th class="py-2 px-3">Position (X, Y)</th>
-<th class="py-2 px-3">Elevation</th>
-<th class="py-2 px-3">Load (W)</th>
-<th class="py-2 px-3">Output (lm)</th>
-<th class="py-2 px-3">State</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-slate-800/60" id="schedule-table-body">
-<!-- Rendered dynamically -->
-</tbody>
-</table>
-</div>
-</div>
-<!-- Tab 3: Takeoff -->
-<div class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-[#111827] rounded-xl border border-slate-800 shadow-xl" id="panel-takeoff">
-<div class="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-slate-800" id="takeoff-cards">
-<div class="bg-slate-900/80 p-2.5 rounded border border-slate-800">
-<div class="text-[10px] text-slate-400 uppercase">Luminaire count</div>
-<div class="text-base font-mono font-bold text-sky-400 mt-0.5">8 units</div>
-</div>
-<div class="bg-slate-900/80 p-2.5 rounded border border-slate-800">
-<div class="text-[10px] text-slate-400 uppercase">Switching devices</div>
-<div class="text-base font-mono font-bold text-sky-400 mt-0.5">2 stations</div>
-</div>
-<div class="bg-slate-900/80 p-2.5 rounded border border-slate-800">
-<div class="text-[10px] text-slate-400 uppercase">Conduit / Romex</div>
-<div class="text-base font-mono font-bold text-sky-400 mt-0.5">38.4 meters</div>
-</div>
-<div class="bg-slate-900/80 p-2.5 rounded border border-slate-800">
-<div class="text-[10px] text-slate-400 uppercase">Estimated Total</div>
-<div class="text-base font-mono font-bold text-cyan-300 mt-0.5">$1,480.00</div>
-</div>
-</div>
-<div class="px-4 py-3">
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400 mb-2">Bill of materials</h2>
-<div class="rounded-lg border border-slate-800 bg-[#0f172a] overflow-x-auto table-scroll" id="takeoff-bom">
-<table class="w-full text-left text-[11px] font-mono text-slate-300">
-<thead class="text-slate-400 bg-slate-900/90 border-b border-slate-800">
-<tr>
-<th class="py-2 px-3">Item Description</th>
-<th class="py-2 px-3">Specification</th>
-<th class="py-2 px-3">Qty</th>
-<th class="py-2 px-3">Unit Price</th>
-<th class="py-2 px-3">Extended Cost</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-slate-800/60">
-<tr class="hover:bg-slate-800/40">
-<td class="py-2 px-3 font-sans font-medium text-slate-200">Regressed COB LED Downlight 90mm</td>
-<td class="py-2 px-3 text-slate-400">950lm, 12W, CRI 92, IC/Airtight rated</td>
-<td class="py-2 px-3 text-sky-400">6</td>
-<td class="py-2 px-3">$85.00</td>
-<td class="py-2 px-3 font-bold text-slate-100">$510.00</td>
-</tr>
-<tr class="hover:bg-slate-800/40">
-<td class="py-2 px-3 font-sans font-medium text-slate-200">Suspended Linear Accent Pendant</td>
-<td class="py-2 px-3 text-slate-400">2200lm, 26W, 1.2m profile direct/indirect</td>
-<td class="py-2 px-3 text-sky-400">2</td>
-<td class="py-2 px-3">$290.00</td>
-<td class="py-2 px-3 font-bold text-slate-100">$580.00</td>
-</tr>
-<tr class="hover:bg-slate-800/40">
-<td class="py-2 px-3 font-sans font-medium text-slate-200">Phase Triac Dimmer Switch</td>
-<td class="py-2 px-3 text-slate-400">Decora style with neutral pigtail</td>
-<td class="py-2 px-3 text-sky-400">2</td>
-<td class="py-2 px-3">$45.00</td>
-<td class="py-2 px-3 font-bold text-slate-100">$90.00</td>
-</tr>
-<tr class="hover:bg-slate-800/40">
-<td class="py-2 px-3 font-sans font-medium text-slate-200">Duplex 15A Tamper-Resistant Socket</td>
-<td class="py-2 px-3 text-slate-400">NEMA 5-15R, back &amp; side wired</td>
-<td class="py-2 px-3 text-sky-400">3</td>
-<td class="py-2 px-3">$10.00</td>
-<td class="py-2 px-3 font-bold text-slate-100">$30.00</td>
-</tr>
-<tr class="hover:bg-slate-800/40">
-<td class="py-2 px-3 font-sans font-medium text-slate-200">14/2 &amp; 12/2 NM-B Wire + Junction Boxes</td>
-<td class="py-2 px-3 text-slate-400">Copper NM-B, metallic boxes, connectors</td>
-<td class="py-2 px-3 text-sky-400">1 lot</td>
-<td class="py-2 px-3">$270.00</td>
-<td class="py-2 px-3 font-bold text-slate-100">$270.00</td>
-</tr>
-</tbody>
-</table>
-</div>
-<ul class="mt-3 space-y-1 text-[10px] text-slate-400 list-disc pl-4" id="takeoff-notes">
-<li>Estimate includes luminaire units, wall stations, rough-in boxes, wire runs, and hardware.</li>
-<li>Labor estimation factor: 8.5 electrician hours @ $85/hr = $722.50 (not included in trade supply takeoff).</li>
-<li>Permit filing allowance: $120.00 standard municipality fee.</li>
-</ul>
-</div>
-</div>
-<!-- Tab 4: Rules -->
-<div class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-[#111827] rounded-xl border border-slate-800 shadow-xl" id="panel-rules">
-<div class="px-4 py-3 border-b border-slate-800">
-<div class="flex flex-wrap items-baseline justify-between gap-2">
-<div>
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400">Rules &amp; regulations</h2>
-<p class="text-[11px] text-slate-400 mt-0.5">Model code: 2021 IRC · 2021 IECC · 2020 NEC. Confirm local amendments.</p>
-</div>
-<span class="text-[10px] font-mono text-emerald-400" id="rules-summary">All primary parameters conformant</span>
-</div>
-<div class="flex flex-wrap items-center gap-1.5 mt-2">
-<input class="w-72 rounded border border-slate-700 bg-slate-900 text-slate-200 px-2 py-1 text-[11px] focus:border-sky-500 focus:outline-none" id="rules-search" placeholder="Search the code, a room or a device…" type="search"/>
-<label class="flex items-center gap-1 text-[10px] text-slate-300 ml-1"><input class="rounded border-slate-700 bg-slate-900 text-sky-500" id="rules-issues" type="checkbox"/> Only rules needing attention</label>
-</div>
-</div>
-<div class="p-3 space-y-2" id="rules-list">
-<div class="p-3 rounded border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-colors">
-<div class="flex items-center justify-between text-[11px] font-bold text-sky-300">
-<span>NEC 210.52(A) Receptacle Outlets — General Provisions</span>
-<span class="text-emerald-400 font-mono text-[10px]">Pass</span>
-</div>
-<p class="text-[11px] text-slate-400 mt-1">In every kitchen, family room, dining room, living room, and bedroom, receptacles shall be installed so no point along the floor line in any wall space is more than 1.8 m (6 ft) measured horizontally from an outlet.</p>
-</div>
-<div class="p-3 rounded border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-colors">
-<div class="flex items-center justify-between text-[11px] font-bold text-sky-300">
-<span>IECC C405.3 Interior Lighting Power Allowances</span>
-<span class="text-emerald-400 font-mono text-[10px]">Pass · 3.42 W/m² (Limit: 6.8 W/m²)</span>
-</div>
-<p class="text-[11px] text-slate-400 mt-1">Total connected interior lighting power density for open living &amp; general residential areas must remain under code limits to optimize overall building envelope energy usage.</p>
-</div>
-<div class="p-3 rounded border border-slate-800 bg-slate-900/60 hover:border-slate-700 transition-colors">
-<div class="flex items-center justify-between text-[11px] font-bold text-sky-300">
-<span>NEC 404.2(C) Switches Controlling Lighting Loads</span>
-<span class="text-emerald-400 font-mono text-[10px]">Pass · Neutral present</span>
-</div>
-<p class="text-[11px] text-slate-400 mt-1">Grounded circuit conductor (neutral) required at every lighting control switch box for forward-compatibility with electronic occupancy sensors and smart dimmers.</p>
-</div>
-</div>
-</div>
-<!-- Tab 5: Glossary -->
-<div class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-[#111827] rounded-xl border border-slate-800 shadow-xl" id="panel-glossary">
-<div class="px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
-<div>
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-sky-400">Glossary</h2>
-<p class="text-[11px] text-slate-400 mt-0.5">Photometry, controls, code terms and the electrical words on the schedule.</p>
-</div>
-<div class="flex items-center gap-2">
-<input class="w-56 rounded border border-slate-700 bg-slate-900 text-slate-200 px-2 py-1 text-[11px] focus:border-sky-500 focus:outline-none" id="glossary-search" placeholder="Search terms…" type="search"/>
-<span class="text-[10px] font-mono text-slate-400" id="glossary-count">4 Key concepts</span>
-</div>
-</div>
-<div class="p-3 space-y-3" id="glossary-list">
-<div class="p-2.5 rounded border border-slate-800 bg-slate-900/40">
-<h3 class="text-xs font-bold text-cyan-300">Lux (lx) &amp; Lumens (lm)</h3>
-<p class="text-[11px] text-slate-300 mt-0.5">A lumen is the total quantity of visible light emitted from a source. One lux is equal to one lumen per square meter (1 lx = 1 lm/m²), representing illuminance incident on a surface.</p>
-</div>
-<div class="p-2.5 rounded border border-slate-800 bg-slate-900/40">
-<h3 class="text-xs font-bold text-cyan-300">Correlated Colour Temperature (CCT)</h3>
-<p class="text-[11px] text-slate-300 mt-0.5">Characterisation of the spectral colour appearance of white light, measured in Kelvins (K). Lower ratings (2700K) exhibit warm reddish/amber tones; higher ratings (4000K+) appear crisp neutral to icy blue.</p>
-</div>
-<div class="p-2.5 rounded border border-slate-800 bg-slate-900/40">
-<h3 class="text-xs font-bold text-cyan-300">LPD (Lighting Power Density)</h3>
-<p class="text-[11px] text-slate-300 mt-0.5">The total connected lighting electrical load divided by the interior area (Watts per square meter or W/m²). Key benchmark in ASHRAE 90.1 and IECC energy codes.</p>
-</div>
-<div class="p-2.5 rounded border border-slate-800 bg-slate-900/40">
-<h3 class="text-xs font-bold text-cyan-300">Uniformity Ratio (Emin / Eavg)</h3>
-<p class="text-[11px] text-slate-300 mt-0.5">The minimum illuminance divided by the average illuminance across the calculation grid. Higher values (&gt;0.6) signify smooth, glare-free light distribution without stark shadows.</p>
-</div>
-</div>
-</div>
-</div>
-</main>
-</div>
-<script>
-/**
- * Interactive CAD Floor Plan & Photometry Simulator
- */
-(() => {
-    // --- State & Model ---
-    const state = {
-        tool: 'select',
-        cct: 2700,
-        room: { width: 7.8, depth: 5.4, height: 2.80, mount: 2.75 },
-        masterDim: 1.0, // 0 to 1
-        showHeatmap: true,
-        showCircuits: true,
-        showLabels: true,
-        selectedDevice: null,
-        draggedDevice: null,
-        dragOffset: { x: 0, y: 0 },
-        pulseOffset: 0,
-        time: 0,
-        devices: [
-            // C1 Ambient Downlights
-            { id: 'L1', type: 'luminaire', tag: 'DL-01', x: 2.0, y: 1.6, cct: 2700, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L2', type: 'luminaire', tag: 'DL-02', x: 3.9, y: 1.6, cct: 2700, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L3', type: 'luminaire', tag: 'DL-03', x: 5.8, y: 1.6, cct: 2700, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L4', type: 'luminaire', tag: 'DL-04', x: 2.0, y: 3.8, cct: 2700, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L5', type: 'luminaire', tag: 'DL-05', x: 3.9, y: 3.8, cct: 2700, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L6', type: 'luminaire', tag: 'DL-06', x: 5.8, y: 3.8, cct: 2700, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            // C2 Task Pendant fixtures
-            { id: 'L7', type: 'luminaire', tag: 'PD-01', x: 3.1, y: 2.7, cct: 2700, power: 26, lumens: 2200, circuit: 'C2', layer: 'task', on: true, dim: 1.0, isLinear: true },
-            { id: 'L8', type: 'luminaire', tag: 'PD-02', x: 4.7, y: 2.7, cct: 2700, power: 26, lumens: 2200, circuit: 'C2', layer: 'task', on: true, dim: 1.0, isLinear: true },
-            // Wall Switches
-            { id: 'SW1', type: 'switch', tag: 'SW-C1', x: 0.25, y: 4.8, circuit: 'C1', label: 'C1 Ambient Switch' },
-            { id: 'SW2', type: 'switch', tag: 'SW-C2', x: 0.25, y: 4.3, circuit: 'C2', label: 'C2 Task Switch' },
-            // Sockets
-            { id: 'SK1', type: 'socket', tag: 'SK-01', x: 1.2, y: 5.25, power: 0, circuit: 'B1' },
-            { id: 'SK2', type: 'socket', tag: 'SK-02', x: 7.55, y: 2.6, power: 0, circuit: 'B1' },
-            { id: 'SK3', type: 'socket', tag: 'SK-03', x: 4.0, y: 0.15, power: 0, circuit: 'B1' }
-        ]
-    };
-
-    // DOM Elements
-    const canvas = document.getElementById('plan');
-    const ctx = canvas.getContext('2d');
-    const container = document.getElementById('canvas-container');
-    const cctSelect = document.getElementById('cct');
-    const masterStateLabel = document.getElementById('master-state');
-    const hoverReadout = document.getElementById('hover-readout');
-    const planHint = document.getElementById('plan-hint');
-    const inspector = document.getElementById('inspector');
-    const inspectorContent = document.getElementById('inspector-content');
-    const scheduleBody = document.getElementById('schedule-table-body');
-
-    // Metrics DOM
-    const mLux = document.getElementById('m-lux');
-    const mTarget = document.getElementById('m-target');
-    const mUniformity = document.getElementById('m-uniformity');
-    const mW = document.getElementById('m-w');
-    const mLpd = document.getElementById('m-lpd');
-    const mCount = document.getElementById('m-count');
-    const mCost = document.getElementById('m-cost');
-
-    // Canvas CAD viewport transform
-    let scale = 75; // pixels per meter
-    let originX = 60;
-    let originY = 60;
-
-    function resizeCanvas() {
-        const rect = container.getBoundingClientRect();
-        canvas.width = rect.width * window.devicePixelRatio;
-        canvas.height = rect.height * window.devicePixelRatio;
-        scale = Math.min((rect.width - 120) / state.room.width, (rect.height - 120) / state.room.depth);
-        scale = Math.max(35, Math.min(110, scale));
-        originX = (rect.width - state.room.width * scale) / 2;
-        originY = (rect.height - state.room.depth * scale) / 2;
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-
-    // Color Temperature Helpers
-    function getCCTColor(cct, alpha = 1) {
-        if (cct <= 2700) return `rgba(255, 178, 107, ${alpha})`;
-        if (cct <= 3000) return `rgba(255, 204, 153, ${alpha})`;
-        if (cct <= 3500) return `rgba(235, 235, 255, ${alpha})`;
-        return `rgba(200, 230, 255, ${alpha})`;
-    }
-
-    function getCCTHueColor(cct) {
-        if (cct <= 2700) return '#f59e0b';
-        if (cct <= 3000) return '#fbbf24';
-        if (cct <= 3500) return '#e0f2fe';
-        return '#38bdf8';
-    }
-
-    // Convert meter coordinates to screen pixels
-    function toScreen(x, y) {
-        const dpr = window.devicePixelRatio || 1;
-        return {
-            x: (originX + x * scale) * dpr,
-            y: (originY + y * scale) * dpr
-        };
-    }
-
-    function fromScreen(px, py) {
-        const dpr = window.devicePixelRatio || 1;
-        return {
-            x: (px / dpr - originX) / scale,
-            y: (py / dpr - originY) / scale
-        };
-    }
-
-    // Render Canvas
-    function render() {
-        const dpr = window.devicePixelRatio || 1;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        state.time += 0.035;
-        state.pulseOffset = (state.pulseOffset + 0.6) % 30;
-
-        const rw = state.room.width;
-        const rd = state.room.depth;
-        const p0 = toScreen(0, 0);
-        const p1 = toScreen(rw, rd);
-        const roomWpx = rw * scale * dpr;
-        const roomHpx = rd * scale * dpr;
-
-        // 1. Draw Architectural CAD Background Grid
-        ctx.save();
-        ctx.strokeStyle = '#151e33';
-        ctx.lineWidth = 1 * dpr;
-        const gridStep = 0.5; // meter
-        for (let gx = 0; gx <= rw + 0.05; gx += gridStep) {
-            const pt = toScreen(gx, 0);
-            ctx.beginPath();
-            ctx.moveTo(pt.x, p0.y);
-            ctx.lineTo(pt.x, p1.y);
-            ctx.stroke();
-        }
-        for (let gy = 0; gy <= rd + 0.05; gy += gridStep) {
-            const pt = toScreen(0, gy);
-            ctx.beginPath();
-            ctx.moveTo(p0.x, pt.y);
-            ctx.lineTo(p1.x, pt.y);
-            ctx.stroke();
-        }
-
-        // Room Floor Surface
-        ctx.fillStyle = '#0d1322';
-        ctx.fillRect(p0.x, p0.y, roomWpx, roomHpx);
-
-        // 2. Heatmap / Illuminance Glow Halo Layer
-        if (state.showHeatmap) {
-            const luminaires = state.devices.filter(d => d.type === 'luminaire');
-            luminaires.forEach(lum => {
-                const lumDim = lum.on ? lum.dim * state.masterDim : 0;
-                if (lumDim <= 0.01) return;
-
-                const center = toScreen(lum.x, lum.y);
-                const radius = (lum.isLinear ? 2.4 : 1.85) * scale * dpr;
-                const dynamicGlow = 1 + 0.035 * Math.sin(state.time * 2 + lum.x * 3);
-
-                // Concentric Photometric Gradient
-                const radGrad = ctx.createRadialGradient(
-                    center.x, center.y, 4 * dpr,
-                    center.x, center.y, radius * dynamicGlow
-                );
-                const cctColorCore = getCCTColor(state.cct, 0.45 * lumDim);
-                const cctColorMid = getCCTColor(state.cct, 0.18 * lumDim);
-                const cctColorEdge = getCCTColor(state.cct, 0.0);
-
-                radGrad.addColorStop(0, cctColorCore);
-                radGrad.addColorStop(0.4, cctColorMid);
-                radGrad.addColorStop(0.85, getCCTColor(state.cct, 0.04 * lumDim));
-                radGrad.addColorStop(1, cctColorEdge);
-
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(p0.x, p0.y, roomWpx, roomHpx);
-                ctx.clip(); // Keep light strictly in the room boundaries
-
-                ctx.fillStyle = radGrad;
-                ctx.beginPath();
-                ctx.arc(center.x, center.y, radius * dynamicGlow, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Subtle animated contour rings (Iso-lux lines)
-                ctx.strokeStyle = getCCTColor(state.cct, 0.12 * lumDim);
-                ctx.lineWidth = 1 * dpr;
-                ctx.setLineDash([4 * dpr, 6 * dpr]);
-                ctx.beginPath();
-                ctx.arc(center.x, center.y, radius * 0.55 * dynamicGlow, 0, Math.PI * 2);
-                ctx.stroke();
-
-                ctx.strokeStyle = getCCTColor(state.cct, 0.07 * lumDim);
-                ctx.beginPath();
-                ctx.arc(center.x, center.y, radius * 0.85 * dynamicGlow, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.restore();
-            });
-        }
-
-        // 3. Wall boundaries & Architectural Dimension Lines
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 3.5 * dpr;
-        ctx.strokeRect(p0.x, p0.y, roomWpx, roomHpx);
-
-        // Architectural door opening swing preview (bottom wall)
-        const doorPt = toScreen(1.0, rd);
-        const doorWidth = 0.9 * scale * dpr;
-        ctx.strokeStyle = '#64748b';
-        ctx.lineWidth = 1.5 * dpr;
-        ctx.setLineDash([3 * dpr, 3 * dpr]);
-        ctx.beginPath();
-        ctx.arc(doorPt.x, doorPt.y, doorWidth, -Math.PI / 2, 0);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Dimension tags
-        ctx.fillStyle = '#64748b';
-        ctx.font = `${9 * dpr}px "JetBrains Mono", monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText(`${rw} m`, p0.x + roomWpx / 2, p0.y - 10 * dpr);
-        ctx.save();
-        ctx.translate(p0.x - 14 * dpr, p0.y + roomHpx / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText(`${rd} m`, 0, 0);
-        ctx.restore();
-
-        // 4. Circuit Connections with Glowing Animated Electron Pulses
-        if (state.showCircuits) {
-            drawCircuits(p0, roomWpx, roomHpx, dpr);
-        }
-
-        // 5. Draw Devices (Lights, Switches, Sockets)
-        state.devices.forEach(dev => {
-            const pt = toScreen(dev.x, dev.y);
-            const isHovered = (state.selectedDevice === dev);
-
-            if (dev.type === 'luminaire') {
-                const lumDim = dev.on ? dev.dim * state.masterDim : 0;
-                
-                // Outer fixture ring
-                ctx.beginPath();
-                ctx.arc(pt.x, pt.y, (dev.isLinear ? 11 : 9) * dpr, 0, Math.PI * 2);
-                ctx.fillStyle = dev.layer === 'task' ? '#0f172a' : '#111827';
-                ctx.fill();
-                ctx.strokeStyle = dev.layer === 'task' ? '#38bdf8' : (dev.layer === 'accent' ? '#a855f7' : '#f59e0b');
-                ctx.lineWidth = (isHovered ? 2.5 : 1.5) * dpr;
-                ctx.stroke();
-
-                // Active glow emitter center
-                if (lumDim > 0.05) {
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, (dev.isLinear ? 7 : 5.5) * dpr, 0, Math.PI * 2);
-                    ctx.fillStyle = getCCTHueColor(state.cct);
-                    ctx.shadowColor = getCCTHueColor(state.cct);
-                    ctx.shadowBlur = 12 * lumDim * dpr;
-                    ctx.fill();
-                    ctx.shadowBlur = 0; // reset
-                } else {
-                    // Off state
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, 4 * dpr, 0, Math.PI * 2);
-                    ctx.fillStyle = '#334155';
-                    ctx.fill();
-                }
-
-                // If Linear pendant, draw line indicator
-                if (dev.isLinear) {
-                    ctx.strokeStyle = '#38bdf8';
-                    ctx.lineWidth = 2 * dpr;
-                    ctx.beginPath();
-                    ctx.moveTo(pt.x - 14 * dpr, pt.y);
-                    ctx.lineTo(pt.x + 14 * dpr, pt.y);
-                    ctx.stroke();
-                }
-
-                // Tags
-                if (state.showLabels) {
-                    ctx.fillStyle = isHovered ? '#38bdf8' : '#cbd5e1';
-                    ctx.font = `bold ${8 * dpr}px "JetBrains Mono", monospace`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText(dev.tag, pt.x, pt.y - 13 * dpr);
-                    
-                    const luxLocal = Math.round(dev.lumens * 0.38 * lumDim);
-                    ctx.fillStyle = '#64748b';
-                    ctx.font = `${7.5 * dpr}px "JetBrains Mono", monospace`;
-                    ctx.fillText(`${luxLocal}lx`, pt.x, pt.y + 17 * dpr);
-                }
-            } 
-            else if (dev.type === 'switch') {
-                // Wall Switch Icon
-                ctx.fillStyle = '#0284c7';
-                ctx.beginPath();
-                ctx.roundRect(pt.x - 7 * dpr, pt.y - 7 * dpr, 14 * dpr, 14 * dpr, 3 * dpr);
-                ctx.fill();
-                ctx.strokeStyle = isHovered ? '#bae6fd' : '#38bdf8';
-                ctx.lineWidth = 1.5 * dpr;
-                ctx.stroke();
-
-                // Switch lever icon
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(pt.x, pt.y, 2.5 * dpr, 0, Math.PI * 2);
-                ctx.fill();
-
-                if (state.showLabels) {
-                    ctx.fillStyle = '#38bdf8';
-                    ctx.font = `bold ${8 * dpr}px "JetBrains Mono", monospace`;
-                    ctx.textAlign = 'left';
-                    ctx.fillText(`⌁ ${dev.tag}`, pt.x + 10 * dpr, pt.y + 3 * dpr);
-                }
-            } 
-            else if (dev.type === 'socket') {
-                // Receptacle Outlet Icon
-                ctx.fillStyle = '#1e293b';
-                ctx.beginPath();
-                ctx.arc(pt.x, pt.y, 7 * dpr, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#94a3b8';
-                ctx.lineWidth = 1.2 * dpr;
-                ctx.stroke();
-
-                // Two socket slots
-                ctx.fillStyle = '#38bdf8';
-                ctx.fillRect(pt.x - 3 * dpr, pt.y - 3.5 * dpr, 1.8 * dpr, 4 * dpr);
-                ctx.fillRect(pt.x + 1.2 * dpr, pt.y - 3.5 * dpr, 1.8 * dpr, 4 * dpr);
-
-                if (state.showLabels) {
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.font = `${8 * dpr}px "JetBrains Mono", monospace`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText(dev.tag, pt.x, pt.y + 15 * dpr);
-                }
-            }
-
-            // Selection ring
-            if (isHovered) {
-                ctx.strokeStyle = '#38bdf8';
-                ctx.lineWidth = 1.2 * dpr;
-                ctx.setLineDash([3 * dpr, 3 * dpr]);
-                ctx.beginPath();
-                ctx.arc(pt.x, pt.y, 16 * dpr, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-        });
-
-        ctx.restore();
-        requestAnimationFrame(render);
-    }
-
-    // Circuit Line Generator with Animated Pulse Beads
-    function drawCircuits(p0, rwPx, rhPx, dpr) {
-        const swC1 = state.devices.find(d => d.id === 'SW1');
-        const swC2 = state.devices.find(d => d.id === 'SW2');
-        const c1Lights = state.devices.filter(d => d.type === 'luminaire' && d.circuit === 'C1');
-        const c2Lights = state.devices.filter(d => d.type === 'luminaire' && d.circuit === 'C2');
-
-        // Draw C1 Daisy Chain (Amber/Teal dashed)
-        if (swC1 && c1Lights.length > 0) {
-            drawPathWithPulse(swC1, c1Lights, '#0284c7', '#38bdf8', dpr);
-        }
-        if (swC2 && c2Lights.length > 0) {
-            drawPathWithPulse(swC2, c2Lights, '#0369a1', '#7dd3fc', dpr);
-        }
-    }
-
-    function drawPathWithPulse(startDev, nodes, strokeColor, pulseColor, dpr) {
-        const pathPoints = [startDev, ...nodes];
-        ctx.save();
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 1.2 * dpr;
-        ctx.setLineDash([4 * dpr, 5 * dpr]);
-        ctx.globalAlpha = 0.65;
-
-        ctx.beginPath();
-        const startPt = toScreen(pathPoints[0].x, pathPoints[0].y);
-        ctx.moveTo(startPt.x, startPt.y);
-
-        for (let i = 1; i < pathPoints.length; i++) {
-            const pt = toScreen(pathPoints[i].x, pathPoints[i].y);
-            // Draw neat orthogonal or curved wiring lines
-            const prev = toScreen(pathPoints[i - 1].x, pathPoints[i - 1].y);
-            const midX = (prev.x + pt.x) / 2;
-            const midY = (prev.y + pt.y) / 2;
-            ctx.quadraticCurveTo(prev.x, midY, pt.x, pt.y);
-        }
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1.0;
-
-        // Animated Traveling electron pulse dot along segment
-        for (let i = 0; i < pathPoints.length - 1; i++) {
-            const pA = toScreen(pathPoints[i].x, pathPoints[i].y);
-            const pB = toScreen(pathPoints[i + 1].x, pathPoints[i + 1].y);
-            const t = (state.pulseOffset / 30 + (i * 0.33)) % 1;
-            const curX = pA.x + (pB.x - pA.x) * t;
-            const curY = pA.y + (pB.y - pA.y) * t;
-
-            ctx.fillStyle = pulseColor;
-            ctx.shadowColor = pulseColor;
-            ctx.shadowBlur = 6 * dpr;
-            ctx.beginPath();
-            ctx.arc(curX, curY, 2.2 * dpr, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-        }
-        ctx.restore();
-    }
-
-    // --- Interactive Photometry & Metric Updates ---
-    function updateMetrics() {
-        const activeLights = state.devices.filter(d => d.type === 'luminaire');
-        let totalWatts = 0;
-        let totalLumens = 0;
-        let onCount = 0;
-
-        activeLights.forEach(l => {
-            const effDim = l.on ? l.dim * state.masterDim : 0;
-            totalWatts += l.power * (effDim > 0 ? 0.2 + 0.8 * effDim : 0);
-            totalLumens += l.lumens * effDim;
-            if (effDim > 0) onCount++;
-        });
-
-        const roomArea = state.room.width * state.room.depth;
-        // Lumen method with utilization and maintenance factors (UF=0.62, MF=0.8)
-        const avgLux = Math.round((totalLumens * 0.62 * 0.82) / roomArea);
-        const lpd = (totalWatts / roomArea).toFixed(2);
-        const uniformity = (onCount >= 4 ? 0.68 : (onCount > 0 ? 0.42 : 0.0)).toFixed(2);
-
-        // Smoothly animate numerical transitions
-        mLux.innerText = `${avgLux} lx`;
-        mW.innerText = `${Math.round(totalWatts)} W`;
-        mLpd.innerText = `${lpd} W/m²`;
-        mUniformity.innerText = avgLux >= 280 ? `${uniformity} (Pass)` : `${uniformity} (Low)`;
-        mCount.innerText = `${activeLights.length} light / ${state.devices.filter(d => d.type === 'socket').length} sock`;
-        mTarget.innerText = '300 lx';
-
-        // Update schedule table
-        updateScheduleView();
-    }
-
-    function updateScheduleView() {
-        if (!scheduleBody) return;
-        scheduleBody.innerHTML = '';
-        state.devices.forEach(dev => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-slate-800/40 transition-colors border-b border-slate-800/40';
-            const stateText = dev.type === 'luminaire' 
-                ? (dev.on && state.masterDim > 0 ? `<span class="text-emerald-400">ON (${Math.round(dev.dim * state.masterDim * 100)}%)</span>` : '<span class="text-slate-500">OFF</span>')
-                : (dev.type === 'switch' ? '<span class="text-sky-400">ACTIVE</span>' : '<span class="text-slate-400">STANDBY</span>');
-
-            tr.innerHTML = `
-                <td class="py-1.5 px-3 font-bold text-sky-400">${dev.tag}</td>
-                <td class="py-1.5 px-3 font-sans text-slate-200 capitalize">${dev.type} ${dev.layer ? `(${dev.layer})` : ''}</td>
-                <td class="py-1.5 px-3 text-slate-400">${dev.circuit || 'B1'}</td>
-                <td class="py-1.5 px-3 font-mono">${dev.x.toFixed(2)}m, ${dev.y.toFixed(2)}m</td>
-                <td class="py-1.5 px-3 font-mono">${dev.type === 'luminaire' ? state.room.mount.toFixed(2) + 'm' : (dev.type === 'switch' ? '1.20m' : '0.45m')}</td>
-                <td class="py-1.5 px-3">${dev.power ? dev.power + ' W' : '—'}</td>
-                <td class="py-1.5 px-3">${dev.lumens ? dev.lumens + ' lm' : '—'}</td>
-                <td class="py-1.5 px-3">${stateText}</td>
-            `;
-            scheduleBody.appendChild(tr);
-        });
-    }
-
-    // --- User Micro-Interactions & Events ---
-
-    // 1. Tool Selection
-    const toolButtons = document.querySelectorAll('#tool-bar .tool');
-    toolButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            toolButtons.forEach(b => {
-                b.classList.remove('active', 'bg-sky-500', 'text-slate-950', 'border-sky-400');
-                b.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
-            });
-            btn.classList.add('active', 'bg-sky-500', 'text-slate-950', 'border-sky-400');
-            btn.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
-            state.tool = btn.dataset.tool;
-            planHint.innerText = `Active tool: ${state.tool.toUpperCase()}. Click canvas to place or interact.`;
-        });
-    });
-
-    // 2. Master Lighting Controls
-    document.getElementById('master-on').addEventListener('click', () => {
-        state.masterDim = 1.0;
-        state.devices.forEach(d => { if (d.type === 'luminaire') d.on = true; });
-        masterStateLabel.innerText = '100% full output';
-        masterStateLabel.classList.remove('text-slate-500');
-        masterStateLabel.classList.add('text-cyan-400');
-        updateMetrics();
-    });
-
-    document.getElementById('master-off').addEventListener('click', () => {
-        state.masterDim = 0.0;
-        masterStateLabel.innerText = '0% all extinguished';
-        masterStateLabel.classList.remove('text-cyan-400');
-        masterStateLabel.classList.add('text-slate-500');
-        updateMetrics();
-    });
-
-    document.getElementById('dim-half').addEventListener('click', () => {
-        state.masterDim = 0.5;
-        state.devices.forEach(d => { if (d.type === 'luminaire') d.on = true; });
-        masterStateLabel.innerText = '50% dimmed preview';
-        masterStateLabel.classList.remove('text-slate-500');
-        masterStateLabel.classList.add('text-cyan-400');
-        updateMetrics();
-    });
-
-    // 3. Color Temperature Switcher (CCT)
-    cctSelect.addEventListener('change', (e) => {
-        state.cct = parseInt(e.target.value, 10);
-        container.className = 'flex-1 min-h-0 relative bg-[#090d16]';
-        if (state.cct === 2700) container.classList.add('cct-warm');
-        else if (state.cct === 3000) container.classList.add('cct-soft');
-        else if (state.cct === 3500) container.classList.add('cct-neutral');
-        else container.classList.add('cct-cool');
-
-        const status = document.getElementById('status');
-        status.innerText = `CCT calibrated to ${state.cct}K. Photometric emission adjusted.`;
-        setTimeout(() => { status.innerText = 'Interactive CAD engine active.'; }, 2400);
-    });
-
-    // 4. Layer Chips
-    document.querySelectorAll('.layer-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            const layer = chip.dataset.layer;
-            const affected = state.devices.filter(d => d.layer === layer);
-            const anyOn = affected.some(d => d.on);
-            affected.forEach(d => d.on = !anyOn);
-            if (!anyOn) {
-                chip.classList.add('border-sky-500/50', 'bg-sky-950', 'text-sky-300');
-                chip.classList.remove('border-slate-700', 'bg-slate-800/80', 'text-slate-300');
-                chip.innerText = `${layer.toUpperCase()}: ON`;
-            } else {
-                chip.classList.remove('border-sky-500/50', 'bg-sky-950', 'text-sky-300');
-                chip.classList.add('border-slate-700', 'bg-slate-800/80', 'text-slate-300');
-                chip.innerText = `${layer.toUpperCase()}: OFF`;
-            }
-            updateMetrics();
-        });
-    });
-
-    // 5. Navigation Tab Transitions
-    const tabs = document.querySelectorAll('.tab');
-    const panels = {
-        design: document.getElementById('panel-design'),
-        schedule: document.getElementById('panel-schedule'),
-        takeoff: document.getElementById('panel-takeoff'),
-        rules: document.getElementById('panel-rules'),
-        glossary: document.getElementById('panel-glossary')
-    };
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const target = tab.dataset.tab;
-            tabs.forEach(t => {
-                t.classList.remove('active', 'bg-sky-500', 'text-slate-950', 'border-sky-400');
-                t.classList.add('bg-[#111827]', 'text-slate-300', 'border-slate-700');
-            });
-            tab.classList.add('active', 'bg-sky-500', 'text-slate-950', 'border-sky-400');
-            tab.classList.remove('bg-[#111827]', 'text-slate-300', 'border-slate-700');
-
-            Object.entries(panels).forEach(([key, panel]) => {
-                if (key === target) {
-                    panel.classList.remove('hidden');
-                    panel.classList.add('panel-view');
-                    if (key === 'design') {
-                        setTimeout(resizeCanvas, 50);
-                    }
-                } else {
-                    panel.classList.add('hidden');
-                    panel.classList.remove('panel-view');
-                }
-            });
-        });
-    });
-
-    // Quick Rules view trigger
-    document.getElementById('rules-btn').addEventListener('click', (e) => {
-        e.preventDefault();
-        document.querySelector('[data-tab="rules"]').click();
-    });
-    document.getElementById('show-all-checks').addEventListener('click', () => {
-        document.querySelector('[data-tab="rules"]').click();
-    });
-
-    // 6. Viewport Fit & Layer Checkboxes
-    document.getElementById('fit-plan').addEventListener('click', () => {
-        resizeCanvas();
-        planHint.innerText = 'Viewport refitted to center room bounds.';
-    });
-
-    document.getElementById('show-heatmap').addEventListener('change', (e) => {
-        state.showHeatmap = e.target.checked;
-    });
-    document.getElementById('show-circuits').addEventListener('change', (e) => {
-        state.showCircuits = e.target.checked;
-    });
-    document.getElementById('show-labels').addEventListener('change', (e) => {
-        state.showLabels = e.target.checked;
-    });
-
-    // 7. Auto Design button
-    document.getElementById('auto-design').addEventListener('click', () => {
-        state.devices = [
-            { id: 'L1', type: 'luminaire', tag: 'DL-01', x: 2.0, y: 1.5, cct: state.cct, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L2', type: 'luminaire', tag: 'DL-02', x: 3.9, y: 1.5, cct: state.cct, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L3', type: 'luminaire', tag: 'DL-03', x: 5.8, y: 1.5, cct: state.cct, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L4', type: 'luminaire', tag: 'DL-04', x: 2.0, y: 3.9, cct: state.cct, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L5', type: 'luminaire', tag: 'DL-05', x: 3.9, y: 3.9, cct: state.cct, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L6', type: 'luminaire', tag: 'DL-06', x: 5.8, y: 3.9, cct: state.cct, power: 12, lumens: 950, circuit: 'C1', layer: 'ambient', on: true, dim: 1.0 },
-            { id: 'L7', type: 'luminaire', tag: 'PD-01', x: 3.1, y: 2.7, cct: state.cct, power: 26, lumens: 2200, circuit: 'C2', layer: 'task', on: true, dim: 1.0, isLinear: true },
-            { id: 'L8', type: 'luminaire', tag: 'PD-02', x: 4.7, y: 2.7, cct: state.cct, power: 26, lumens: 2200, circuit: 'C2', layer: 'task', on: true, dim: 1.0, isLinear: true },
-            { id: 'SW1', type: 'switch', tag: 'SW-C1', x: 0.25, y: 4.8, circuit: 'C1', label: 'C1 Ambient Switch' },
-            { id: 'SW2', type: 'switch', tag: 'SW-C2', x: 0.25, y: 4.3, circuit: 'C2', label: 'C2 Task Switch' },
-            { id: 'SK1', type: 'socket', tag: 'SK-01', x: 1.2, y: 5.25, power: 0, circuit: 'B1' },
-            { id: 'SK2', type: 'socket', tag: 'SK-02', x: 7.55, y: 2.6, power: 0, circuit: 'B1' },
-            { id: 'SK3', type: 'socket', tag: 'SK-03', x: 4.0, y: 0.15, power: 0, circuit: 'B1' }
-        ];
-        updateMetrics();
-        planHint.innerText = 'Optimal photometric array generated for room geometry.';
-    });
-
-    document.getElementById('clear-lights').addEventListener('click', () => {
-        state.devices = state.devices.filter(d => d.type !== 'luminaire');
-        updateMetrics();
-        planHint.innerText = 'Luminaires cleared from floor plan.';
-    });
-
-    // 8. Canvas Pointer Interactions (Draggable luminaires, switch toggling, device placement)
-    function findDeviceAt(mx, my) {
-        const threshold = 0.45; // meter radius
-        return state.devices.find(d => {
-            const dx = d.x - mx;
-            const dy = d.y - my;
-            return Math.sqrt(dx * dx + dy * dy) < threshold;
-        });
-    }
-
-    canvas.addEventListener('pointerdown', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const px = (e.clientX - rect.left) * window.devicePixelRatio;
-        const py = (e.clientY - rect.top) * window.devicePixelRatio;
-        const m = fromScreen(px, py);
-
-        // Within room or nearby
-        const hit = findDeviceAt(m.x, m.y);
-
-        if (state.tool === 'erase' && hit) {
-            state.devices = state.devices.filter(d => d !== hit);
-            state.selectedDevice = null;
-            updateMetrics();
-            return;
-        }
-
-        if (state.tool === 'select') {
-            if (hit) {
-                state.selectedDevice = hit;
-                state.draggedDevice = hit;
-                state.dragOffset.x = m.x - hit.x;
-                state.dragOffset.y = m.y - hit.y;
-
-                // Click switch directly toggles circuit load
-                if (hit.type === 'switch') {
-                    const cLights = state.devices.filter(d => d.type === 'luminaire' && d.circuit === hit.circuit);
-                    const anyOn = cLights.some(l => l.on);
-                    cLights.forEach(l => l.on = !anyOn);
-                    updateMetrics();
-                    planHint.innerText = `Flipped ${hit.tag} (${hit.circuit}) → ${!anyOn ? 'ACTIVE' : 'OFF'}`;
-                }
-
-                // Show inspector
-                showDeviceInspector(hit);
-            } else {
-                state.selectedDevice = null;
-                inspector.classList.add('hidden');
-            }
-        } 
-        else if (state.tool === 'luminaire') {
-            const count = state.devices.filter(d => d.type === 'luminaire').length + 1;
-            const newLight = {
-                id: 'L' + Date.now(),
-                type: 'luminaire',
-                tag: `DL-0${count}`,
-                x: Math.max(0.4, Math.min(state.room.width - 0.4, m.x)),
-                y: Math.max(0.4, Math.min(state.room.depth - 0.4, m.y)),
-                cct: state.cct,
-                power: 12,
-                lumens: 950,
-                circuit: 'C1',
-                layer: 'ambient',
-                on: true,
-                dim: 1.0
-            };
-            state.devices.push(newLight);
-            state.selectedDevice = newLight;
-            showDeviceInspector(newLight);
-            updateMetrics();
-        } 
-        else if (state.tool === 'switch') {
-            const count = state.devices.filter(d => d.type === 'switch').length + 1;
-            const newSw = {
-                id: 'SW' + Date.now(),
-                type: 'switch',
-                tag: `SW-0${count}`,
-                x: Math.max(0.2, Math.min(state.room.width - 0.2, m.x)),
-                y: Math.max(0.2, Math.min(state.room.depth - 0.2, m.y)),
-                circuit: 'C1',
-                label: `Switch Station 0${count}`
-            };
-            state.devices.push(newSw);
-            updateMetrics();
-        } 
-        else if (state.tool === 'socket') {
-            const count = state.devices.filter(d => d.type === 'socket').length + 1;
-            const newSk = {
-                id: 'SK' + Date.now(),
-                type: 'socket',
-                tag: `SK-0${count}`,
-                x: Math.max(0.2, Math.min(state.room.width - 0.2, m.x)),
-                y: Math.max(0.2, Math.min(state.room.depth - 0.2, m.y)),
-                power: 0,
-                circuit: 'B1'
-            };
-            state.devices.push(newSk);
-            updateMetrics();
-        }
-    });
-
-    canvas.addEventListener('pointermove', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const px = (e.clientX - rect.left) * window.devicePixelRatio;
-        const py = (e.clientY - rect.top) * window.devicePixelRatio;
-        const m = fromScreen(px, py);
-
-        // Update hover readout coordinates and lux estimate
-        if (m.x >= 0 && m.x <= state.room.width && m.y >= 0 && m.y <= state.room.depth) {
-            // Calculate lux at cursor point
-            let pointLux = 0;
-            state.devices.filter(d => d.type === 'luminaire' && d.on).forEach(lum => {
-                const dist = Math.hypot(lum.x - m.x, lum.y - m.y);
-                const factor = Math.max(0, 1 - dist / 3.0);
-                pointLux += Math.round(lum.lumens * 0.42 * (lum.dim * state.masterDim) * (factor * factor));
-            });
-            hoverReadout.innerText = `X: ${m.x.toFixed(2)}m  Y: ${m.y.toFixed(2)}m · ${Math.round(pointLux)} lx`;
-        }
-
-        if (state.draggedDevice) {
-            let newX = m.x - state.dragOffset.x;
-            let newY = m.y - state.dragOffset.y;
-            // Snap to room boundary bounds
-            newX = Math.max(0.2, Math.min(state.room.width - 0.2, newX));
-            newY = Math.max(0.2, Math.min(state.room.depth - 0.2, newY));
-
-            state.draggedDevice.x = newX;
-            state.draggedDevice.y = newY;
-            updateMetrics();
-        }
-    });
-
-    window.addEventListener('pointerup', () => {
-        state.draggedDevice = null;
-    });
-
-    function showDeviceInspector(dev) {
-        inspector.classList.remove('hidden');
-        if (dev.type === 'luminaire') {
-            inspectorContent.innerHTML = `
-                <span class="font-bold text-sky-400 font-mono">${dev.tag}</span>
-                <span class="text-slate-400">Position: (${dev.x.toFixed(2)}m, ${dev.y.toFixed(2)}m)</span>
-                <span class="text-slate-400">Output: ${dev.lumens} lm · ${dev.power}W</span>
-                <label class="flex items-center gap-1.5 text-slate-300 ml-2">
-                    Circuit:
-                    <select class="rounded border border-slate-700 bg-slate-900 text-slate-200 px-1 py-0.5 text-[11px]" id="insp-circuit">
-                        <option value="C1" ${dev.circuit === 'C1' ? 'selected' : ''}>C1 (Ambient)</option>
-                        <option value="C2" ${dev.circuit === 'C2' ? 'selected' : ''}>C2 (Task)</option>
+<body class="h-full text-slate-800">
+<div class="h-full flex flex-col">
+    <header class="flex items-center justify-between gap-3 px-4 py-2 bg-white border-b border-slate-200">
+        <div class="flex items-baseline gap-3 min-w-0">
+            <h1 class="text-base font-bold whitespace-nowrap">Lighting suite</h1>
+            <span class="text-[11px] text-slate-500 truncate">Luminaires · switches · sockets · circuits · photometry</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-[11px] font-semibold shrink-0">
+            <a href="Editor.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Editor</a>
+            <a href="plumbing-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Plumbing</a>
+            <a href="stair-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Stairs</a>
+            <a href="landscape-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Landscape</a>
+            <a href="roof-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Roof</a>
+            <a href="../LIGHTING.MD" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50" title="Rules and regulations">Rules</a>
+            <button id="reset" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Reset</button>
+            <button id="schedule-csv" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Schedule CSV</button>
+            <button id="takeoff-csv" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Takeoff CSV</button>
+            <button id="send-editor" class="px-2 py-1 rounded bg-sky-600 text-white hover:bg-sky-700">Send to editor</button>
+        </div>
+    </header>
+
+    <main class="flex-1 min-h-0 flex">
+        <aside class="w-[384px] shrink-0 overflow-y-auto bg-white border-r border-slate-200 p-4 space-y-4">
+            <section>
+                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Room</h2>
+                <label class="block text-[11px] text-slate-500">Room type
+                    <select id="room-type" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
+                </label>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                    <label class="block text-[11px] text-slate-500">Width (m)
+                        <input type="number" id="room-width" min="2" max="30" step="0.1" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[11px]">
+                    </label>
+                    <label class="block text-[11px] text-slate-500">Depth (m)
+                        <input type="number" id="room-depth" min="2" max="30" step="0.1" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[11px]">
+                    </label>
+                    <label class="block text-[11px] text-slate-500">Ceiling (m)
+                        <input type="number" id="ceiling-height" min="2.2" max="6" step="0.05" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[11px]">
+                    </label>
+                    <label class="block text-[11px] text-slate-500">Lights at (m)
+                        <input type="number" id="mount-height" min="1.8" max="5.9" step="0.05" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[11px]">
+                    </label>
+                </div>
+                <p id="room-note" class="text-[10px] text-slate-400 leading-snug mt-1.5"></p>
+                <label class="block text-[11px] text-slate-500 mt-2">Colour temperature
+                    <select id="cct" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 text-[11px]">
+                        <option value="2700">2700 K · warm</option>
+                        <option value="3000">3000 K · soft white</option>
+                        <option value="3500">3500 K · neutral</option>
+                        <option value="4000">4000 K · cool</option>
                     </select>
                 </label>
-            `;
-            document.getElementById('insp-circuit').addEventListener('change', (e) => {
-                dev.circuit = e.target.value;
-                updateMetrics();
-            });
-        } else {
-            inspectorContent.innerHTML = `
-                <span class="font-bold text-sky-400 font-mono">${dev.tag}</span>
-                <span class="text-slate-400">Type: ${dev.type.toUpperCase()}</span>
-                <span class="text-slate-400">Location: (${dev.x.toFixed(2)}m, ${dev.y.toFixed(2)}m)</span>
-            `;
-        }
-    }
+                <div class="grid grid-cols-1 gap-1 mt-2 text-[11px] text-slate-600">
+                    <label class="flex items-center gap-1.5"><input type="checkbox" id="insulation" checked> Insulated ceiling · IC required</label>
+                    <label class="flex items-center gap-1.5"><input type="checkbox" id="fire-ceiling"> Fire-rated ceiling</label>
+                    <label class="flex items-center gap-1.5"><input type="checkbox" id="neutral" checked> Neutral at switch boxes</label>
+                </div>
+            </section>
 
-    document.getElementById('close-inspector').addEventListener('click', () => {
-        inspector.classList.add('hidden');
-        state.selectedDevice = null;
-    });
+            <section>
+                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Place devices</h2>
+                <div class="grid grid-cols-5 gap-1">
+                    <button class="tool active px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="select" title="Select and drag">Select</button>
+                    <button class="tool px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="luminaire" title="Add luminaire">Light</button>
+                    <button class="tool px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="switch" title="Add switch">Switch</button>
+                    <button class="tool px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="socket" title="Add socket">Socket</button>
+                    <button class="tool px-1 py-1 rounded border border-slate-200 text-[10px] font-bold" data-tool="erase" title="Click a device to remove">Erase</button>
+                </div>
+                <label class="block text-[11px] text-slate-500 mt-2">Luminaire
+                    <select id="luminaire-type" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-0.5 text-[11px]"></select>
+                </label>
+                <div class="grid grid-cols-2 gap-2 mt-1.5">
+                    <label class="block text-[11px] text-slate-500">Switch
+                        <select id="switch-type" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[11px]"></select>
+                    </label>
+                    <label class="block text-[11px] text-slate-500">Socket
+                        <select id="socket-type" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[11px]"></select>
+                    </label>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                    <button id="auto-design" class="px-2 py-1.5 rounded bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800">Auto design</button>
+                    <button id="clear-lights" class="px-2 py-1.5 rounded border border-slate-200 text-[11px] font-bold hover:bg-slate-50">Clear lights</button>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-snug mt-1.5">Click the plan to place the chosen device. Drag a light to move it; drag a switch or socket to slide it along the nearest wall. Click a switch to flip the lights it controls.</p>
+            </section>
 
-    // Initial setup
-    resizeCanvas();
-    updateMetrics();
-    render();
-})();
-</script>
-</body></html>
+            <section>
+                <div class="flex items-center justify-between">
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Lighting control</h2>
+                    <span id="master-state" class="text-[10px] font-mono text-slate-400">all on</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5 mt-1.5">
+                    <button id="master-on" class="px-1.5 py-1 rounded border border-slate-200 text-[10px] font-bold hover:bg-slate-50">All on</button>
+                    <button id="master-off" class="px-1.5 py-1 rounded border border-slate-200 text-[10px] font-bold hover:bg-slate-50">All off</button>
+                    <button id="dim-half" class="px-1.5 py-1 rounded border border-slate-200 text-[10px] font-bold hover:bg-slate-50">Dim 50%</button>
+                </div>
+                <div id="layer-toggles" class="flex flex-wrap gap-1 mt-2"></div>
+                <div id="switch-list" class="space-y-1 mt-2"></div>
+            </section>
+
+            <section class="rounded-lg border border-slate-200 p-3">
+                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Result</h2>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono">
+                    <span class="text-slate-500">Average</span><b id="m-lux" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Target</span><b id="m-target" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Uniformity</span><b id="m-uniformity" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Connected</span><b id="m-w" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Power density</span><b id="m-lpd" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Outlets</span><b id="m-count" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Circuits</span><b id="m-circuits" class="text-right metric-value">—</b>
+                    <span class="text-slate-500">Loaded</span><b id="m-load" class="text-right metric-value">—</b>
+                </div>
+                <div class="mt-3 pt-2 border-t border-slate-100 flex items-baseline justify-between">
+                    <span class="text-[10px] uppercase tracking-wide text-slate-400">Estimate</span>
+                    <b id="m-cost" class="text-base font-mono">—</b>
+                </div>
+                <p id="check-summary" class="text-[10px] font-mono mt-1">—</p>
+                <p class="text-[9px] text-slate-400 mt-1">Photometry is the installed design at full output; switch and dim states preview the control.</p>
+            </section>
+
+            <section>
+                <div class="flex items-center justify-between">
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Plan checks</h2>
+                    <span id="issue-count" class="text-[10px] font-mono text-slate-400">—</span>
+                </div>
+                <ul id="checks" class="space-y-1 mt-1.5 text-[11px] leading-snug"></ul>
+                <button id="show-all-checks" class="mt-1.5 text-[10px] text-sky-700 underline hover:text-sky-900">Show all checks</button>
+            </section>
+
+            <p class="text-[10px] text-slate-400 leading-snug">
+                Metric design aid. Photometry uses the lumen method plus a 20 × 20 point grid; prices are planning allowances, not quotes. The plan is checked against the 2021 IRC and IECC, but local amendments and a licensed electrician govern.
+                <a href="../LIGHTING.MD" class="underline hover:text-sky-700">Rules &amp; regulations</a>.
+            </p>
+            <p id="status" class="text-[10px] text-sky-700 min-h-[1rem]"></p>
+        </aside>
+
+        <div class="flex-1 min-w-0 flex flex-col">
+            <nav class="flex items-center gap-2 px-3 pt-3">
+                <button class="tab active px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200" data-tab="design">Design</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="schedule">Schedule</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="takeoff">Takeoff</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="rules">Rules</button>
+                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="glossary">Glossary</button>
+                <span id="tab-note" class="text-[10px] text-slate-400 ml-auto pr-1">plan and schedule share one model</span>
+            </nav>
+
+            <div id="panel-design" class="flex-1 min-h-0 flex flex-col">
+                <section class="flex-1 min-h-0 bg-white m-3 rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-b border-slate-100">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Plan</h2>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-heatmap" checked> Illuminance heatmap</label>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-circuits"> Circuits</label>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-labels" checked> Tags</label>
+                        <div class="flex items-center gap-2 ml-auto text-[10px] text-slate-400">
+                            <span><i class="glow-legend" style="background:#f59e0b"></i> ambient</span>
+                            <span><i class="glow-legend" style="background:#0ea5e9"></i> task</span>
+                            <span><i class="glow-legend" style="background:#a855f7"></i> accent</span>
+                            <span><i class="glow-legend" style="background:#ec4899"></i> decor</span>
+                            <button id="fit-plan" class="px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-600 hover:bg-slate-50">Fit</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-h-0 relative">
+                        <canvas id="plan"></canvas>
+                        <div id="plan-hint" class="absolute left-3 bottom-3 text-[10px] font-mono text-slate-400 pointer-events-none">—</div>
+                        <div id="hover-readout" class="absolute right-3 top-2 text-[10px] font-mono text-slate-400 pointer-events-none"></div>
+                    </div>
+                    <div id="inspector" class="hidden border-t border-slate-100 px-3 py-2 text-[11px]"></div>
+                </section>
+            </div>
+
+            <div id="panel-schedule" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Outlet schedule</h2>
+                        <p id="schedule-summary" class="text-[11px] text-slate-500 mt-0.5">—</p>
+                    </div>
+                    <div id="schedule-stats" class="flex gap-2 text-[10px] font-mono"></div>
+                </div>
+                <div id="schedule-table" class="p-3 overflow-x-auto table-scroll"></div>
+            </div>
+
+            <div id="panel-takeoff" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div id="takeoff-cards" class="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-slate-100"></div>
+                <div class="px-4 py-3">
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1">Bill of materials</h2>
+                    <div id="takeoff-bom" class="rounded-lg border border-slate-200 overflow-x-auto table-scroll"></div>
+                    <ul id="takeoff-notes" class="mt-3 space-y-1 text-[10px] text-slate-500 list-disc pl-4"></ul>
+                </div>
+            </div>
+
+            <div id="panel-rules" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div class="px-4 py-3 border-b border-slate-100">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <div>
+                            <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Rules &amp; regulations</h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Model code: 2021 IRC · 2021 IECC · 2020 NEC. Confirm local amendments.</p>
+                        </div>
+                        <span id="rules-summary" class="text-[10px] font-mono"></span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                        <input id="rules-search" type="search" placeholder="Search the code, a room or a device…" class="w-72 rounded border border-slate-200 px-2 py-1 text-[11px]">
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600 ml-1"><input type="checkbox" id="rules-issues"> Only rules needing attention</label>
+                    </div>
+                    <div id="rules-chips" class="flex flex-wrap gap-1 mt-2"></div>
+                </div>
+                <div id="rules-list" class="p-3 space-y-2"></div>
+            </div>
+
+            <div id="panel-glossary" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Glossary</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Photometry, controls, code terms and the electrical words on the schedule.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input id="glossary-search" type="search" placeholder="Search terms…" class="w-56 rounded border border-slate-200 px-2 py-1 text-[11px]">
+                        <span id="glossary-count" class="text-[10px] font-mono text-slate-400"></span>
+                    </div>
+                </div>
+                <div id="glossary-list" class="p-3 space-y-3"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script type="module" src="../features/lighting/page.js"></script>
+</body>
+</html>

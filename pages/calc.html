@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Construction Calculator Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 900: '#0c4a6e' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .calc-tab.active { background-color: #0ea5e9; color: white; border-color: #0ea5e9; }
+        .dark .calc-tab.active { background-color: #0284c7; border-color: #0284c7; }
+        input, select { transition: all 0.2s; }
+        input:focus, select:focus { outline: none; ring: 2px; border-color: #0ea5e9; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-brand-500 text-white p-2 rounded-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Pro Construction Suite</h1>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">5 Professional Engineering Calculators</p>
+                </div>
+            </div>
+            <button onclick="document.documentElement.classList.toggle('dark')" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                <span class="dark:hidden">🌙</span>
+                <span class="hidden dark:inline">☀️</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        <div class="flex flex-col lg:flex-row gap-8">
+            
+            <!-- Sidebar Navigation -->
+            <nav class="lg:w-64 flex-shrink-0">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-2 space-y-1">
+                    <button onclick="switchTab('span')" id="tab-span" class="calc-tab active w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                        <span>📏</span> Lumber Span
+                    </button>
+                    <button onclick="switchTab('stairs')" id="tab-stairs" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                        <span>🪜</span> Stair Builder
+                    </button>
+                    <button onclick="switchTab('concrete')" id="tab-concrete" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                        <span>🧱</span> Concrete Volume
+                    </button>
+                    <button onclick="switchTab('roof')" id="tab-roof" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                        <span>🏠</span> Roof Pitch & Rafter
+                    </button>
+                    <button onclick="switchTab('deck')" id="tab-deck" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                        <span>🛠️</span> Deck Footings
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Calculator Content Area -->
+            <div class="flex-1 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 lg:p-8">
+                
+                <!-- 1. LUMBER SPAN CALCULATOR -->
+                <div id="calc-span" class="calc-content">
+                    <h2 class="text-2xl font-bold mb-2">Lumber Span Calculator</h2>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">Calculates maximum safe span based on NDS bending stress and L/360 deflection limits.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Wood Species & Grade</label>
+                            <select id="span-species" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                                <option value="1000,1700000">Douglas Fir-Larch #1</option>
+                                <option value="900,1600000">Douglas Fir-Larch #2</option>
+                                <option value="1150,1600000">Southern Pine #1</option>
+                                <option value="850,1400000">Southern Pine #2</option>
+                                <option value="875,1400000">Spruce-Pine-Fir (SPF) #1</option>
+                                <option value="775,1300000">Spruce-Pine-Fir (SPF) #2</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Nominal Size</label>
+                            <select id="span-size" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                                <option value="1.5,5.5,7.56,20.8">2x6</option>
+                                <option value="1.5,7.25,13.14,47.63" selected>2x8</option>
+                                <option value="1.5,9.25,21.39,98.93">2x10</option>
+                                <option value="1.5,11.25,31.64,177.98">2x12</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Joist Spacing (inches)</label>
+                            <select id="span-spacing" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                                <option value="12">12" o.c.</option>
+                                <option value="16" selected>16" o.c.</option>
+                                <option value="24">24" o.c.</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Total Load (psf)</label>
+                            <input type="number" id="span-load" value="50" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                            <p class="text-xs text-gray-500 mt-1">Typical floor: 40 Live + 10 Dead = 50 psf</p>
+                        </div>
+                    </div>
+                    <button onclick="calcSpan()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Max Span</button>
+                    
+                    <div id="span-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
+                        <h3 class="font-bold text-brand-900 dark:text-brand-100 text-lg mb-2">Results</h3>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><span class="text-gray-500 dark:text-gray-400">Max Span (Bending):</span> <span id="res-span-bend" class="font-bold text-lg"></span></div>
+                            <div><span class="text-gray-500 dark:text-gray-400">Max Span (Deflection L/360):</span> <span id="res-span-def" class="font-bold text-lg"></span></div>
+                            <div class="col-span-2 pt-2 border-t border-brand-200 dark:border-brand-800 mt-2">
+                                <span class="text-gray-500 dark:text-gray-400">Safe Maximum Span:</span> 
+                                <span id="res-span-final" class="font-bold text-2xl text-brand-600 dark:text-brand-400"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. STAIR BUILDER CALCULATOR -->
+                <div id="calc-stairs" class="calc-content hidden">
+                    <h2 class="text-2xl font-bold mb-2">Stair Builder Calculator</h2>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">Calculates optimal rise, run, and stringer length based on total height.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Total Rise (inches)</label>
+                            <input type="number" id="stair-rise" value="114" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                            <p class="text-xs text-gray-500 mt-1">e.g., 9 ft 6 in = 114 inches</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Target Run (inches)</label>
+                            <input type="number" id="stair-run" value="10" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                            <p class="text-xs text-gray-500 mt-1">Standard is 10" to 11"</p>
+                        </div>
+                    </div>
+                    <button onclick="calcStairs()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Stairs</button>
+                    
+                    <div id="stair-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Number of Risers</span><span id="res-stair-risers" class="font-bold text-xl"></span></div>
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Actual Rise</span><span id="res-stair-actual-rise" class="font-bold text-xl"></span></div>
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Total Run</span><span id="res-stair-total-run" class="font-bold text-xl"></span></div>
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Stringer Length</span><span id="res-stair-stringer" class="font-bold text-xl"></span></div>
+                        </div>
+                        <p id="stair-code-check" class="mt-3 text-sm font-medium text-green-600 dark:text-green-400"></p>
+                    </div>
+                </div>
+
+                <!-- 3. CONCRETE VOLUME CALCULATOR -->
+                <div id="calc-concrete" class="calc-content hidden">
+                    <h2 class="text-2xl font-bold mb-2">Concrete Volume Calculator</h2>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">Calculate cubic yards needed for slabs, footings, or round tubes.</p>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Shape</label>
+                        <div class="flex gap-2">
+                            <button onclick="setConcreteShape('rect')" id="shape-rect" class="flex-1 py-2 px-4 rounded-lg border border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 font-medium">Rectangular</button>
+                            <button onclick="setConcreteShape('round')" id="shape-round" class="flex-1 py-2 px-4 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Round (Sonotube)</button>
+                        </div>
+                    </div>
+
+                    <div id="concrete-rect-inputs" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div><label class="block text-sm font-medium mb-1">Length (ft)</label><input type="number" id="conc-l" value="20" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
+                        <div><label class="block text-sm font-medium mb-1">Width (ft)</label><input type="number" id="conc-w" value="10" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
+                        <div><label class="block text-sm font-medium mb-1">Depth (inches)</label><input type="number" id="conc-d" value="4" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
+                    </div>
+
+                    <div id="concrete-round-inputs" class="hidden grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div><label class="block text-sm font-medium mb-1">Diameter (inches)</label><input type="number" id="conc-dia" value="12" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
+                        <div><label class="block text-sm font-medium mb-1">Depth (feet)</label><input type="number" id="conc-depth" value="4" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
+                        <div><label class="block text-sm font-medium mb-1">Quantity</label><input type="number" id="conc-qty" value="1" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
+                    </div>
+
+                    <button onclick="calcConcrete()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Volume</button>
+                    
+                    <div id="concrete-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-center">
+                        <span class="text-gray-500 dark:text-gray-400 block text-sm">Total Concrete Needed</span>
+                        <span id="res-concrete-yards" class="font-bold text-4xl text-brand-600 dark:text-brand-400"></span>
+                        <span class="text-gray-600 dark:text-gray-300 font-medium"> Cubic Yards</span>
+                        <p class="text-xs text-gray-500 mt-2">*Always order 10% extra for waste and spillage.</p>
+                    </div>
+                </div>
+
+                <!-- 4. ROOF PITCH & RAFTER CALCULATOR -->
+                <div id="calc-roof" class="calc-content hidden">
+                    <h2 class="text-2xl font-bold mb-2">Roof Pitch & Rafter Calculator</h2>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">Calculate rafter length, pitch angle, and rise based on run.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Horizontal Run (feet)</label>
+                            <input type="number" id="roof-run" value="12" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Vertical Rise (feet)</label>
+                            <input type="number" id="roof-rise" value="6" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <button onclick="calcRoof()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Rafter</button>
+                    
+                    <div id="roof-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Roof Pitch</span><span id="res-roof-pitch" class="font-bold text-xl"></span></div>
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Angle (Degrees)</span><span id="res-roof-angle" class="font-bold text-xl"></span></div>
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Rafter Length</span><span id="res-roof-length" class="font-bold text-xl"></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. DECK FOOTING CALCULATOR -->
+                <div id="calc-deck" class="calc-content hidden">
+                    <h2 class="text-2xl font-bold mb-2">Deck Footing & Post Calculator</h2>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">Determine minimum footing diameter based on tributary load.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Deck Load (psf)</label>
+                            <input type="number" id="deck-load" value="50" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Post Spacing (ft)</label>
+                            <input type="number" id="deck-spacing" value="8" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Soil Bearing Capacity (psf)</label>
+                            <select id="deck-soil" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
+                                <option value="1500">Clay / Sandy Clay (1500 psf)</option>
+                                <option value="2000" selected>Sandy Loam (2000 psf)</option>
+                                <option value="3000">Gravel / Dense Sand (3000 psf)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="calcDeck()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Footing</button>
+                    
+                    <div id="deck-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Tributary Load per Post</span><span id="res-deck-load" class="font-bold text-xl"></span></div>
+                            <div><span class="text-gray-500 dark:text-gray-400 block">Min. Footing Diameter</span><span id="res-deck-dia" class="font-bold text-xl text-brand-600 dark:text-brand-400"></span></div>
+                        </div>
+                        <p class="mt-3 text-xs text-gray-500">*Based on a safety factor of 1.5 and standard IRC guidelines. Always consult local building codes.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            document.querySelectorAll('.calc-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('calc-' + tabName).classList.remove('hidden');
+            
+            document.querySelectorAll('.calc-tab').forEach(el => {
+                el.classList.remove('active', 'text-white');
+                el.classList.add('text-gray-600', 'dark:text-gray-300');
+            });
+            const activeBtn = document.getElementById('tab-' + tabName);
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('text-gray-600', 'dark:text-gray-300');
+        }
+
+        // 1. Lumber Span Calculator
+        function calcSpan() {
+            const [fb, e] = document.getElementById('span-species').value.split(',').map(Number);
+            const [b, d, s, i] = document.getElementById('span-size').value.split(',').map(Number);
+            const spacing = Number(document.getElementById('span-spacing').value);
+            const load = Number(document.getElementById('span-load').value);
+
+            const w = load * (spacing / 12); // plf
+            
+            // Bending limit: L = sqrt((8 * Fb * S) / w) / 12 (to feet)
+            const spanBendInches = Math.sqrt((8 * fb * s) / w);
+            const spanBendFt = (spanBendInches / 12).toFixed(2);
+
+            // Deflection limit (L/360): L = cbrt((384 * E * I) / (1800 * w)) / 12
+            const spanDefInches = Math.cbrt((384 * e * i) / (1800 * w));
+            const spanDefFt = (spanDefInches / 12).toFixed(2);
+
+            const finalSpan = Math.min(Number(spanBendFt), Number(spanDefFt)).toFixed(2);
+
+            document.getElementById('res-span-bend').textContent = spanBendFt + ' ft';
+            document.getElementById('res-span-def').textContent = spanDefFt + ' ft';
+            document.getElementById('res-span-final').textContent = finalSpan + ' ft';
+            document.getElementById('span-result').classList.remove('hidden');
+        }
+
+        // 2. Stair Calculator
+        function calcStairs() {
+            const totalRise = Number(document.getElementById('stair-rise').value);
+            const targetRun = Number(document.getElementById('stair-run').value);
+            
+            let numRisers = Math.round(totalRise / 7.5); // Target ~7.5" rise
+            if (numRisers < 2) numRisers = 2;
+            
+            const actualRise = (totalRise / numRisers).toFixed(2);
+            const numTreads = numRisers - 1;
+            const totalRun = (numTreads * targetRun).toFixed(1);
+            
+            // Stringer length (hypotenuse of one step * num treads, plus a bit for top/bottom cuts)
+            const stepHypotenuse = Math.sqrt(Math.pow(actualRise, 2) + Math.pow(targetRun, 2));
+            const stringerLength = ((stepHypotenuse * numTreads) / 12).toFixed(2);
+
+            const codeCheck = (actualRise <= 7.75 && targetRun >= 10) 
+                ? "✅ Meets standard IRC code (Max rise 7.75\", Min run 10\")" 
+                : "⚠️ Check local codes: Rise should be ≤ 7.75\" and Run ≥ 10\"";
+
+            document.getElementById('res-stair-risers').textContent = numRisers;
+            document.getElementById('res-stair-actual-rise').textContent = actualRise + '"';
+            document.getElementById('res-stair-total-run').textContent = totalRun + '"';
+            document.getElementById('res-stair-stringer').textContent = stringerLength + ' ft';
+            document.getElementById('stair-code-check').textContent = codeCheck;
+            document.getElementById('stair-result').classList.remove('hidden');
+        }
+
+        // 3. Concrete Calculator
+        let concreteShape = 'rect';
+        function setConcreteShape(shape) {
+            concreteShape = shape;
+            document.getElementById('shape-rect').className = shape === 'rect' ? 'flex-1 py-2 px-4 rounded-lg border border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 font-medium' : 'flex-1 py-2 px-4 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700';
+            document.getElementById('shape-round').className = shape === 'round' ? 'flex-1 py-2 px-4 rounded-lg border border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 font-medium' : 'flex-1 py-2 px-4 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700';
+            
+            document.getElementById('concrete-rect-inputs').classList.toggle('hidden', shape !== 'rect');
+            document.getElementById('concrete-round-inputs').classList.toggle('hidden', shape !== 'round');
+        }
+
+        function calcConcrete() {
+            let yards = 0;
+            if (concreteShape === 'rect') {
+                const l = Number(document.getElementById('conc-l').value);
+                const w = Number(document.getElementById('conc-w').value);
+                const d = Number(document.getElementById('conc-d').value) / 12; // to feet
+                yards = (l * w * d) / 27;
+            } else {
+                const dia = Number(document.getElementById('conc-dia').value) / 12; // to feet
+                const radius = dia / 2;
+                const depth = Number(document.getElementById('conc-depth').value);
+                const qty = Number(document.getElementById('conc-qty').value);
+                yards = (Math.PI * Math.pow(radius, 2) * depth * qty) / 27;
+            }
+            document.getElementById('res-concrete-yards').textContent = yards.toFixed(2);
+            document.getElementById('concrete-result').classList.remove('hidden');
+        }
+
+        // 4. Roof Calculator
+        function calcRoof() {
+            const run = Number(document.getElementById('roof-run').value);
+            const rise = Number(document.getElementById('roof-rise').value);
+            
+            const pitch = (rise / run * 12).toFixed(1);
+            const angle = (Math.atan(rise / run) * (180 / Math.PI)).toFixed(1);
+            const length = Math.sqrt(Math.pow(run, 2) + Math.pow(rise, 2)).toFixed(2);
+
+            document.getElementById('res-roof-pitch').textContent = pitch + " in 12";
+            document.getElementById('res-roof-angle').textContent = angle + "°";
+            document.getElementById('res-roof-length').textContent = length + " ft";
+            document.getElementById('roof-result').classList.remove('hidden');
+        }
+
+        // 5. Deck Calculator
+        function calcDeck() {
+            const load = Number(document.getElementById('deck-load').value);
+            const spacing = Number(document.getElementById('deck-spacing').value);
+            const soil = Number(document.getElementById('deck-soil').value);
+
+            const tributaryArea = spacing * spacing;
+            const totalLoad = load * tributaryArea * 1.5; // 1.5 safety factor
+            
+            // Area needed in sq ft = totalLoad / soil
+            const areaSqFt = totalLoad / soil;
+            // Area = pi * r^2 -> r = sqrt(area / pi)
+            const radiusFt = Math.sqrt(areaSqFt / Math.PI);
+            const diameterInches = (radiusFt * 2 * 12).toFixed(1);
+
+            document.getElementById('res-deck-load').textContent = Math.round(totalLoad).toLocaleString() + " lbs";
+            document.getElementById('res-deck-dia').textContent = diameterInches + " inches";
+            document.getElementById('deck-result').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

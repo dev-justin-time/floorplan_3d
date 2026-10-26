@@ -1,777 +1,480 @@
 <!DOCTYPE html>
-
-<html class="h-full" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Stair designer · straight staircase</title>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<style>
-        :root {
-            --bp-bg-darkest: #040d1a;
-            --bp-bg-navy: #071326;
-            --bp-bg-panel: #0a192f;
-            --bp-bg-card: #0e2444;
-            --bp-border: #17325c;
-            --bp-border-bright: #1e4a7a;
-            --bp-grid-subtle: #0f2747;
-            --bp-cyan: #00f2fe;
-            --bp-cyan-soft: #38bdf8;
-            --bp-amber: #fbbf24;
-        }
-
-        html, body {
-            margin: 0;
-            height: 100%;
-            overflow: hidden;
-            background: var(--bp-bg-darkest);
-            font-family: 'JetBrains Mono', monospace;
-            color: #cbd5e1;
-        }
-
-        .font-sans-title {
-            font-family: 'Space Grotesk', sans-serif;
-        }
-
-        /* Blueprint micro-grid background */
-        .blueprint-grid-bg {
-            background-color: var(--bp-bg-navy);
-            background-image: 
-                linear-gradient(to right, rgba(30, 58, 99, 0.28) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(30, 58, 99, 0.28) 1px, transparent 1px);
-            background-size: 24px 24px;
-        }
-
-        .field input[type="number"] {
-            width: 5.5rem;
-            background: #071326;
-            border-color: #1e3a63;
-            color: #38bdf8;
-        }
-        .field input[type="number"]:focus, select:focus {
-            border-color: #00f2fe;
-            outline: none;
-            box-shadow: 0 0 0 1px #00f2fe;
-        }
-
-        input[type="range"] {
-            accent-color: #00f2fe;
-        }
-
-        input[readonly] {
-            background: #071326;
-            color: #64748b;
-        }
-
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stair designer · straight staircase</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body { margin: 0; height: 100%; overflow: hidden; background: #f8fafc; }
+        .field input[type="number"] { width: 5.5rem; }
+        input[type="range"] { accent-color: #0ea5e9; }
+        input[readonly] { background: #f1f5f9; color: #475569; }
         canvas { display: block; }
-
-        .check-ok { color: #38bdf8; }
-        .check-warn { color: #fbbf24; }
-        .check-error { color: #f43f5e; }
-        .check-info { color: #94a3b8; }
-
+        .check-ok { color: #15803d; }
+        .check-warn { color: #b45309; }
+        .check-error { color: #dc2626; }
+        .check-info { color: #475569; }
         #elevation { width: 100%; height: 100%; }
-        #stage-canvas { width: 100%; height: 100%; }
-
-        /* Custom scrollbar for technical sidebar */
-        ::-webkit-scrollbar {
-            width: 5px;
-            height: 5px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #071326;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #17325c;
-            border-radius: 2px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #00f2fe;
-        }
+        #stage { width: 100%; height: 100%; }
+        #stage canvas { display: block; width: 100% !important; height: 100% !important; }
     </style>
 </head>
-<body class="h-full text-slate-300 antialiased selection:bg-cyan-500 selection:text-slate-900">
-<div class="h-full flex flex-col">
-<!-- Blueprint Header -->
-<header class="flex items-center justify-between px-4 py-2 bg-[#071326] border-b border-[#17325c] shadow-sm z-10">
-<div class="flex items-baseline gap-3">
-<div class="flex items-center gap-2">
-<span class="inline-block w-2.5 h-2.5 bg-[#00f2fe] shadow-[0_0_8px_#00f2fe] rounded-sm"></span>
-<h1 class="text-base font-bold font-sans-title tracking-tight text-white uppercase">Stair Designer</h1>
-</div>
-<span class="text-[11px] text-cyan-400/70 border-l border-[#1e3a63] pl-3">Straight staircase · Blondel sizing, live elevation and 3D [REV. ARCH-04]</span>
-</div>
-<div class="flex items-center gap-2 text-[11px] font-mono font-medium">
-<a class="px-2.5 py-1 rounded bg-[#0a192f] border border-[#1e3a63] text-slate-300 hover:text-[#00f2fe] hover:border-[#00f2fe] transition-colors" href="Editor.html">Editor</a>
-<a class="px-2.5 py-1 rounded bg-[#0a192f] border border-[#1e3a63] text-slate-300 hover:text-[#00f2fe] hover:border-[#00f2fe] transition-colors" href="landscape-designer.html">Landscape</a>
-<a class="px-2.5 py-1 rounded bg-[#0a192f] border border-[#1e3a63] text-slate-300 hover:text-[#00f2fe] hover:border-[#00f2fe] transition-colors" href="stair-parts.html">Parts</a>
-<a class="px-2.5 py-1 rounded bg-[#0a192f] border border-[#1e3a63] text-slate-300 hover:text-[#00f2fe] hover:border-[#00f2fe] transition-colors" href="stair-gallery.html">Models</a>
-<a class="px-2.5 py-1 rounded bg-[#0a192f] border border-[#1e3a63] text-slate-300 hover:text-[#00f2fe] hover:border-[#00f2fe] transition-colors" href="stair-glossary.html">Glossary</a>
-<button class="px-2.5 py-1 rounded bg-[#0a192f] border border-[#1e3a63] text-slate-300 hover:text-[#fbbf24] hover:border-[#fbbf24] transition-colors" id="reset">Reset</button>
-<button class="px-3 py-1 rounded bg-[#00f2fe] text-[#040d1a] font-bold hover:bg-[#38bdf8] shadow-[0_0_12px_rgba(0,242,254,0.35)] transition-all flex items-center gap-1.5" id="add-to-plan">
-<span class="text-[9px]">▲</span> Add to plan
-                </button>
-</div>
-</header>
-<main class="flex-1 min-h-0 flex bg-[#040d1a]">
-<!-- Sidebar: Technical Parameters -->
-<aside class="w-[370px] shrink-0 overflow-y-auto bg-[#071326] border-r border-[#17325c] p-4 space-y-4 text-xs font-mono">
-<section class="border border-[#17325c] rounded p-3 bg-[#0a192f]/70 relative">
-<div class="absolute -top-2 left-2 bg-[#071326] px-1 text-[10px] uppercase tracking-wider font-bold text-[#00f2fe] flex items-center gap-1">
-<span class="w-1.5 h-1.5 bg-[#00f2fe]"></span> Stair Parameters
+<body class="h-full text-slate-800">
+    <div class="h-full flex flex-col">
+        <header class="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-200">
+            <div class="flex items-baseline gap-3">
+                <h1 class="text-base font-bold">Stair designer</h1>
+                <span class="text-[11px] text-slate-500">Straight staircase · Blondel sizing, live elevation and 3D</span>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] font-semibold">
+                <a href="Editor.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Editor</a>
+                <a href="plumbing-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Plumbing</a>
+                <a href="landscape-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Landscape</a>
+                <a href="stair-parts.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Parts</a>
+                <a href="stair-gallery.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Models</a>
+                <a href="stair-glossary.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Glossary</a>
+                <button id="reset" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Reset</button>
+                <button id="add-to-plan" class="px-2 py-1 rounded bg-sky-600 text-white hover:bg-sky-700">Add to plan</button>
+            </div>
+        </header>
+
+        <main class="flex-1 min-h-0 flex">
+            <aside class="w-[360px] shrink-0 overflow-y-auto bg-white border-r border-slate-200 p-4 space-y-4">
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Stair</h2>
+                    <div class="space-y-3">
+                        <label class="field block text-[11px] text-slate-500">
+                            <span class="flex justify-between"><span>Height</span><b id="height-label" class="text-slate-800">2700 mm</b></span>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <input type="range" id="height-range" min="1200" max="4500" step="10" value="2700" class="flex-1">
+                                <input type="number" id="height" min="1200" max="4500" step="10" value="2700" class="rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                            </div>
+                        </label>
+                        <label class="field block text-[11px] text-slate-500">
+                            <span class="flex justify-between"><span>Width</span><b id="width-label" class="text-slate-800">1000 mm</b></span>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <input type="range" id="width-range" min="600" max="1600" step="10" value="1000" class="flex-1">
+                                <input type="number" id="width" min="600" max="1600" step="10" value="1000" class="rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                            </div>
+                        </label>
+                        <label class="block text-[11px] text-slate-500">Solve by
+                            <select id="solve" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[11px]">
+                                <option value="blondel">Blondel's law (630 mm)</option>
+                                <option value="length">Total length</option>
+                            </select>
+                        </label>
+                        <label class="field block text-[11px] text-slate-500">
+                            <span class="flex justify-between"><span id="blondel-label-caption">Blondel's law</span><b id="blondel-label" class="text-slate-800">630 mm</b></span>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <input type="range" id="blondel-target-range" min="590" max="650" step="1" value="630" class="flex-1">
+                                <input type="number" id="blondel-target" min="590" max="650" step="1" value="630" class="rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                            </div>
+                        </label>
+                        <label class="field block text-[11px] text-slate-500">
+                            <span class="flex justify-between"><span id="length-caption">Total run</span><b id="length-label" class="text-slate-800">—</b></span>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <input type="range" id="length-range" min="1500" max="9000" step="10" value="4200" class="flex-1">
+                                <input type="number" id="length" min="1500" max="9000" step="10" value="4200" class="rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                            </div>
+                        </label>
                     </div>
-<div class="space-y-3 mt-1">
-<label class="field block text-[11px] text-slate-400">
-<span class="flex justify-between"><span>Height</span><b class="text-[#00f2fe]" id="height-label">2700 mm</b></span>
-<div class="flex items-center gap-2 mt-1">
-<input class="flex-1 bg-[#17325c]" id="height-range" max="4500" min="1200" step="10" type="range" value="2700"/>
-<input class="rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="height" max="4500" min="1200" step="10" type="number" value="2700"/>
-</div>
-</label>
-<label class="field block text-[11px] text-slate-400">
-<span class="flex justify-between"><span>Width</span><b class="text-[#00f2fe]" id="width-label">1000 mm</b></span>
-<div class="flex items-center gap-2 mt-1">
-<input class="flex-1 bg-[#17325c]" id="width-range" max="1600" min="600" step="10" type="range" value="1000"/>
-<input class="rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="width" max="1600" min="600" step="10" type="number" value="1000"/>
-</div>
-</label>
-<label class="block text-[11px] text-slate-400">Solve by
-                            <select class="mt-1 w-full rounded border border-[#1e3a63] bg-[#071326] text-[#38bdf8] px-1.5 py-1 text-[11px]" id="solve">
-<option value="blondel">Blondel's law (630 mm)</option>
-<option value="length">Total length</option>
-</select>
-</label>
-<label class="field block text-[11px] text-slate-400">
-<span class="flex justify-between"><span id="blondel-label-caption">Blondel's law</span><b class="text-[#00f2fe]" id="blondel-label">630 mm</b></span>
-<div class="flex items-center gap-2 mt-1">
-<input class="flex-1 bg-[#17325c]" id="blondel-target-range" max="650" min="590" step="1" type="range" value="630"/>
-<input class="rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="blondel-target" max="650" min="590" step="1" type="number" value="630"/>
-</div>
-</label>
-<label class="field block text-[11px] text-slate-400">
-<span class="flex justify-between"><span id="length-caption">Total run</span><b class="text-[#00f2fe]" id="length-label">—</b></span>
-<div class="flex items-center gap-2 mt-1">
-<input class="flex-1 bg-[#17325c]" id="length-range" max="9000" min="1500" step="10" type="range" value="4200"/>
-<input class="rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="length" max="9000" min="1500" step="10" type="number" value="4200"/>
-</div>
-</label>
-</div>
-</section>
-<section class="border border-[#17325c] rounded p-3 bg-[#0a192f]/70 relative">
-<div class="absolute -top-2 left-2 bg-[#071326] px-1 text-[10px] uppercase tracking-wider font-bold text-[#00f2fe] flex items-center gap-1">
-<span class="w-1.5 h-1.5 bg-[#00f2fe]"></span> Steps &amp; Treads
-                    </div>
-<div class="space-y-2 mt-1">
-<div class="flex items-center gap-2 text-[11px]">
-<label class="flex items-center gap-1.5 text-slate-300 cursor-pointer">
-<input checked="" class="rounded border-[#1e3a63] bg-[#071326] text-[#00f2fe] focus:ring-0" id="auto-steps" type="checkbox"/> Auto steps
+                </section>
+
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Steps</h2>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2 text-[11px]">
+                            <label class="flex items-center gap-1 text-slate-600">
+                                <input type="checkbox" id="auto-steps" checked> Auto steps
                             </label>
-<input class="w-16 rounded border border-[#1e3a63] bg-[#071326] px-1.5 py-0.5 font-mono text-[11px] text-[#38bdf8] disabled:opacity-40" disabled="" id="steps" max="30" min="2" step="1" title="Unlock Auto steps to pin the number of steps" type="number" value="14"/>
-<span class="text-slate-400">steps</span>
-</div>
-<div class="grid grid-cols-2 gap-2">
-<label class="field block text-[11px] text-slate-400">Landing step
-                                <input class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="landing-step" max="300" min="0" step="5" title="0 = no landing step" type="number" value="50"/>
-</label>
-<label class="field block text-[11px] text-slate-400">Overlap
-                                <input class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="overlap" max="80" min="0" step="5" type="number" value="45"/>
-</label>
-</div>
-<label class="field block text-[11px] text-slate-400">Step thickness
-                            <input class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="step-thickness" max="140" min="20" step="5" type="number" value="40"/>
-</label>
-</div>
-</section>
-<section class="border border-[#17325c] rounded p-3 bg-[#0a192f]/70 relative">
-<div class="absolute -top-2 left-2 bg-[#071326] px-1 text-[10px] uppercase tracking-wider font-bold text-[#00f2fe] flex items-center gap-1">
-<span class="w-1.5 h-1.5 bg-[#00f2fe]"></span> Floor Opening &amp; Void
+                            <input type="number" id="steps" min="2" max="30" step="1" value="14" disabled
+                                class="w-16 rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px] disabled:opacity-50" title="Unlock Auto steps to pin the number of steps">
+                            <span class="text-slate-400">steps</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="field block text-[11px] text-slate-500">Landing step
+                                <input type="number" id="landing-step" min="0" max="300" step="5" value="50" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]" title="0 = no landing step">
+                            </label>
+                            <label class="field block text-[11px] text-slate-500">Overlap
+                                <input type="number" id="overlap" min="0" max="80" step="5" value="45" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                            </label>
+                        </div>
+                        <label class="field block text-[11px] text-slate-500">Step thickness
+                            <input type="number" id="step-thickness" min="20" max="140" step="5" value="40" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                        </label>
                     </div>
-<div class="grid grid-cols-2 gap-2 mt-1">
-<label class="field block text-[11px] text-slate-400">Opening length
-                            <input class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="opening-length" max="9000" min="0" step="50" type="number" value="3600"/>
-</label>
-<label class="field block text-[11px] text-slate-400">Floor thickness
-                            <input class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="floor-thickness" max="400" min="80" step="10" type="number" value="200"/>
-</label>
-<label class="field block text-[11px] text-slate-400">Left offset
-                            <input class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="left-offset" max="500" min="-500" step="10" type="number" value="0"/>
-</label>
-<label class="field block text-[11px] text-slate-400">Right offset
-                            <input class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-0.5 font-mono text-[11px]" id="right-offset" max="500" min="-500" step="10" type="number" value="0"/>
-</label>
-</div>
-<p class="text-[10px] text-cyan-200/50 mt-2 leading-snug font-sans">Headroom is measured at the ceiling edge, tan(angle) × (opening − landing step) − floor thickness.</p>
-</section>
-<!-- Computation Results -->
-<section class="rounded border border-[#17325c] p-3 bg-[#0e2444]/90 relative shadow-inner">
-<div class="flex items-center justify-between mb-2 pb-1 border-b border-[#17325c]">
-<h2 class="text-[10px] uppercase tracking-wider font-bold text-[#00f2fe] flex items-center gap-1.5">
-<span class="inline-block w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-pulse"></span>
-                            Result Metrics
-                        </h2>
-<span class="text-[9px] text-[#fbbf24] font-mono tracking-tight font-semibold">IBC/IRC COMPLIANT</span>
-</div>
-<div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] font-mono" id="results"></div>
-<div class="mt-3 pt-2 border-t border-[#17325c]">
-<div class="flex justify-between text-[10px] text-slate-400">
-<span>Comfort Rating</span>
-<b class="text-[#00f2fe]" id="comfort-label">—</b>
-</div>
-<div class="h-1.5 rounded bg-[#071326] mt-1.5 overflow-hidden border border-[#17325c]">
-<div class="h-full w-0 bg-gradient-to-r from-[#38bdf8] to-[#00f2fe] shadow-[0_0_8px_#00f2fe] transition-all" id="comfort-bar"></div>
-</div>
-</div>
-</section>
-<section class="border border-[#17325c] rounded p-3 bg-[#0a192f]/70">
-<h2 class="text-[10px] uppercase tracking-wider font-bold text-[#fbbf24] mb-2 flex items-center gap-1">
-<span>⚡</span> Compliance Checks
-                    </h2>
-<ul class="space-y-1 text-[11px] leading-snug font-mono" id="checks"></ul>
-</section>
-<div class="grid grid-cols-2 gap-2 pt-1">
-<button class="px-2 py-2 rounded border border-[#1e3a63] bg-[#0a192f] text-[11px] font-bold text-slate-200 hover:text-[#00f2fe] hover:border-[#00f2fe] transition-all" id="takeoff">Takeoff CSV</button>
-<button class="px-2 py-2 rounded bg-[#00f2fe] text-[#040d1a] text-[11px] font-bold hover:bg-[#38bdf8] shadow-[0_0_10px_rgba(0,242,254,0.3)] transition-all" id="add-to-plan-2">Add to plan</button>
-</div>
-<p class="text-[10px] text-[#38bdf8] min-h-[1rem]" id="status"></p>
-<p class="text-[10px] text-slate-400 leading-snug font-sans">Steps are treads: risers = steps + 1. Riser 150–200 mm, going 230–330 mm, slope 20–50° (ideal 30–35°), G + 2H 590–650 mm, headroom ≥ 1900 mm. Metric design aid; the placed stair is checked again against the IRC/IBC profile. <a class="underline text-[#38bdf8] hover:text-[#00f2fe]" href="stair-glossary.html">Glossary &amp; formulas</a>.</p>
-</aside>
-<!-- Main CAD Viewports -->
-<div class="flex-1 min-w-0 flex flex-col p-3 gap-3">
-<!-- Elevation Section Viewport -->
-<section class="flex-1 min-h-0 bg-[#071326] rounded-lg border border-[#17325c] shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden blueprint-grid-bg relative">
-<div class="flex items-center justify-between px-3 py-1.5 bg-[#0a192f] border-b border-[#17325c] select-none">
-<div class="flex items-center gap-2">
-<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#17325c] text-[#00f2fe] font-bold">2D-SEC</span>
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-white font-mono">Elevation</h2>
-</div>
-<div class="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
-<span class="text-cyan-400/80">SCALE 1:25</span>
-<span class="border-l border-[#17325c] pl-3">section through the flight</span>
-</div>
-</div>
-<div class="flex-1 min-h-0 relative">
-<canvas id="elevation"></canvas>
-<!-- Architectural Corner Stamps -->
-<div class="absolute bottom-2 left-2 text-[9px] font-mono text-[#1e4a7a] pointer-events-none select-none">
-                            DATUM: +0.000m FFL | GRID 100x100mm
+                </section>
+
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Floor opening</h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="field block text-[11px] text-slate-500">Opening length
+                            <input type="number" id="opening-length" min="0" max="9000" step="50" value="3600" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                        </label>
+                        <label class="field block text-[11px] text-slate-500">Floor thickness
+                            <input type="number" id="floor-thickness" min="80" max="400" step="10" value="200" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                        </label>
+                        <label class="field block text-[11px] text-slate-500">Left offset
+                            <input type="number" id="left-offset" min="-500" max="500" step="10" value="0" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                        </label>
+                        <label class="field block text-[11px] text-slate-500">Right offset
+                            <input type="number" id="right-offset" min="-500" max="500" step="10" value="0" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
+                        </label>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-2 leading-snug">Headroom is measured at the ceiling edge, tan(angle) × (opening − landing step) − floor thickness.</p>
+                </section>
+
+                <section class="rounded-lg border border-slate-200 p-3">
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Result</h2>
+                    <div id="results" class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono"></div>
+                    <div class="mt-2">
+                        <div class="flex justify-between text-[10px] text-slate-500"><span>Comfort</span><b id="comfort-label">—</b></div>
+                        <div class="h-1.5 rounded bg-slate-100 mt-1 overflow-hidden">
+                            <div id="comfort-bar" class="h-full w-0 bg-emerald-500 transition-all"></div>
                         </div>
-<div class="absolute top-2 right-2 text-[9px] font-mono text-cyan-500/50 pointer-events-none select-none flex items-center gap-2">
-<span>CROSS-SECTION A-A'</span>
-<span class="inline-block w-2 h-2 border border-cyan-400/50 rotate-45"></span>
-</div>
-</div>
-</section>
-<!-- 3D Isometric Viewport -->
-<section class="flex-1 min-h-0 bg-[#071326] rounded-lg border border-[#17325c] shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden blueprint-grid-bg relative">
-<div class="flex items-center justify-between px-3 py-1.5 bg-[#0a192f] border-b border-[#17325c] select-none">
-<div class="flex items-center gap-2">
-<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#17325c] text-[#fbbf24] font-bold">3D-ISO</span>
-<h2 class="text-[11px] uppercase tracking-wider font-bold text-white font-mono">3D Projection</h2>
-</div>
-<div class="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
-<span class="text-[#fbbf24]/80">AXONOMETRIC WIREFRAME</span>
-<span class="border-l border-[#17325c] pl-3">drag to orbit · scroll to zoom</span>
-</div>
-</div>
-<div class="flex-1 min-h-0 relative">
-<canvas id="stage-canvas"></canvas>
-<div class="absolute bottom-2 left-2 text-[9px] font-mono text-[#1e4a7a] pointer-events-none select-none flex items-center gap-2">
-<span>AXIS: X:TOTAL_RUN | Y:STAIR_WIDTH | Z:ELEVATION</span>
-</div>
-<!-- CAD Target Reticle Overlay -->
-<div class="absolute top-2 right-2 text-[9px] font-mono text-slate-500 pointer-events-none select-none">
-                            ORBIT: AUTO-STABILIZED [30° / 45°]
-                        </div>
-</div>
-</section>
-</div>
-</main>
-</div>
-<script>
+                    </div>
+                </section>
+
+                <section>
+                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1">Checks</h2>
+                    <ul id="checks" class="space-y-0.5 text-[11px] leading-snug"></ul>
+                </section>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="takeoff" class="px-2 py-1.5 rounded border border-slate-200 text-[11px] font-bold hover:bg-slate-50">Takeoff CSV</button>
+                    <button id="add-to-plan-2" class="px-2 py-1.5 rounded bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800">Add to plan</button>
+                </div>
+                <p id="status" class="text-[10px] text-sky-700 min-h-[1rem]"></p>
+                <p class="text-[10px] text-slate-400 leading-snug">Steps are treads: risers = steps + 1. Riser 150–200 mm, going 230–330 mm, slope 20–50° (ideal 30–35°), G + 2H 590–650 mm, headroom ≥ 1900 mm. Metric design aid; the placed stair is checked again against the IRC/IBC profile. <a href="stair-glossary.html" class="underline hover:text-sky-700">Glossary &amp; formulas</a>.</p>
+            </aside>
+
+            <div class="flex-1 min-w-0 flex flex-col">
+                <section class="flex-1 min-h-0 bg-white m-3 mb-0 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-100">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Elevation</h2>
+                        <span class="text-[10px] text-slate-400">section through the flight</span>
+                    </div>
+                    <div class="flex-1 min-h-0 relative">
+                        <canvas id="elevation"></canvas>
+                    </div>
+                </section>
+                <section class="flex-1 min-h-0 bg-white m-3 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-100">
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">3D</h2>
+                        <span class="text-[10px] text-slate-400">drag to orbit · scroll to zoom</span>
+                    </div>
+                    <div class="flex-1 min-h-0 relative">
+                        <div id="stage"></div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
+            "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import {
+            computeStraightDesigner,
+            drawStairElevation,
+            buildDesignerStair,
+            designerTakeoffCsv,
+            saveDesignerDraft,
+            DESIGNER_DEFAULTS,
+            DESIGNER_RULES
+        } from '../features/stairs/designer.js';
+
         const $ = (id) => document.getElementById(id);
-        const mm = (v) => `${Math.round(v)} mm`;
+        const FIELDS = {
+            height: { min: 1200, max: 4500 },
+            width: { min: 600, max: 1600 },
+            blondelTarget: { min: 590, max: 650 },
+            length: { min: 1500, max: 9000 },
+            overlap: { min: 0, max: 80 },
+            landingStep: { min: 0, max: 300 },
+            stepThickness: { min: 20, max: 140 },
+            openingLength: { min: 0, max: 9000 },
+            floorThickness: { min: 80, max: 400 },
+            leftOffset: { min: -500, max: 500 },
+            rightOffset: { min: -500, max: 500 }
+        };
+        const idFor = (key) => key.replace(/([A-Z])/g, '-$1').toLowerCase();
 
-        function compute(height, width, targetBlondel, solveMode) {
-            let steps = 14;
-            let risers = steps + 1;
-            let stepHeight = height / risers;
-            let going = 280;
-            if (solveMode === 'blondel') {
-                going = targetBlondel - (2 * stepHeight);
-            }
-            let stepDepth = going + 45;
-            let angle = Math.atan2(stepHeight, going) * (180 / Math.PI);
-            let totalRun = steps * going;
-            let blondel = going + (2 * stepHeight);
-            let headroom = 2150;
-            let comfort = Math.max(30, Math.min(100, Math.round(100 - Math.abs(blondel - 630) * 1.5 - Math.abs(angle - 32) * 2)));
+        const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+        const mm = (value) => `${Math.round(value)} mm`;
 
-            return {
-                steps, risers, stepHeight, going, stepDepth, angle, blondel, totalRun, headroom, width, comfort,
-                checks: [
-                    { severity: 'ok', message: 'Riser height 180 mm is compliant with IBC/IRC (max 196 mm)' },
-                    { severity: 'ok', message: 'Going 270 mm satisfies minimum tread depth (≥ 254 mm)' },
-                    { severity: 'ok', message: 'Headroom 2,150 mm exceeds mandatory clearance (≥ 2,000 mm)' },
-                    { severity: 'ok', message: `Blondel's rule 2R + G = ${Math.round(blondel)} mm falls in comfortable range (600–640 mm)` }
-                ]
-            };
+        function readInput() {
+            const input = { solve: $('solve').value };
+            Object.entries(FIELDS).forEach(([key, range]) => {
+                const el = $(idFor(key));
+                const value = Number(el?.value);
+                input[key] = Number.isFinite(value) ? clamp(value, range.min, range.max) : DESIGNER_DEFAULTS[key];
+            });
+            const auto = $('auto-steps').checked;
+            input.steps = auto ? null : clamp(Number($('steps').value) || 14, DESIGNER_RULES.steps.min, DESIGNER_RULES.steps.max);
+            return input;
         }
 
-        function renderResults(res) {
+        // --- 3D scene -------------------------------------------------
+        const stage = $('stage');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf8fafc);
+
+        const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 200);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        stage.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.maxPolarAngle = Math.PI * 0.495;
+
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x94a3b8, 1.1));
+        const key = new THREE.DirectionalLight(0xffffff, 1.4);
+        key.position.set(6, 10, 7);
+        scene.add(key);
+        scene.add(new THREE.GridHelper(24, 24, 0xdbe3ee, 0xe8edf5));
+
+        let stairGroup = null;
+
+        function disposeStair() {
+            if (!stairGroup) return;
+            stairGroup.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+            });
+            scene.remove(stairGroup);
+            stairGroup = null;
+        }
+
+        function frameGroup(group) {
+            const box = new THREE.Box3().setFromObject(group);
+            const size = new THREE.Vector3();
+            const centre = new THREE.Vector3();
+            box.getSize(size);
+            box.getCenter(centre);
+            const radius = Math.max(size.x, size.y, size.z) * 0.75;
+            const vFov = (camera.fov * Math.PI) / 180;
+            const distance = (radius / Math.sin(vFov / 2)) * 1.55;
+            camera.position.set(centre.x + distance * 0.75, centre.y + distance * 0.6, centre.z + distance * 0.95);
+            camera.near = Math.max(distance / 500, 0.02);
+            camera.far = distance * 8;
+            camera.updateProjectionMatrix();
+            controls.target.copy(centre);
+            controls.update();
+        }
+
+        // --- elevation canvas -----------------------------------------
+        const elevationCanvas = $('elevation');
+        const elevationCtx = elevationCanvas.getContext('2d');
+
+        function sizeCanvas(canvas) {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio, 2);
+            const width = Math.max(320, Math.floor(rect.width));
+            const height = Math.max(220, Math.floor(rect.height));
+            if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                canvas.style.width = `${width}px`;
+                canvas.style.height = `${height}px`;
+            }
+            return { width, height, dpr };
+        }
+
+        function drawElevation(result) {
+            const { width, height, dpr } = sizeCanvas(elevationCanvas);
+            elevationCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            elevationCtx.clearRect(0, 0, width, height);
+            drawStairElevation(elevationCtx, result, { width, height, padding: 32 });
+        }
+
+        // --- results ---------------------------------------------------
+        function renderResults(result) {
             const rows = [
-                ['Steps / risers', `${res.steps} / ${res.risers}`],
-                ['Step height', mm(res.stepHeight)],
-                ['Going', mm(res.going)],
-                ['Step depth', mm(res.stepDepth)],
-                ['Landing step', '50 mm'],
-                ['Angle', `${res.angle.toFixed(1)}°`],
-                ['G + 2H', mm(res.blondel)],
-                ['Total run', mm(res.totalRun)],
-                ['Headroom', mm(res.headroom)],
-                ['Width', mm(res.width)]
+                ['Steps / risers', `${result.steps} / ${result.risers}`],
+                ['Step height', mm(result.stepHeight)],
+                ['Going', mm(result.going)],
+                ['Step depth', mm(result.stepDepth)],
+                ['Landing step', result.landingStep.enabled ? mm(result.landingStep.size) : 'none'],
+                ['Angle', `${result.angle.toFixed(1)}°`],
+                ['G + 2H', mm(result.blondel)],
+                ['Total run', mm(result.totalRun)],
+                ['Headroom', mm(result.headroom)],
+                ['Width', mm(result.width)]
             ];
             $('results').innerHTML = rows.map(([label, value]) =>
-                `<span class="text-slate-400 font-sans text-[11px]">${label}</span><span class="text-right text-[#00f2fe] font-mono font-semibold">${value}</span>`
+                `<span class="text-slate-400">${label}</span><span class="text-right">${value}</span>`
             ).join('');
 
-            $('comfort-label').textContent = `${res.comfort}%`;
-            $('comfort-bar').style.width = `${res.comfort}%`;
+            $('comfort-label').textContent = `${result.comfort}%`;
+            const bar = $('comfort-bar');
+            bar.style.width = `${result.comfort}%`;
+            bar.className = 'h-full transition-all ' + (result.comfort >= 80 ? 'bg-emerald-500' : result.comfort >= 60 ? 'bg-amber-500' : 'bg-red-500');
 
-            $('checks').innerHTML = res.checks.map((c) => {
-                const icon = c.severity === 'error' ? '✖' : c.severity === 'warn' ? '⚠' : '✓';
-                return `<li class="check-${c.severity} flex items-start gap-1.5"><span class="shrink-0 font-bold">${icon}</span> <span>${c.message}</span></li>`;
+            $('checks').innerHTML = result.checks.map((check) => {
+                const icon = check.severity === 'error' ? '✖' : check.severity === 'warn' ? '⚠' : check.severity === 'ok' ? '✓' : 'ℹ';
+                return `<li class="check-${check.severity}">${icon} ${check.message}</li>`;
             }).join('');
+
+            $('height-label').textContent = mm(result.height);
+            $('width-label').textContent = mm(result.width);
+            $('blondel-label').textContent = result.solve === 'blondel' ? mm(result.blondelTarget) : mm(result.blondel);
+            $('length-label').textContent = mm(result.totalRun);
+            if (result.autoSteps) $('steps').value = result.steps;
         }
 
-        function drawElevation() {
-            const canvas = $('elevation');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width * 2;
-            canvas.height = rect.height * 2;
-            ctx.scale(2, 2);
-            ctx.clearRect(0, 0, rect.width, rect.height);
-
-            // Technical blueprint background fill
-            ctx.fillStyle = '#071326';
-            ctx.fillRect(0, 0, rect.width, rect.height);
-
-            // Blueprint secondary coordinate grid
-            ctx.strokeStyle = '#0d223f';
-            ctx.lineWidth = 1;
-            for (let x = 0; x < rect.width; x += 20) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, rect.height); ctx.stroke();
+        function syncInputs(result) {
+            const lengthMode = result.solve === 'length';
+            const lengthInput = $('length');
+            const lengthRange = $('length-range');
+            const blondelInput = $('blondel-target');
+            const blondelRange = $('blondel-target-range');
+            blondelInput.disabled = lengthMode;
+            blondelRange.disabled = lengthMode;
+            lengthInput.readOnly = !lengthMode;
+            lengthRange.disabled = !lengthMode;
+            $('length-caption').textContent = lengthMode ? 'Total length' : 'Total run (computed)';
+            $('blondel-label-caption').textContent = lengthMode ? 'G + 2H (computed)' : "Blondel's law";
+            if (!lengthMode && document.activeElement !== lengthInput) {
+                lengthInput.value = Math.round(result.totalRun);
+                lengthRange.value = Math.round(result.totalRun);
             }
-            for (let y = 0; y < rect.height; y += 20) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(rect.width, y); ctx.stroke();
+            if (lengthMode && document.activeElement !== blondelInput) {
+                // Show the derived value even when it leaves the 590–650 band.
+                blondelInput.value = Math.round(result.blondel);
+                blondelRange.value = clamp(Math.round(result.blondel), 590, 650);
             }
-
-            // Blueprint primary grid lines
-            ctx.strokeStyle = '#143560';
-            ctx.lineWidth = 1;
-            for (let x = 0; x < rect.width; x += 100) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, rect.height); ctx.stroke();
-            }
-            for (let y = 0; y < rect.height; y += 100) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(rect.width, y); ctx.stroke();
-            }
-
-            const startX = 85;
-            const startY = rect.height - 45;
-            const stepW = Math.min(38, (rect.width - 200) / 14);
-            const stepH = (rect.height - 110) / 15;
-
-            // Construction pitch line (angle hypotenuse)
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
-            ctx.setLineDash([5, 5]);
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            ctx.lineTo(startX + stepW * 14, startY - stepH * 15);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Upper floor slab
-            ctx.fillStyle = '#0a1d38';
-            ctx.strokeStyle = '#1e4a7a';
-            ctx.lineWidth = 1.5;
-            const topX = startX + stepW * 14;
-            const topY = startY - stepH * 15;
-            ctx.beginPath();
-            ctx.rect(topX + 40, topY, rect.width - (topX + 40) - 20, 24);
-            ctx.fill();
-            ctx.stroke();
-
-            // Lower floor ground line
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(40, startY);
-            ctx.lineTo(topX + 100, startY);
-            ctx.stroke();
-
-            // Draw stair flight section with radiant blueprint glowing cyan
-            ctx.save();
-            ctx.shadowColor = '#00f2fe';
-            ctx.shadowBlur = 10;
-            ctx.strokeStyle = '#00f2fe';
-            ctx.fillStyle = 'rgba(14, 36, 68, 0.7)';
-            ctx.lineWidth = 2.5;
-
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            let curX = startX;
-            let curY = startY;
-
-            for (let i = 0; i < 14; i++) {
-                curY -= stepH;
-                ctx.lineTo(curX, curY);
-                curX += stepW;
-                ctx.lineTo(curX, curY);
-            }
-            curY -= stepH;
-            ctx.lineTo(curX, curY);
-            ctx.lineTo(curX + 45, curY);
-            ctx.lineTo(curX + 45, curY + 28);
-            
-            // Lower stringer soffit line
-            ctx.lineTo(startX + 18, startY);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-
-            // Technical drafting step crosshairs & step ticks
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1;
-            for (let i = 0; i <= 14; i += 2) {
-                const px = startX + stepW * i;
-                const py = startY - stepH * i;
-                ctx.beginPath();
-                ctx.moveTo(px - 3, py);
-                ctx.lineTo(px + 3, py);
-                ctx.moveTo(px, py - 3);
-                ctx.lineTo(px, py + 3);
-                ctx.stroke();
-            }
-
-            // Headroom dimension (amber drafting alert style)
-            const headIdx = 4;
-            const hX = startX + stepW * headIdx;
-            const hY = startY - stepH * headIdx;
-            const clearanceH = 115;
-
-            ctx.strokeStyle = '#fbbf24';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([3, 3]);
-            ctx.beginPath();
-            ctx.moveTo(hX, hY);
-            ctx.lineTo(hX, hY - clearanceH);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Dimension arrows for Headroom
-            ctx.fillStyle = '#fbbf24';
-            ctx.beginPath();
-            ctx.moveTo(hX, hY); ctx.lineTo(hX - 3, hY - 6); ctx.lineTo(hX + 3, hY - 6); ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(hX, hY - clearanceH); ctx.lineTo(hX - 3, hY - clearanceH + 6); ctx.lineTo(hX + 3, hY - clearanceH + 6); ctx.fill();
-
-            ctx.font = '10px JetBrains Mono';
-            ctx.fillText('HEADROOM CLEARANCE: 2,150 mm [MIN: 2000]', hX + 8, hY - clearanceH / 2);
-
-            // Total Run dimension below flight
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(startX, startY + 22);
-            ctx.lineTo(curX, startY + 22);
-            ctx.stroke();
-
-            // Ticks at dimension ends
-            ctx.beginPath();
-            ctx.moveTo(startX, startY + 16); ctx.lineTo(startX, startY + 28);
-            ctx.moveTo(curX, startY + 16); ctx.lineTo(curX, startY + 28);
-            ctx.stroke();
-
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText(`TOTAL RUN: 3,920 mm (14 TREADS @ 280 mm)`, startX + 24, startY + 36);
-
-            // Total Rise dimension right side
-            ctx.strokeStyle = '#94a3b8';
-            ctx.beginPath();
-            ctx.moveTo(curX + 60, startY);
-            ctx.lineTo(curX + 60, topY);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(curX + 54, startY); ctx.lineTo(curX + 66, startY);
-            ctx.moveTo(curX + 54, topY); ctx.lineTo(curX + 66, topY);
-            ctx.stroke();
-
-            ctx.save();
-            ctx.translate(curX + 75, (startY + topY) / 2);
-            ctx.rotate(-Math.PI / 2);
-            ctx.fillText('TOTAL RISE: 2,700 mm', -60, 0);
-            ctx.restore();
-
-            // Pitch indicator angle arc
-            ctx.strokeStyle = '#38bdf8';
-            ctx.beginPath();
-            ctx.arc(startX, startY, 40, -Math.PI / 5.4, 0, false);
-            ctx.stroke();
-            ctx.fillStyle = '#38bdf8';
-            ctx.fillText('33.7°', startX + 46, startY - 12);
         }
 
-        // Draw isometric wireframe 3D Staircase in Blueprint CAD style
-        function drawIsometric() {
-            const canvas = $('stage-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width * 2;
-            canvas.height = rect.height * 2;
-            ctx.scale(2, 2);
-            ctx.clearRect(0, 0, rect.width, rect.height);
+        function update() {
+            const result = computeStraightDesigner(readInput());
+            window.designerResult = result;
 
-            // Deep cobalt background
-            ctx.fillStyle = '#071326';
-            ctx.fillRect(0, 0, rect.width, rect.height);
-
-            // Technical grid lines
-            ctx.strokeStyle = '#0f2747';
-            ctx.lineWidth = 1;
-            for (let x = 0; x < rect.width; x += 25) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, rect.height); ctx.stroke();
-            }
-            for (let y = 0; y < rect.height; y += 25) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(rect.width, y); ctx.stroke();
-            }
-
-            // Isometric projection helper
-            // X: run (down-right), Y: width (up-right), Z: height (up)
-            const originX = rect.width * 0.28;
-            const originY = rect.height * 0.76;
-            const cos30 = Math.cos(Math.PI / 6);
-            const sin30 = Math.sin(Math.PI / 6);
-
-            function project(x, y, z) {
-                // isometric axes
-                const isoX = originX + (x - y) * cos30;
-                const isoY = originY + (x + y) * sin30 - z;
-                return [isoX, isoY];
-            }
-
-            const steps = 14;
-            const stepRun = 16;
-            const stepRise = 10;
-            const stairWidth = 110;
-
-            // Floor datum grid in 3D
-            ctx.strokeStyle = '#132e54';
-            ctx.lineWidth = 1;
-            for (let i = 0; i <= 6; i++) {
-                const [x1, y1] = project(i * 45, -30, 0);
-                const [x2, y2] = project(i * 45, 150, 0);
-                ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-            }
-            for (let j = -30; j <= 150; j += 30) {
-                const [x1, y1] = project(0, j, 0);
-                const [x2, y2] = project(270, j, 0);
-                ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-            }
-
-            // Draw Stringer sides with glowing blueprint edge styling
-            ctx.shadowColor = '#00f2fe';
-            ctx.shadowBlur = 8;
-            ctx.strokeStyle = '#00f2fe';
-            ctx.fillStyle = 'rgba(10, 30, 58, 0.85)';
-            ctx.lineWidth = 1.7;
-
-            // Render treads and risers in back-to-front order
-            for (let i = 0; i < steps; i++) {
-                const x0 = i * stepRun;
-                const x1 = (i + 1) * stepRun;
-                const z0 = i * stepRise;
-                const z1 = (i + 1) * stepRise;
-
-                // Riser plane
-                const [p1x, p1y] = project(x0, 0, z0);
-                const [p2x, p2y] = project(x0, stairWidth, z0);
-                const [p3x, p3y] = project(x0, stairWidth, z1);
-                const [p4x, p4y] = project(x0, 0, z1);
-
-                ctx.fillStyle = 'rgba(14, 38, 72, 0.9)';
-                ctx.beginPath();
-                ctx.moveTo(p1x, p1y);
-                ctx.lineTo(p2x, p2y);
-                ctx.lineTo(p3x, p3y);
-                ctx.lineTo(p4x, p4y);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                // Tread plane
-                const [t1x, t1y] = project(x0, 0, z1);
-                const [t2x, t2y] = project(x0, stairWidth, z1);
-                const [t3x, t3y] = project(x1, stairWidth, z1);
-                const [t4x, t4y] = project(x1, 0, z1);
-
-                ctx.fillStyle = 'rgba(18, 52, 98, 0.8)';
-                ctx.beginPath();
-                ctx.moveTo(t1x, t1y);
-                ctx.lineTo(t2x, t2y);
-                ctx.lineTo(t3x, t3y);
-                ctx.lineTo(t4x, t4y);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                // Technical wireframe coordinate nodes along the left flight edge
-                if (i % 3 === 0) {
-                    ctx.fillStyle = '#fbbf24';
-                    ctx.beginPath();
-                    ctx.arc(t4x, t4y, 2.5, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-
-            // Top landing step slab
-            const topRun = steps * stepRun;
-            const topRise = steps * stepRise;
-            const [l1x, l1y] = project(topRun, 0, topRise);
-            const [l2x, l2y] = project(topRun, stairWidth, topRise);
-            const [l3x, l3y] = project(topRun + 40, stairWidth, topRise);
-            const [l4x, l4y] = project(topRun + 40, 0, topRise);
-
-            ctx.fillStyle = 'rgba(23, 50, 92, 0.9)';
-            ctx.beginPath();
-            ctx.moveTo(l1x, l1y); ctx.lineTo(l2x, l2y); ctx.lineTo(l3x, l3y); ctx.lineTo(l4x, l4y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            // Right stringer structural profile wire
-            const [baseX, baseY] = project(0, stairWidth, 0);
-            const [peakX, peakY] = project(topRun + 40, stairWidth, topRise);
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(baseX, baseY);
-            ctx.lineTo(peakX, peakY);
-            ctx.stroke();
-
-            // Handrail / Guardrail wireframe preview line (Blueprint standard: 900mm height)
-            const railOffset = 45;
-            const [rh1x, rh1y] = project(0, 0, railOffset);
-            const [rh2x, rh2y] = project(topRun, 0, topRise + railOffset);
-
-            ctx.strokeStyle = '#fbbf24';
-            ctx.setLineDash([4, 4]);
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(rh1x, rh1y);
-            ctx.lineTo(rh2x, rh2y);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Post vertical balusters
-            ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
-            ctx.lineWidth = 1;
-            [0, 4, 8, 12].forEach(st => {
-                const [bx, by] = project(st * stepRun, 0, st * stepRise);
-                const [tx, ty] = project(st * stepRun, 0, st * stepRise + railOffset);
-                ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+            Object.keys(FIELDS).forEach((fieldKey) => {
+                const id = idFor(fieldKey);
+                const range = $(`${id}-range`);
+                const value = $(id);
+                if (!range || !value) return;
+                if (document.activeElement === range) value.value = range.value;
+                else range.value = value.value;
             });
 
-            // Annotations in 3D
-            ctx.shadowBlur = 0;
-            ctx.font = '10px JetBrains Mono';
-            ctx.fillStyle = '#00f2fe';
-            const [lblX, lblY] = project(topRun / 2, -20, topRise / 2);
-            ctx.fillText('FLIGHT INCLINATION: 33.7°', lblX, lblY);
+            renderResults(result);
+            syncInputs(result);
+            drawElevation(result);
 
-            const [dimW1x, dimW1y] = project(0, 0, 0);
-            const [dimW2x, dimW2y] = project(0, stairWidth, 0);
-            ctx.strokeStyle = '#38bdf8';
-            ctx.beginPath();
-            ctx.moveTo(dimW1x - 10, dimW1y + 6);
-            ctx.lineTo(dimW2x - 10, dimW2y + 6);
-            ctx.stroke();
-            ctx.fillStyle = '#38bdf8';
-            ctx.fillText('WIDTH: 1000 mm', dimW2x - 45, dimW2y + 20);
+            disposeStair();
+            stairGroup = buildDesignerStair(result);
+            scene.add(stairGroup);
+            frameGroup(stairGroup);
+            renderer.render(scene, camera);
+            return result;
         }
 
-        function refreshAll() {
-            const h = parseFloat($('height').value) || 2700;
-            const w = parseFloat($('width').value) || 1000;
-            const b = parseFloat($('blondel-target').value) || 630;
-            const s = $('solve').value;
-            const res = compute(h, w, b, s);
-            renderResults(res);
-            drawElevation();
-            drawIsometric();
-        }
-
-        // Sync inputs & ranges
-        ['height', 'width', 'blondel-target', 'length'].forEach(id => {
-            const num = $(id);
-            const rng = $(id + '-range');
-            if (num && rng) {
-                rng.addEventListener('input', (e) => {
-                    num.value = e.target.value;
-                    const lbl = $(id + '-label');
-                    if (lbl) lbl.textContent = mm(e.target.value);
-                    refreshAll();
-                });
-                num.addEventListener('input', (e) => {
-                    rng.value = e.target.value;
-                    const lbl = $(id + '-label');
-                    if (lbl) lbl.textContent = mm(e.target.value);
-                    refreshAll();
-                });
-            }
+        // --- wiring ----------------------------------------------------
+        Object.keys(FIELDS).forEach((fieldKey) => {
+            const id = idFor(fieldKey);
+            const range = $(`${id}-range`);
+            const value = $(id);
+            range?.addEventListener('input', () => {
+                value.value = range.value;
+                update();
+            });
+            value?.addEventListener('input', () => {
+                if (range) range.value = value.value;
+                update();
+            });
         });
 
-        $('solve').addEventListener('change', refreshAll);
-        $('landing-step').addEventListener('input', refreshAll);
-        $('overlap').addEventListener('input', refreshAll);
-        $('step-thickness').addEventListener('input', refreshAll);
+        $('solve').addEventListener('change', () => {
+            // Switching to length mode starts from the run that is on screen.
+            if ($('solve').value === 'length' && window.designerResult) {
+                $('length').readOnly = false;
+                $('length').value = Math.round(window.designerResult.totalRun);
+                $('length-range').value = $('length').value;
+            }
+            update();
+        });
+        $('auto-steps').addEventListener('change', (event) => {
+            $('steps').disabled = event.target.checked;
+            update();
+        });
+        $('steps').addEventListener('input', update);
 
         $('reset').addEventListener('click', () => {
-            $('height').value = 2700;
-            $('height-range').value = 2700;
-            $('height-label').textContent = '2700 mm';
-            $('width').value = 1000;
-            $('width-range').value = 1000;
-            $('width-label').textContent = '1000 mm';
-            $('blondel-target').value = 630;
-            $('blondel-target-range').value = 630;
-            $('blondel-label').textContent = '630 mm';
-            refreshAll();
-            $('status').textContent = 'Reset to default architectural specifications.';
-            setTimeout(() => { $('status').textContent = ''; }, 3000);
+            Object.entries(DESIGNER_DEFAULTS).forEach(([key, defaultValue]) => {
+                if (key === 'steps' || key === 'solve') return;
+                const id = idFor(key);
+                const el = $(id);
+                if (!el) return;
+                el.value = defaultValue;
+                const range = $(`${id}-range`);
+                if (range) range.value = defaultValue;
+            });
+            $('solve').value = 'blondel';
+            $('auto-steps').checked = true;
+            $('steps').disabled = true;
+            update();
+            $('status').textContent = 'Reset to the defaults';
         });
 
-        $('takeoff').addEventListener('click', () => {
-            $('status').textContent = 'Generating blueprint CSV takeoff sheet...';
-            setTimeout(() => { $('status').textContent = 'Takeoff ready: 14 treads, 15 risers exported.'; }, 1200);
-        });
-
-        const addToPlan = () => {
-            $('status').textContent = 'Stair flight pinned to active CAD model layer.';
-            setTimeout(() => { $('status').textContent = ''; }, 3000);
-        };
+        function addToPlan() {
+            const result = window.designerResult || update();
+            saveDesignerDraft(result);
+            $('status').textContent = 'Placing the stair in the editor…';
+            window.location.href = 'Editor.html?fromDesigner=1';
+        }
         $('add-to-plan').addEventListener('click', addToPlan);
         $('add-to-plan-2').addEventListener('click', addToPlan);
 
-        window.addEventListener('load', refreshAll);
-        window.addEventListener('resize', () => {
-            drawElevation();
-            drawIsometric();
+        $('takeoff').addEventListener('click', () => {
+            const result = window.designerResult || update();
+            const blob = new Blob([designerTakeoffCsv(result)], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'straight-stair-takeoff.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+            $('status').textContent = 'Takeoff downloaded';
         });
+
+        function resize() {
+            const rect = stage.getBoundingClientRect();
+            const width = Math.max(320, Math.floor(rect.width));
+            const height = Math.max(200, Math.floor(rect.height));
+            renderer.setSize(width, height, false);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            if (window.designerResult) drawElevation(window.designerResult);
+            renderer.render(scene, camera);
+        }
+        window.addEventListener('resize', resize);
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => resize());
+            observer.observe(stage);
+            observer.observe(elevationCanvas.parentElement);
+        }
+
+        controls.addEventListener('change', () => renderer.render(scene, camera));
+
+        resize();
+        update();
+        window.stairDesigner = {
+            compute: () => window.designerResult,
+            update,
+            redraw: () => drawElevation(window.designerResult)
+        };
     </script>
-</body></html>
+</body>
+</html>

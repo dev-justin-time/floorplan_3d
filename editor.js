@@ -174,6 +174,10 @@ import {
 // viewers the editor never uses.
 import { WALL_COVERINGS, coveringById, finishPatchFor } from './features/wall/materials.js';
 import { computeWallDesign, wallAreaFromPlan } from './features/wall/design.js';
+import { computeDeckDesign } from './features/deck/engine.js';
+import { deckEditorSummary, deckDraftLines } from './features/deck/panel.js';
+import { computeElectricalDesign } from './features/electrical/engine.js';
+import { electricalEditorSummary, electricalDraftLines } from './features/electrical/panel.js';
 
 // Application State
 const AppState = {
@@ -196,6 +200,10 @@ const AppState = {
     // drag can be expressed as a change in the item's elevation.
     gizmoBase: null,
     
+    // Deck draft sent from deck-designer.html (read by window.deckKit).
+    deckDraft: null,
+    // Electrical draft sent from electrical-designer.html.
+    electricalDraft: null,
     // Settings
     showDimensions: true,
     showCeiling: false,
@@ -391,8 +399,13 @@ function init() {
     // A lighting plan arrives with luminaires and wall devices as 3D pieces.
     const lightingDraft = applyLightingEditorDraft();
     // A landscape design arrives as a placed pool, spa or water feature.
+    // A deck arrives as a framing config; the kit exposes its design and price.
+    const deckDraft = applyDeckEditorDraft();
+    const electricalDraft = applyElectricalEditorDraft();
     const landscapeDraft = applyLandscapeEditorDraft();
     if (roofDraft || wallDraft || lightingDraft || landscapeDraft) update3D();
+    void deckDraft;
+    void electricalDraft;
 
     // Initial Draw
     onResize();
@@ -650,6 +663,23 @@ function init() {
         design: () => currentWaterDesign(),
         rules: () => WATER_FEATURE_TYPES.map((key) => ({ key, label: WATER_FEATURE_LABELS[key] })),
         summary: () => waterSummary(currentWaterDesign())
+    };
+
+    // Deck suite handle: the framing config sent from deck-designer.html.
+    window.deckKit = {
+        draft: () => AppState.deckDraft || null,
+        design: () => (AppState.deckDraft?.config ? computeDeckDesign(AppState.deckDraft.config) : null),
+        summary: () => deckEditorSummary(window.deckKit.design()),
+        lines: () => deckDraftLines(window.deckKit.design())
+    };
+
+    // Electrical suite handle: the dwelling config sent from its designer.
+    window.electricalKit = {
+        draft: () => AppState.electricalDraft || null,
+        design: () => (AppState.electricalDraft?.config ? computeElectricalDesign(AppState.electricalDraft.config) : null),
+        summary: () => electricalEditorSummary(window.electricalKit.design()),
+        circuits: () => window.electricalKit.design()?.circuits || [],
+        lines: () => electricalDraftLines(window.electricalKit.design())
     };
 
     window.addCommentHere = () => addCommentAt(AppState.cursor || planCenter());
@@ -2472,6 +2502,35 @@ function roofPlanSize() {
     const depth = (maxZ - minZ) / PIXELS_PER_METER;
     if (width < 0.3 || depth < 0.3) return null;
     return { span: Math.min(width, depth), length: Math.max(width, depth) };
+}
+
+function applyElectricalEditorDraft() {
+    // The electrical designer hands over its dwelling config and circuit list so
+    // the editor can show the same service, panel schedule and takeoff.
+    let draft = null;
+    try {
+        draft = JSON.parse(localStorage.getItem('electrical-editor-draft') || 'null');
+    } catch (error) {
+        return false;
+    }
+    if (!draft || typeof draft !== 'object' || !draft.config) return false;
+    AppState.electricalDraft = draft;
+    return true;
+}
+
+function applyDeckEditorDraft() {
+    // The deck designer hands its framing config over so the editor can price
+    // and schedule the same deck. The key is left in place: the bid builder and
+    // the deck kit both read it after the editor opens.
+    let draft = null;
+    try {
+        draft = JSON.parse(localStorage.getItem('deck-editor-draft') || 'null');
+    } catch (error) {
+        return false;
+    }
+    if (!draft || typeof draft !== 'object' || !draft.config) return false;
+    AppState.deckDraft = draft;
+    return true;
 }
 
 function applyRoofEditorDraft() {

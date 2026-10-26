@@ -144,7 +144,8 @@ export const POOL_DEFAULTS = {
         turnoverHours: 0.5,
         jets: 6,
         waterTempF: 102,
-        suctionOutlets: 2
+        suctionOutlets: 2,
+        head: 50
     },
     fountain: {
         shape: 'circular',
@@ -156,7 +157,7 @@ export const POOL_DEFAULTS = {
         barrier: false,
         turnoverHours: 1,
         jets: 4,
-        head: 1.2
+        head: 20
     },
     pond: {
         shape: 'kidney',
@@ -167,7 +168,8 @@ export const POOL_DEFAULTS = {
         deck: 0.0,
         barrier: false,
         turnoverHours: 4,
-        aeration: true
+        aeration: true,
+        head: 10
     },
     waterfall: {
         shape: 'rectangle',
@@ -179,7 +181,8 @@ export const POOL_DEFAULTS = {
         barrier: false,
         turnoverHours: 0.5,
         weirLength: 2.4,
-        drop: 0.6
+        drop: 0.6,
+        head: 25
     },
     'water-wall': {
         shape: 'rectangle',
@@ -191,7 +194,8 @@ export const POOL_DEFAULTS = {
         barrier: false,
         turnoverHours: 0.5,
         weirLength: 3.0,
-        drop: 2.4
+        drop: 2.4,
+        head: 30
     }
 };
 

@@ -3,14 +3,11 @@ import {
     WATER_FEATURE_LABELS,
     POOL_SHAPES,
     POOL_SHAPE_LABELS,
-    POOL_DEFAULTS,
     defaultWaterConfig,
     FT,
     IN
 } from './design.js';
 import {
-    DEFAULT_SITE,
-    FILTERS,
     defaultSite,
     designLandscape,
     landscapeScheduleCsv,
@@ -317,6 +314,7 @@ function syncInputs() {
     setInput('f-jets', String(f.jets || 0));
     setInput('f-weir', num(f.weirLength || f.width));
     setInput('f-drop', num(f.drop));
+    setInput('f-head', num(f.head ?? 40, 0));
     setInput('f-barrier', f.barrier !== false);
     setInput('f-gate', f.gateSelfClosing !== false);
     setInput('f-latch', num((f.gateLatchHeight || 54 * IN) / IN, 0));
@@ -446,7 +444,7 @@ function fitPlan() {
 
 // --- Editing -------------------------------------------------------------
 
-const NUMBER_FIELDS = ['width', 'length', 'shallow', 'deep', 'deck', 'turnoverHours', 'waterTempF', 'jets', 'weirLength', 'drop'];
+const NUMBER_FIELDS = ['width', 'length', 'shallow', 'deep', 'deck', 'turnoverHours', 'waterTempF', 'jets', 'weirLength', 'drop', 'head'];
 
 function setFeatureField(key, value) {
     if (NUMBER_FIELDS.includes(key)) plan.feature[key] = Number(value);
@@ -501,7 +499,8 @@ function wireEvents() {
         'f-width': ['width', false], 'f-length': ['length', false], 'f-shallow': ['shallow', false],
         'f-deep': ['deep', false], 'f-deck': ['deck', false], 'f-turnover': ['turnoverHours', false],
         'f-temp': ['waterTempF', false], 'f-jets': ['jets', false], 'f-weir': ['weirLength', false],
-        'f-drop': ['drop', false], 'f-barrier': ['barrier', true], 'f-gate': ['gateSelfClosing', true],
+        'f-drop': ['drop', false], 'f-head': ['head', false], 'f-barrier': ['barrier', true],
+        'f-gate': ['gateSelfClosing', true],
         'f-latch': ['gateLatchHeight', false], 'f-diving': ['diving', true], 'f-liner': ['liner', true],
         'f-aeration': ['aeration', true]
     };
