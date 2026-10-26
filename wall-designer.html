@@ -193,7 +193,8 @@
 
             <p class="text-[10px] text-slate-400 leading-snug">
                 Metric design aid. Areas, litres, packs, labour and checks are illustrative; the substrate, wet-area, vapour, fire, WRB and grade rules follow IRC 2021 Chapter 7 and the product data sheets.
-                <a href="#reference" id="glossary-link" class="underline hover:text-sky-700">Glossary &amp; formulas</a>.
+                <a href="#reference" id="glossary-link" class="underline hover:text-sky-700">Glossary &amp; formulas</a> ·
+                <a href="wall-suite.md" class="underline hover:text-sky-700">Suite notes</a>.
             </p>
             <p id="status" class="text-[10px] text-sky-700 min-h-[1rem]"></p>
         </aside>
@@ -333,6 +334,9 @@
         coveringById,
         coveringOptions,
         coveringsByFamily,
+        defaultCoveringFor,
+        defaultSubstrateFor,
+        paintCoveringForSheen,
         colourById,
         lrvOf
     } from './features/wall/materials.js';
@@ -392,7 +396,7 @@
             </optgroup>
         `).join('');
         const options = currentOptions();
-        if (!options.some((entry) => entry.id === state.covering)) state.covering = options[0].id;
+        if (!options.some((entry) => entry.id === state.covering)) state.covering = defaultCoveringFor(state.exposure).id;
         select.value = state.covering;
         $('covering-count').textContent = `${options.length} of ${WALL_COVERINGS.length}`;
     }
@@ -408,7 +412,9 @@
         select.innerHTML = ordered.map((entry) => `
             <option value="${entry.id}">${entry.label}${covering.substrates.includes(entry.id) ? '' : ' · not listed'}</option>
         `).join('');
-        if (!covering.substrates.includes(state.substrate)) state.substrate = covering.substrates[0];
+        if (!covering.substrates.includes(state.substrate)) {
+            state.substrate = defaultSubstrateFor(covering, state.exposure);
+        }
         select.value = state.substrate;
     }
 
@@ -500,6 +506,9 @@
         state.sheen = null;
         const covering = coveringById(state.covering);
         if (covering.exposure !== 'both') state.exposure = covering.exposure;
+        if (!covering.substrates.includes(state.substrate)) {
+            state.substrate = defaultSubstrateFor(covering, state.exposure);
+        }
         fillSubstrateSelect();
         fillPaintSelects();
         syncExposureButtons();
@@ -526,9 +535,9 @@
     document.querySelectorAll('.exposure').forEach((button) => {
         button.addEventListener('click', () => {
             state.exposure = button.dataset.exposure;
-            state.covering = currentOptions()[0].id;
+            state.covering = defaultCoveringFor(state.exposure).id;
             const covering = coveringById(state.covering);
-            state.substrate = covering.substrates[0];
+            state.substrate = defaultSubstrateFor(covering, state.exposure);
             state.coats = null;
             state.waste = null;
             state.sheen = null;
@@ -754,8 +763,11 @@
     });
 
     $('send-editor').addEventListener('click', () => {
+        // Paint is one product per sheen in the editor, so hand over the
+        // product that matches the selected sheen rather than the base entry.
+        const sheenCovering = design.covering.family === 'paint' ? paintCoveringForSheen(design.sheen.id) : null;
         const draft = {
-            covering: design.covering.id,
+            covering: sheenCovering || design.covering.id,
             colour: design.colour.id,
             sheen: design.sheen.id,
             exposure: design.config.exposure,
@@ -818,7 +830,8 @@
         setOption(key, value) {
             state[key] = value;
             if (key === 'exposure') {
-                state.covering = currentOptions()[0].id;
+                state.covering = defaultCoveringFor(state.exposure).id;
+                state.substrate = defaultSubstrateFor(coveringById(state.covering), state.exposure);
                 fillCoveringSelect();
                 fillSubstrateSelect();
             }

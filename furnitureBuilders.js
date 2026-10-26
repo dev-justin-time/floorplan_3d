@@ -82,6 +82,46 @@ export const buildRoundWindow = (width, height, depth, material, fixture) => {
     return group;
 };
 
+/** A ceiling luminaire sent from the lighting suite; the disc is emissive. */
+export const buildCeilingLight = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    group.position.y = fixture?.metadata?.mountHeight ?? 2.4;
+    const trimMat = createMat(0xf8fafc, 0.15, 0.55);
+    const trim = new THREE.Mesh(new THREE.CylinderGeometry(width / 2, width / 2, Math.max(height, 0.04), 24), trimMat);
+    addChild(group, trim, 0, 0, 0);
+    const diffuserMat = new THREE.MeshStandardMaterial({
+        color: 0xfff4cf, emissive: 0xffe8a3, emissiveIntensity: 0.85, roughness: 0.4
+    });
+    const diffuser = new THREE.Mesh(new THREE.CylinderGeometry(width * 0.4, width * 0.4, 0.012, 24), diffuserMat);
+    addChild(group, diffuser, 0, -Math.max(height, 0.04) / 2 - 0.006, 0);
+    return group;
+};
+
+/** Wall switch faceplate; binds to a wall like a window but cuts no opening. */
+export const buildWallSwitch = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    group.position.y = fixture?.metadata?.mountHeight ?? 1.2;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(width, height, Math.max(depth, 0.012)), createMat(0xffffff, 0.05, 0.55));
+    addChild(group, plate, 0, 0, 0);
+    const rocker = new THREE.Mesh(new THREE.BoxGeometry(width * 0.55, height * 0.55, 0.006), material || createMat(0xe2e8f0, 0.05, 0.7));
+    addChild(group, rocker, 0, 0, Math.max(depth, 0.012) / 2 + 0.003);
+    return group;
+};
+
+/** Socket faceplate with two slots, sized to the lighting suite's wall devices. */
+export const buildWallSocket = (width, height, depth, material, fixture) => {
+    const group = new THREE.Group();
+    group.position.y = fixture?.metadata?.mountHeight ?? 0.3;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(width, height, Math.max(depth, 0.012)), createMat(0xffffff, 0.05, 0.55));
+    addChild(group, plate, 0, 0, 0);
+    const slotMat = createMat(0x475569, 0.1, 0.8);
+    [-width * 0.2, width * 0.2].forEach((x) => {
+        const slot = new THREE.Mesh(new THREE.BoxGeometry(width * 0.08, height * 0.22, 0.006), slotMat);
+        addChild(group, slot, x, 0, Math.max(depth, 0.012) / 2 + 0.003);
+    });
+    return group;
+};
+
 export const buildSofa = (width, height, depth, material, fixture) => {
     const group = new THREE.Group();
     const seatH = height * 0.5 || 0.45;
@@ -898,6 +938,9 @@ export const FurnitureFactory = {
     'door': buildDoor,
     'window': buildWindow,
     'round_window': buildRoundWindow,
+    'ceiling_light': buildCeilingLight,
+    'wall_switch': buildWallSwitch,
+    'wall_socket': buildWallSocket,
 
     // Merlot cabinetry line
     'merlot_base_cabinet': buildMerlotBaseCabinet,

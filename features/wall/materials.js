@@ -661,6 +661,26 @@ export const WALL_COVERINGS = [
 
 export const COVERING_COUNT = WALL_COVERINGS.length;
 
+/** The covering a fresh wall starts on, per side of the envelope. */
+export const DEFAULT_COVERING_BY_EXPOSURE = {
+    interior: 'paint-eggshell',
+    exterior: 'paint-exterior-acrylic'
+};
+
+export function defaultCoveringFor(exposure = 'interior') {
+    const id = DEFAULT_COVERING_BY_EXPOSURE[exposure === 'exterior' ? 'exterior' : 'interior'];
+    return WALL_COVERINGS.find((entry) => entry.id === id) || WALL_COVERINGS[0];
+}
+
+/** A sensible first substrate for a covering, preferring the correct side. */
+export function defaultSubstrateFor(covering, exposure = 'interior') {
+    const order = exposure === 'exterior'
+        ? ['wood-primed', 'fiber-cement', 'masonry', 'concrete-new', 'wood-bare', 'concrete-cured', 'metal', 'vinyl']
+        : ['gypsum-painted', 'gypsum-new', 'plaster-painted', 'plaster-new', 'gypsum-wet', 'concrete-cured', 'masonry', 'wood-primed', 'fiber-cement', 'metal', 'wallpaper'];
+    const allowed = covering?.substrates || [];
+    return order.find((id) => allowed.includes(id)) || allowed[0] || SUBSTRATES[0].id;
+}
+
 export function coveringById(id) {
     return WALL_COVERINGS.find((entry) => entry.id === id) || WALL_COVERINGS[0];
 }
@@ -672,6 +692,23 @@ export function coveringOptions({ exposure = 'interior' } = {}) {
 
 export function sheenById(id) {
     return PAINT_SHEENS.find((entry) => entry.id === id) || PAINT_SHEENS[2];
+}
+
+// The paint product that carries each sheen, for the editor hand-off. A sheen
+// is a property of the product there, not a separate field.
+export const PAINT_COVERING_BY_SHEEN = {
+    'dead-flat': 'paint-dead-flat',
+    matte: 'paint-matte',
+    eggshell: 'paint-eggshell',
+    satin: 'paint-satin',
+    'semi-gloss': 'paint-semi-gloss',
+    gloss: 'paint-gloss',
+    'exterior-satin': 'paint-exterior-acrylic',
+    'exterior-gloss': 'paint-exterior-acrylic'
+};
+
+export function paintCoveringForSheen(sheenId) {
+    return PAINT_COVERING_BY_SHEEN[sheenId] || null;
 }
 
 export function colourById(id) {

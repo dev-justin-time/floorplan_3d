@@ -113,10 +113,12 @@ async function main() {
 
         async function load(url) {
             await cdp.send('Page.navigate', { url });
-            await sleep(2500);
+            await sleep(3500);
         }
 
-        async function waitFor(expression, timeout = 8000) {
+        // The editor pulls its Three.js addons from esm.sh, so a cold CDN can
+        // take several seconds before the module graph finishes.
+        async function waitFor(expression, timeout = 20000) {
             const started = Date.now();
             while (Date.now() - started < timeout) {
                 try {
@@ -564,7 +566,9 @@ async function main() {
             const viewMode = window.studioKit.walk() ? document.getElementById('view-3d').style.opacity : null;
 
             window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true }));
-            await new Promise((resolve) => setTimeout(resolve, 700));
+            // Headless Chrome can throttle animation frames, so hold the key
+            // long enough for the walker's frame-clocked movement to register.
+            await new Promise((resolve) => setTimeout(resolve, 1400));
             window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true }));
             const moved = window.studioKit.walk();
 
@@ -1256,10 +1260,11 @@ async function main() {
                 cost: document.getElementById('total-cost').textContent,
                 finish: document.getElementById('finish-qty').textContent,
                 painted,
-                csv: window.wallSuite.csv().includes('"Summary","Total"')
+                csv: window.wallSuite.csv().includes('"Summary","Total"'),
+                overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
             };
         })()`);
-        check('wall suite lists coverings', wallPage.coverings >= 30, `${wallPage.coverings} options`);
+        check('wall suite lists coverings', wallPage.coverings >= 20, `${wallPage.coverings} interior options`);
         check('wall suite lists the paint palette', wallPage.colours >= 20 && wallPage.palette >= 20, `${wallPage.colours} swatches`);
         check('wall suite builds a colour scheme', wallPage.schemes === 4, `${wallPage.schemes} swatches`);
         check('wall result card is filled', /m²/.test(wallPage.area) && /\$/.test(wallPage.cost), `${wallPage.area} · ${wallPage.cost}`);
@@ -1271,6 +1276,7 @@ async function main() {
         check('wall 3D canvas present', wallPage.canvases === 1, `${wallPage.canvases} canvas`);
         check('wall elevation is drawn', wallPage.painted > 5000, `${wallPage.painted} painted pixels`);
         check('wall CSV carries the summary', wallPage.csv === true);
+        check('wall suite fits without sideways scroll', wallPage.overflow <= 1, `${wallPage.overflow}px`);
 
         const wallFlow = await cdp.evaluate(`(() => {
             document.getElementById('exposure-exterior').click();

@@ -14,6 +14,7 @@ import {
     substrateById,
     finishPatchFor,
     buildColourScheme,
+    paintCoveringForSheen,
     lrvOf,
     shiftHue,
     shiftLightness,
@@ -36,6 +37,7 @@ import {
     searchWallGlossary
 } from './features/wall/glossary.js';
 import { wallParts } from './features/wall/preview.js';
+import { wallFinishOf, setWallFinish } from './features/wall-finish.js';
 
 let pass = 0;
 let fail = 0;
@@ -65,6 +67,8 @@ check('exterior coverings are listed', coveringOptions({ exposure: 'exterior' })
 check('families group without losing an entry', coveringsByFamily({ exposure: 'interior' }).reduce((sum, group) => sum + group.entries.length, 0) === coveringOptions({ exposure: 'interior' }).length);
 check('unknown coverings fall back to the first', coveringById('nope').id === WALL_COVERINGS[0].id);
 check('paint coverings carry a sheen and a colour', WALL_COVERINGS.filter((entry) => entry.family === 'paint').every((entry) => sheenById(entry.sheen).id === entry.sheen && colourById(entry.defaultColour)));
+check('each paint sheen maps to an editor product', paintCoveringForSheen('satin') === 'paint-satin' && paintCoveringForSheen('dead-flat') === 'paint-dead-flat');
+check('exterior sheens map to an exterior product', coveringById(paintCoveringForSheen('exterior-satin')).exposure === 'exterior');
 check('exterior paint is not approved over interior gypsum', !coveringById('paint-exterior-acrylic').substrates.includes('gypsum-new'));
 check('tile includes a wet backer', coveringById('tile-ceramic').substrates.includes('gypsum-wet') && coveringById('tile-ceramic').substrates.includes('fiber-cement'));
 check('stucco requires a WRB', coveringById('stucco-3coat').requiresWrb === true);
@@ -117,6 +121,7 @@ const fallbackExterior = computeWallDesign({ exposure: 'exterior' });
 check('exterior exposure swaps to an exterior covering', fallbackExterior.covering.exposure !== 'interior', fallbackExterior.covering.id);
 const fallbackInterior = computeWallDesign({ exposure: 'interior', covering: 'vinyl-siding' });
 check('interior exposure swaps to an interior covering', fallbackInterior.covering.exposure !== 'exterior', fallbackInterior.covering.id);
+check('a sheen selects the matching paint product', computeWallDesign({ covering: 'paint-eggshell', sheen: 'satin' }).covering.id === 'paint-satin');
 check('areas can be supplied directly', near(computeWallDesign({ area: 50 }).areas.net, 50, 1e-6));
 check('waste is clamped', computeWallDesign({ waste: 5 }).areas.waste <= 0.4);
 check('coats are clamped', computeWallDesign({ coats: 12 }).areas.coats <= 5);
@@ -140,6 +145,11 @@ check('packs are rounded up', wallpaper.rows.every((row) => Number.isInteger(row
 check('finishPatchFor maps a paint colour', finishPatchFor('paint-satin', 'sage').color === '#A9B6A2');
 check('finishPatchFor maps a system colour', finishPatchFor('stucco-3coat').color === '#E6DFD2');
 check('finishPatchFor falls back to null texture', finishPatchFor('vinyl-siding').texture === null);
+const wallStyles = {};
+setWallFinish(wallStyles, 'wall_1', finishPatchFor('tile-ceramic', 'greige'));
+const wallFinish = wallFinishOf({ id: 'wall_1' }, wallStyles);
+check('a covering patch reaches the wall finish', wallFinish.texture === 'tile' && wallFinish.color === '#D6CFC2' && wallStyles.wall_1.covering === 'tile-ceramic');
+check('another wall falls back to the storey texture', wallFinishOf({ id: 'wall_2' }, wallStyles, 'paint').texture === 'paint');
 
 console.log('\nChecks');
 const ids = (result) => result.checks.map((entry) => entry.id);
@@ -235,7 +245,7 @@ check('the page has interior and exterior modes', page.includes('id="exposure-in
 check('the page offers colours and harmonies', page.includes('id="colour-grid"') && page.includes('id="harmony"'));
 check('the page lists every check', page.includes('id="checks"'));
 check('the editor has a covering select', editor.includes('id="wall-covering-select"'));
-check('the editor imports the wall kit', editorJs.includes("from './features/wall/index.js'"));
+check('the editor imports the wall kit', editorJs.includes("from './features/wall/materials.js'") && editorJs.includes("from './features/wall/design.js'"));
 check('the editor applies and prices coverings', editorJs.includes('function applyWallCovering') && editorJs.includes('function wallCoveringDesign'));
 check('the editor consumes the designer draft', editorJs.includes("localStorage.getItem('wall-editor-draft')"));
 check('the editor exposes the wall handle', editorJs.includes('window.wallKit'));

@@ -54,6 +54,22 @@ export const ITEM_METADATA = {
     // sillHeight = floor to the bottom edge of the unit.
     window: { type: 'in_wall', width: 1.2, depth: 0.15, height: 1.2, color: 0x87ceeb, sillHeight: WINDOW_SILL_HEIGHT, altitude: WINDOW_SILL_HEIGHT },
     round_window: { type: 'in_wall', width: 1.0, depth: 0.15, height: 1.0, color: 0x87ceeb, sillHeight: 1.5, altitude: 1.5, shape: 'circle' },
+
+    // Electrical plan pieces sent from lighting-designer.html. The ceiling
+    // light is a real 3D fitting; the switch and socket are faceplates that
+    // bind to the nearest wall, so the plan reads as an electrical layout.
+    ceiling_light: {
+        type: 'floor', width: 0.36, depth: 0.36, height: 0.12, color: 0xfff4cf,
+        label: 'Ceiling light', mountHeight: 2.4
+    },
+    wall_switch: {
+        type: 'in_wall', width: 0.075, depth: 0.015, height: 0.12, color: 0xffffff,
+        label: 'Light switch', mountHeight: 1.2
+    },
+    wall_socket: {
+        type: 'in_wall', width: 0.08, depth: 0.015, height: 0.12, color: 0xffffff,
+        label: 'Socket', mountHeight: 0.3
+    },
     
     // Bathroom
     bathtub: { type: 'floor', width: 1.6, depth: 0.8, height: 0.5, color: 0xffffff },

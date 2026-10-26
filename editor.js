@@ -73,7 +73,8 @@ import {
     startPlacement,
     createWalkthrough,
     exportScene,
-    downloadExport
+    downloadExport,
+    openingsForWall
 } from './features/advanced/index.js';
 import {
     recognizePlanText,
@@ -167,13 +168,11 @@ import {
     POOL_SHAPE_LABELS,
     createLandscapePanel
 } from './features/landscape/index.js';
-import {
-    WALL_COVERINGS,
-    coveringById,
-    finishPatchFor,
-    computeWallDesign,
-    wallAreaFromPlan
-} from './features/wall/index.js';
+// The editor only needs the catalogue and the engine; the preview belongs to
+// wall-designer.html, so importing the folder index here would pull Three.js
+// viewers the editor never uses.
+import { WALL_COVERINGS, coveringById, finishPatchFor } from './features/wall/materials.js';
+import { computeWallDesign, wallAreaFromPlan } from './features/wall/design.js';
 
 // Application State
 const AppState = {
@@ -388,7 +387,9 @@ function init() {
     // paints every wall on the plan, so the editor opens on the chosen finish.
     const wallDraft = applyWallEditorDraft();
     refreshWallCoveringPanel();
-    if (roofDraft || wallDraft) update3D();
+    // A lighting plan arrives with luminaires and wall devices as 3D pieces.
+    const lightingDraft = applyLightingEditorDraft();
+    if (roofDraft || wallDraft || lightingDraft) update3D();
 
     // Initial Draw
     onResize();
@@ -2145,11 +2146,11 @@ function refreshFinishPanel() {
 function planWallArea() {
     const story = AppState.stories?.[AppState.currentStoryIndex];
     const height = storeyConstruction(story).wallHeight;
-    const openings = activeOpenings().map((opening) => ({
-        width: opening.width,
-        height: opening.height,
-        area: Number.isFinite(opening.area) ? opening.area : undefined
-    }));
+    // Deduct the doors and windows bound to walls; floor cutouts are stair
+    // voids in the slab, not holes in the wall finish.
+    const openings = AppState.walls.flatMap((wall) =>
+        openingsForWall(wall, AppState.fixtures).map((opening) => ({ width: opening.width, height: opening.height }))
+    );
     return wallAreaFromPlan(AppState.walls, { wallHeight: height, openings });
 }
 
@@ -2242,6 +2243,108 @@ function applyWallCovering(coveringId) {
     refreshFinishPanel();
     refreshWallCoveringPanel();
     return covering ? covering.id : null;
+}
+
+/**
+ * A lighting plan sent from lighting-designer.html becomes real 3D pieces:
+ * ceiling luminaires plus wall faceplates for switches and sockets. The suite's
+ * room plan is a local metre grid, so it is centred in the current storey and
+ * scaled down if the editor room is smaller than the design room.
+ */
+function applyLightingEditorDraft() {
+    let draft = null;
+    try {
+        draft = JSON.parse(localStorage.getItem('lighting-editor-draft') || 'null');
+        if (draft) localStorage.removeItem('lighting-editor-draft');
+    } catch (error) {
+        return false;
+    }
+    const roomPlan = draft?.plan;
+    if (!roomPlan || !Array.isArray(roomPlan.devices) || !roomPlan.devices.length) return false;
+
+    const points = [];
+    (AppState.walls || []).forEach((wall) => {
+        if (wall.start) points.push(wall.start);
+        if (wall.end) points.push(wall.end);
+    });
+    const canvasWidth = blueprintCanvas?.width || 1;
+    const canvasHeight = blueprintCanvas?.height || 1;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    points.forEach((point) => {
+        minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+        minY = Math.min(minY, point.y); maxY = Math.max(maxY, point.y);
+    });
+    if (!points.length) {
+        minX = canvasWidth / 2 - 5 * PIXELS_PER_METER;
+        maxX = canvasWidth / 2 + 5 * PIXELS_PER_METER;
+        minY = canvasHeight / 2 - 5 * PIXELS_PER_METER;
+        maxY = canvasHeight / 2 + 5 * PIXELS_PER_METER;
+    }
+    const centre = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+    const availableWidth = Math.max(maxX - minX, 6 * PIXELS_PER_METER);
+    const availableDepth = Math.max(maxY - minY, 6 * PIXELS_PER_METER);
+    const scale = Math.min(
+        1,
+        (availableWidth * 0.88) / Math.max((roomPlan.width || 1) * PIXELS_PER_METER, 1),
+        (availableDepth * 0.88) / Math.max((roomPlan.depth || 1) * PIXELS_PER_METER, 1)
+    );
+    const planPoint = (x, y) => ({
+        x: centre.x + ((Number(x) || 0) - roomPlan.width / 2) * PIXELS_PER_METER * scale,
+        y: centre.y + ((Number(y) || 0) - roomPlan.depth / 2) * PIXELS_PER_METER * scale
+    });
+
+    const diameterFor = (category) => {
+        if (category === 'task') return 0.45;
+        if (category === 'accent') return 0.3;
+        if (category === 'decor') return 0.5;
+        return 0.38;
+    };
+    let added = 0;
+    roomPlan.devices.forEach((device) => {
+        if (!device || device.kind === 'switch' && !AppState.walls?.length) return;
+        const point = planPoint(device.x, device.y);
+        if (device.kind === 'luminaire') {
+            const item = ItemFactory.create('ceiling_light', point.x, point.y, 0);
+            if (!item) return;
+            const diameter = diameterFor(device.category || 'ambient');
+            item.size = { width: diameter, depth: diameter, height: 0.12 };
+            item.elevation = Math.max(0, Number(roomPlan.mountingHeight || 2.4) - 2.4);
+            AppState.fixtureStyles[item.id] = { color: '#fff4cf', material: 'gloss' };
+            AppState.fixtures.push(item);
+            added += 1;
+        } else if (device.kind === 'switch' || device.kind === 'socket') {
+            const type = device.kind === 'switch' ? 'wall_switch' : 'wall_socket';
+            const item = ItemFactory.create(type, point.x, point.y, 0);
+            if (!item) return;
+            item.snapToWall(AppState.walls, 1000);
+            if (!item.boundToWallId) return;
+            const wall = (AppState.walls || []).find((entry) => entry.id === item.boundToWallId);
+            if (wall) {
+                const dx = wall.end.x - wall.start.x;
+                const dy = wall.end.y - wall.start.y;
+                const length = Math.hypot(dx, dy) || 1;
+                let nx = -dy / length;
+                let ny = dx / length;
+                const midpoint = { x: (wall.start.x + wall.end.x) / 2, y: (wall.start.y + wall.end.y) / 2 };
+                if (nx * (centre.x - midpoint.x) + ny * (centre.y - midpoint.y) < 0) { nx = -nx; ny = -ny; }
+                item.x += nx * (wall.thickness / 2 + 2);
+                item.y += ny * (wall.thickness / 2 + 2);
+            }
+            const targetHeight = device.kind === 'switch' ? 1.2 : Number(roomPlan.socketHeight || 0.3);
+            item.elevation = targetHeight - (device.kind === 'switch' ? 1.2 : 0.3);
+            AppState.fixtureStyles[item.id] = { color: '#f8fafc', material: 'gloss' };
+            AppState.fixtures.push(item);
+            added += 1;
+        }
+    });
+    if (added) {
+        AppState.lightingDraft = { ...draft, added };
+        console.log(`Lighting suite: ${added} electrical devices added to the plan.`);
+    }
+    return added > 0;
 }
 
 /** A covering designed in wall-designer.html wins over the autosave. */

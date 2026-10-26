@@ -6,6 +6,8 @@ import {
     sheenById,
     colourById,
     substrateById,
+    defaultCoveringFor,
+    paintCoveringForSheen,
     buildColourScheme,
     lrvOf
 } from './materials.js';
@@ -152,8 +154,20 @@ export function computeWallDesign(options = {}) {
     // that belongs on this side, so switching Interior/Exterior stays coherent.
     const allowed = coveringOptions({ exposure });
     let covering = coveringById(raw.covering);
-    if (!allowed.some((entry) => entry.id === covering.id)) covering = allowed[0];
+    if (!allowed.some((entry) => entry.id === covering.id)) covering = defaultCoveringFor(exposure);
+
+    // A sheen is a separate choice in the suite, but it is a different product
+    // in the catalogue. Switching sheen moves to that product so coverage,
+    // cost, VOC and warranty follow the finish rather than the old defaults.
+    const sheenProduct = raw.sheen ? paintCoveringForSheen(raw.sheen) : null;
+    if (covering.family === 'paint' && sheenProduct
+        && allowed.some((entry) => entry.id === sheenProduct)) {
+        covering = coveringById(sheenProduct);
+    }
+
     const substrate = substrateById(raw.substrate);
+    // The product now carries the sheen, so a stale sheen from the other side
+    // of the envelope cannot survive an exposure switch.
     const sheen = sheenById(covering.sheen || raw.sheen);
     const colour = colourById(raw.colour) || colourById(covering.defaultColour) || colourById('cotton-white');
     const scheme = buildColourScheme(colour.id, raw.harmony);
