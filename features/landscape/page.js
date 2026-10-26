@@ -457,9 +457,9 @@ function setFeatureField(key, value) {
     else plan.feature[key] = value;
 
     if (key === 'type') {
-        const next = defaultWaterConfig(value);
-        plan.feature = { ...next, ...Object.fromEntries(Object.entries(plan.feature).filter(([k, v]) => k !== 'type' && v !== undefined)) };
-        plan.feature.type = value;
+        // Switching family starts from that family's defaults: a spa should not
+        // inherit a pool's 6 h turnover or a water wall's drop.
+        plan.feature = defaultWaterConfig(value);
     }
     if (['width', 'length', 'shallow', 'deep', 'deck', 'type', 'shape'].includes(key)) clampFeatureToSite(plan);
     saveDraft();

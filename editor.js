@@ -390,7 +390,9 @@ function init() {
     refreshWallCoveringPanel();
     // A lighting plan arrives with luminaires and wall devices as 3D pieces.
     const lightingDraft = applyLightingEditorDraft();
-    if (roofDraft || wallDraft || lightingDraft) update3D();
+    // A landscape design arrives as a placed pool, spa or water feature.
+    const landscapeDraft = applyLandscapeEditorDraft();
+    if (roofDraft || wallDraft || lightingDraft || landscapeDraft) update3D();
 
     // Initial Draw
     onResize();
@@ -2387,6 +2389,41 @@ function applyLightingEditorDraft() {
         console.log(`Lighting suite: ${added} electrical devices added to the plan.`);
     }
     return added > 0;
+}
+
+/**
+ * A water feature sent from landscape-designer.html lands at the plan centre,
+ * selected, with the suite's dimensions and barrier/water settings intact.
+ */
+function applyLandscapeEditorDraft() {
+    let draft = null;
+    try {
+        draft = JSON.parse(localStorage.getItem('landscape-editor-draft') || 'null');
+        if (draft) localStorage.removeItem('landscape-editor-draft');
+    } catch (error) {
+        return false;
+    }
+    const feature = draft?.feature;
+    if (!feature || !WATER_FEATURE_TYPES.includes(feature.type)) return false;
+
+    const type = feature.type === 'water-wall' ? 'water_wall' : feature.type;
+    const centre = planCenter();
+    const item = ItemFactory.create(type, centre.x, centre.y, 0);
+    if (!item) return false;
+    item.landscape = { ...waterConfigForItem(item), ...feature };
+    const resolved = waterDesignForItem(item);
+    item.size = {
+        width: resolved.footprint.width,
+        depth: resolved.footprint.depth,
+        height: Math.max(0.2, resolved.deep + (resolved.type === 'water-wall' ? resolved.drop : 0))
+    };
+    item.elevation = 0;
+    AppState.fixtures.push(item);
+    AppState.selectedFixture = item;
+    AppState.selectedWallId = null;
+    stateManager?.saveState?.();
+    console.log(`Landscape suite: placed ${resolved.typeLabel.toLowerCase()} (${Math.round(resolved.gallons)} gal).`);
+    return true;
 }
 
 /** A covering designed in wall-designer.html wins over the autosave. */

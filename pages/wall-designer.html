@@ -1,845 +1,538 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wall suite · paint, finishes and coverings</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        html, body { margin: 0; height: 100%; overflow: hidden; background: #f8fafc; }
-        input[readonly] { background: #f1f5f9; color: #475569; }
-        canvas { display: block; }
-        #elevation { width: 100%; height: 100%; }
-        #stage { width: 100%; height: 100%; }
-        #stage canvas { display: block; width: 100% !important; height: 100% !important; }
-        .severity-ok { color: #15803d; }
-        .severity-info { color: #475569; }
-        .severity-warn { color: #b45309; }
-        .severity-error { color: #dc2626; }
-        .tab.active { background: #0f172a; color: white; }
-        .exposure.active { background: #0f172a; color: white; }
-        .colour-button.selected { outline: 2px solid #0284c7; outline-offset: 2px; }
-        th { position: sticky; top: 0; background: #f8fafc; }
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wall suite · paint, finishes and coverings</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+        :root {
+            --bp-bg-darkest: #040d1a;
+            --bp-bg-navy: #071326;
+            --bp-bg-panel: #0a192f;
+            --bp-bg-card: #0e2444;
+            --bp-border: #1e3a63;
+            --bp-cyan: #00f2fe;
+            --bp-cyan-soft: #38bdf8;
+            --bp-amber: #fbbf24;
+        }
+
+        html, body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #071326;
+            color: #dbeafe;
+            font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .font-mono-draft { font-family: 'Chivo Mono', monospace; }
+
+        /* Blueprint grid background */
+        .blueprint-grid-subtle {
+            background-color: #071326;
+            background-image: 
+                linear-gradient(rgba(30, 58, 99, 0.45) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 58, 99, 0.45) 1px, transparent 1px),
+                linear-gradient(rgba(35, 72, 124, 0.2) 0.5px, transparent 0.5px),
+                linear-gradient(90deg, rgba(35, 72, 124, 0.2) 0.5px, transparent 0.5px);
+            background-size: 40px 40px, 40px 40px, 8px 8px, 8px 8px;
+            background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+        }
+
+        input[type="text"], input[type="number"], select {
+            background-color: #0a1b35 !important;
+            border-color: #1e3a63 !important;
+            color: #e0f2fe !important;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: #00f2fe !important;
+            box-shadow: 0 0 0 1px #00f2fe !important;
+            outline: none;
+        }
+        input[readonly] {
+            background-color: #081528 !important;
+            color: #64748b !important;
+            border-color: #162e52 !important;
+        }
+
+        input[type="checkbox"] {
+            accent-color: #00f2fe;
+            background-color: #0a1b35;
+            border-color: #1e3a63;
+        }
+
+        /* Blueprint Tabs */
+        .tab {
+            background: #0a1b35;
+            color: #7dd3fc;
+            border-color: #1e3a63;
+            transition: all 0.15s ease;
+        }
+        .tab:hover {
+            border-color: #38bdf8;
+            color: #ffffff;
+        }
+        .tab.active {
+            background: #0284c7;
+            color: #ffffff;
+            border-color: #00f2fe;
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.35);
+        }
+
+        .exposure {
+            color: #7dd3fc;
+            transition: all 0.15s ease;
+        }
+        .exposure.active {
+            background: #0284c7;
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.35);
+        }
+
+        .colour-button.selected {
+            outline: 2px solid #00f2fe;
+            outline-offset: 2px;
+            box-shadow: 0 0 8px #00f2fe;
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #071326;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e3a63;
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f2fe;
+        }
     </style>
 </head>
-<body class="h-full text-slate-800">
+<body class="h-full text-sky-100 blueprint-grid-subtle">
 <div class="h-full flex flex-col">
-    <header class="flex items-center justify-between gap-3 px-4 py-2 bg-white border-b border-slate-200">
-        <div class="flex items-baseline gap-3 min-w-0">
-            <h1 class="text-base font-bold whitespace-nowrap">Wall suite</h1>
-            <span class="text-[11px] text-slate-500 truncate">Paint, plaster, wallpaper, panels, tile, siding, stucco · takeoff, checks and previews</span>
-        </div>
-        <div class="flex items-center gap-2 text-[11px] font-semibold shrink-0">
-            <a href="Editor.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Editor</a>
-            <a href="plumbing-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Plumbing</a>
-            <a href="roof-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Roof</a>
-            <a href="stair-designer.html" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Stairs</a>
-            <a href="#reference" id="rules-link" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50" title="Glossary, formulas and the code checks">Rules</a>
-            <button id="reset" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Reset</button>
-            <button id="download-csv" class="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Takeoff CSV</button>
-            <button id="send-editor" class="px-2 py-1 rounded bg-sky-600 text-white hover:bg-sky-700">Send to editor</button>
-        </div>
-    </header>
-
-    <main class="flex-1 min-h-0 flex">
-        <aside class="w-[392px] shrink-0 overflow-y-auto bg-white border-r border-slate-200 p-4 space-y-4">
-            <section>
-                <div class="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
-                    <button id="exposure-interior" class="exposure active px-2 py-1 rounded-md text-[11px] font-bold" data-exposure="interior">Interior</button>
-                    <button id="exposure-exterior" class="exposure px-2 py-1 rounded-md text-[11px] font-bold text-slate-500" data-exposure="exterior">Exterior</button>
-                </div>
-            </section>
-
-            <section>
-                <div class="flex items-baseline justify-between">
-                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Covering</h2>
-                    <span id="covering-count" class="text-[10px] font-mono text-slate-400">—</span>
-                </div>
-                <select id="covering" class="mt-1 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
-                <p id="covering-note" class="text-[10px] text-slate-500 leading-snug mt-1"></p>
-            </section>
-
-            <section id="paint-options" class="space-y-2">
-                <label class="block text-[11px] text-slate-500">Sheen
-                    <select id="sheen" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
-                </label>
-                <p id="sheen-note" class="text-[10px] text-slate-400 leading-snug"></p>
-                <div class="flex items-baseline justify-between">
-                    <p class="text-[11px] text-slate-500">Colour</p>
-                    <span id="colour-count" class="text-[10px] font-mono text-slate-400">—</span>
-                </div>
-                <div id="colour-grid" class="grid gap-1" style="grid-template-columns: repeat(13, minmax(0, 1fr));"></div>
-                <label class="block text-[11px] text-slate-500 mt-1">Harmony
-                    <select id="harmony" class="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-[11px]"></select>
-                </label>
-                <div id="scheme-swatches" class="grid grid-cols-4 gap-1 mt-1"></div>
-                <p id="scheme-note" class="text-[10px] font-mono text-slate-400 leading-snug"></p>
-            </section>
-
-            <section>
-                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Surface and condition</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <label class="block text-[11px] text-slate-500">Substrate
-                        <select id="substrate" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[11px]"></select>
-                    </label>
-                    <label class="block text-[11px] text-slate-500">Condition
-                        <select id="condition" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[11px]">
-                            <option value="new">New work</option>
-                            <option value="repaint">Repaint</option>
-                            <option value="wallpaper">Old wallpaper</option>
-                            <option value="damaged">Damaged wall</option>
-                        </select>
-                    </label>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mt-2">
-                    <label class="block text-[11px] text-slate-500">Fire separation
-                        <select id="fire-rating" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[11px]">
-                            <option value="none">None</option>
-                            <option value="1-hour">1 hour</option>
-                            <option value="2-hour">2 hour</option>
-                        </select>
-                    </label>
-                    <label class="block text-[11px] text-slate-500">Climate zone
-                        <select id="climate" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 text-[11px]">
-                            <option value="1">1 · hot humid</option>
-                            <option value="2">2 · hot</option>
-                            <option value="3">3 · mixed warm</option>
-                            <option value="4" selected>4 · mixed</option>
-                            <option value="5">5 · cold</option>
-                            <option value="6">6 · cold</option>
-                            <option value="7">7 · very cold</option>
-                            <option value="8">8 · subarctic</option>
-                        </select>
-                    </label>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mt-2">
-                    <label class="block text-[11px] text-slate-500">Building year
-                        <input id="building-year" type="number" min="1800" max="2100" step="1" value="2005" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                    <label class="block text-[11px] text-slate-500">Temperature °C
-                        <input id="temperature" type="number" min="-10" max="45" step="1" value="20" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                </div>
-                <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-600">
-                    <label class="flex items-center gap-1.5"><input id="wet-area" type="checkbox"> Wet area</label>
-                    <label class="flex items-center gap-1.5"><input id="primer" type="checkbox" checked> Primer</label>
-                    <label class="flex items-center gap-1.5"><input id="trim" type="checkbox" checked> Trim contrast</label>
-                </div>
-            </section>
-
-            <section>
-                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Wall run</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <label class="block text-[11px] text-slate-500">Length (m)
-                        <input id="length" type="number" min="0.5" max="200" step="0.1" value="12" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                    <label class="block text-[11px] text-slate-500">Height (m)
-                        <input id="height" type="number" min="0.5" max="12" step="0.05" value="2.7" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mt-2">
-                    <label class="block text-[11px] text-slate-500">Openings (m²)
-                        <input id="openings" type="number" min="0" max="200" step="0.1" value="3.2" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                    <label class="block text-[11px] text-slate-500">Perimeter (m)
-                        <input id="perimeter" type="number" min="1" max="500" step="0.1" value="18" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mt-2">
-                    <label class="block text-[11px] text-slate-500">Coats
-                        <input id="coats" type="number" min="1" max="5" step="1" value="2" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                    <label class="block text-[11px] text-slate-500">Waste %
-                        <input id="waste" type="number" min="0" max="40" step="1" value="5" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                </div>
-                <p id="area-note" class="text-[10px] font-mono text-slate-400 mt-1">—</p>
-            </section>
-
-            <section id="exterior-options" class="hidden">
-                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Exterior envelope</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <label class="block text-[11px] text-slate-500">Grade clearance (mm)
-                        <input id="grade" type="number" min="0" max="1200" step="5" value="152" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                    <label class="block text-[11px] text-slate-500">Design wind (mph)
-                        <input id="wind" type="number" min="0" max="250" step="5" value="90" class="mt-0.5 w-full rounded border border-slate-200 px-1 py-0.5 font-mono text-[11px]">
-                    </label>
-                </div>
-                <div class="grid grid-cols-2 gap-x-2 gap-y-1 mt-2 text-[11px] text-slate-600">
-                    <label class="flex items-center gap-1.5"><input id="wrb" type="checkbox" checked> WRB</label>
-                    <label class="flex items-center gap-1.5"><input id="rain-screen" type="checkbox" checked> Drainage cavity</label>
-                    <label class="flex items-center gap-1.5"><input id="flashing" type="checkbox" checked> Flashing</label>
-                    <label class="flex items-center gap-1.5"><input id="rain" type="checkbox"> Rain expected</label>
-                </div>
-            </section>
-
-            <section class="rounded-lg border border-slate-200 p-3">
-                <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-2">Result</h2>
-                <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono">
-                    <span class="text-slate-500">Net area</span><b id="net-area" class="text-right">—</b>
-                    <span class="text-slate-500">Finish</span><b id="finish-qty" class="text-right">—</b>
-                    <span class="text-slate-500">Primer</span><b id="primer-qty" class="text-right">—</b>
-                    <span class="text-slate-500">Packs</span><b id="pack-qty" class="text-right">—</b>
-                    <span class="text-slate-500">Material</span><b id="material-cost" class="text-right">—</b>
-                    <span class="text-slate-500">Labour</span><b id="labour-cost" class="text-right">—</b>
-                </div>
-                <div class="mt-3 pt-2 border-t border-slate-100 flex items-baseline justify-between">
-                    <span class="text-[10px] uppercase tracking-wide text-slate-400">Estimate</span>
-                    <b id="total-cost" class="text-base font-mono">—</b>
-                </div>
-                <p id="cost-note" class="text-[10px] font-mono text-slate-400 text-right">—</p>
-                <p id="check-summary" class="text-[10px] font-mono mt-1">—</p>
-            </section>
-
-            <p class="text-[10px] text-slate-400 leading-snug">
-                Metric design aid. Areas, litres, packs, labour and checks are illustrative; the substrate, wet-area, vapour, fire, WRB and grade rules follow IRC 2021 Chapter 7 and the product data sheets.
-                <a href="#reference" id="glossary-link" class="underline hover:text-sky-700">Glossary &amp; formulas</a> ·
-                <a href="../wall-suite.md" class="underline hover:text-sky-700">Suite notes</a>.
-            </p>
-            <p id="status" class="text-[10px] text-sky-700 min-h-[1rem]"></p>
-        </aside>
-
-        <div class="flex-1 min-w-0 flex flex-col">
-            <nav class="flex items-center gap-2 px-3 pt-3">
-                <button class="tab active px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200" data-tab="design">Design</button>
-                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="takeoff">Takeoff</button>
-                <button class="tab px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-white hover:bg-slate-50" data-tab="reference">Reference</button>
-                <span id="tab-note" class="text-[10px] text-slate-400 ml-auto pr-1">elevation and 3D share the design</span>
-            </nav>
-
-            <div id="panel-design" class="flex-1 min-h-0 flex flex-col">
-                <section class="flex-1 min-h-0 bg-white m-3 mb-0 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                    <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-100">
-                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Elevation</h2>
-                        <span class="text-[10px] text-slate-400">wall run · finish · cutaway layers</span>
-                    </div>
-                    <div class="flex-1 min-h-0 relative">
-                        <canvas id="elevation"></canvas>
-                    </div>
-                </section>
-                <section class="flex-1 min-h-0 bg-white m-3 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                    <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-100">
-                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">3D</h2>
-                        <span class="text-[10px] text-slate-400">drag to orbit · scroll to zoom</span>
-                    </div>
-                    <div class="flex-1 min-h-0 relative">
-                        <div id="stage"></div>
-                    </div>
-                </section>
-            </div>
-
-            <div id="panel-takeoff" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-                <div class="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-slate-100">
-                    <div class="rounded-lg bg-slate-50 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wide text-slate-400">Net area</p>
-                        <p id="takeoff-area" class="text-sm font-bold font-mono">—</p>
-                    </div>
-                    <div class="rounded-lg bg-slate-50 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wide text-slate-400">Finish</p>
-                        <p id="takeoff-finish" class="text-sm font-bold font-mono">—</p>
-                    </div>
-                    <div class="rounded-lg bg-slate-50 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wide text-slate-400">Material</p>
-                        <p id="takeoff-material" class="text-sm font-bold font-mono">—</p>
-                    </div>
-                    <div class="rounded-lg bg-slate-50 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wide text-slate-400">Total</p>
-                        <p id="takeoff-total" class="text-sm font-bold font-mono">—</p>
-                    </div>
-                </div>
-                <div class="px-4 py-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1">Bill of materials</h2>
-                        <div class="rounded-lg border border-slate-200 overflow-hidden">
-                            <table class="w-full text-[11px]">
-                                <thead>
-                                    <tr class="text-left text-slate-400">
-                                        <th class="px-2 py-1 font-semibold">Item</th>
-                                        <th class="px-2 py-1 font-semibold text-right">Qty</th>
-                                        <th class="px-2 py-1 font-semibold">Unit</th>
-                                        <th class="px-2 py-1 font-semibold text-right">Cost</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="takeoff-body"></tbody>
-                            </table>
-                        </div>
-                        <div class="mt-2 flex items-center justify-between text-[11px] font-mono">
-                            <span class="text-slate-500">Labour + prep</span><b id="takeoff-labour">—</b>
-                        </div>
-                        <p id="takeoff-note" class="text-[10px] text-slate-400 mt-1"></p>
-
-                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mt-4 mb-1">Preparation</h2>
-                        <ul id="prep-list" class="space-y-1 text-[11px] leading-snug"></ul>
-                        <div class="mt-2 flex items-center justify-between text-[11px] font-mono">
-                            <span class="text-slate-500">Prep hours</span><b id="prep-hours">—</b>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Checks</h2>
-                            <span id="check-counts" class="text-[10px] font-mono text-slate-400">—</span>
-                        </div>
-                        <ul id="checks" class="space-y-1 text-[11px] leading-snug"></ul>
-                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mt-3 mb-1">Drying and life</h2>
-                        <div id="drying" class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="panel-reference" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-                <div class="px-4 py-3 border-b border-slate-100 sticky top-0 bg-white z-10">
-                    <div class="flex items-center justify-between gap-3">
-                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Wall glossary</h2>
-                        <input id="glossary-search" type="search" placeholder="Search a term…" class="w-56 rounded border border-slate-200 px-2 py-1 text-[11px]">
-                    </div>
-                    <p class="text-[10px] text-slate-400 mt-1">Paint and colour, preparation, plaster, coverings, tile, the exterior envelope and safety. <span id="glossary-count" class="font-mono">—</span></p>
-                </div>
-                <div id="glossary" class="px-4 py-3 grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
-                <div class="px-4 pb-4">
-                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mb-1">Formulas</h2>
-                    <div class="rounded-lg border border-slate-200 overflow-hidden">
-                        <table class="w-full text-[11px]">
-                            <thead><tr class="text-left text-slate-400"><th class="px-2 py-1">Quantity</th><th class="px-2 py-1">Formula</th><th class="px-2 py-1">Note</th></tr></thead>
-                            <tbody id="formulas"></tbody>
-                        </table>
-                    </div>
-                    <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500 mt-4 mb-1">Paint palette</h2>
-                    <div id="palette-table" class="rounded-lg border border-slate-200 overflow-hidden"></div>
-                </div>
-            </div>
-        </div>
-    </main>
+<!-- Blueprint Header -->
+<header class="flex items-center justify-between gap-3 px-4 py-2 bg-[#0a192f]/95 backdrop-blur border-b border-[#1e3a63] text-xs">
+<div class="flex items-baseline gap-3 min-w-0">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-sm bg-[#00f2fe] shadow-[0_0_8px_#00f2fe]"></span>
+<h1 class="text-sm font-bold tracking-wider uppercase text-white font-mono-draft">WALL SUITE // ARCH-SPEC v4.2</h1>
 </div>
-
-<script type="importmap">
-{
-    "imports": {
-        "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
-        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
-    }
-}
-</script>
-<script type="module">
-    import {
-        WALL_DEFAULTS,
-        computeWallDesign,
-        wallTakeoffCsv
-    } from '../features/wall/design.js';
-    import {
-        WALL_COVERINGS,
-        PAINT_COLOURS,
-        PAINT_SHEENS,
-        HARMONIES,
-        SUBSTRATES,
-        coveringById,
-        coveringOptions,
-        coveringsByFamily,
-        defaultCoveringFor,
-        defaultSubstrateFor,
-        paintCoveringForSheen,
-        colourById,
-        lrvOf
-    } from '../features/wall/materials.js';
-    import {
-        WALL_GLOSSARY,
-        WALL_FORMULAS,
-        wallGlossaryByCategory,
-        searchWallGlossary
-    } from '../features/wall/glossary.js';
-    import { createWallViewer, drawWallElevation } from '../features/wall/preview.js';
-
-    const $ = (id) => document.getElementById(id);
-    const DRAFT_KEY = 'wall-suite-draft';
-    const money = (value) => `$${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-    const num = (value, digits = 2) => Number(value || 0).toFixed(digits);
-
-    const FAMILY_LABEL = {
-        paint: 'Paint',
-        plaster: 'Plaster',
-        texture: 'Texture',
-        wallpaper: 'Wallpaper',
-        panel: 'Panels and boards',
-        tile: 'Tile',
-        stone: 'Stone',
-        masonry: 'Masonry',
-        siding: 'Siding',
-        stucco: 'Stucco and render',
-        eifs: 'EIFS',
-        metal: 'Metal'
-    };
-
-    let state = {
-        ...WALL_DEFAULTS,
-        exposure: 'interior',
-        covering: 'paint-eggshell',
-        colour: 'cotton-white',
-        substrate: 'gypsum-painted'
-    };
-    try {
-        const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-        if (saved && typeof saved === 'object') state = { ...state, ...saved };
-    } catch (error) { /* a broken draft falls back to the defaults */ }
-
-    let design = null;
-    const viewer = createWallViewer($('stage'));
-
-    function currentOptions() {
-        return coveringOptions({ exposure: state.exposure });
-    }
-
-    function fillCoveringSelect() {
-        const select = $('covering');
-        const groups = coveringsByFamily({ exposure: state.exposure });
-        select.innerHTML = groups.map((group) => `
-            <optgroup label="${FAMILY_LABEL[group.family] || group.family}">
-                ${group.entries.map((entry) => `<option value="${entry.id}">${entry.label}</option>`).join('')}
-            </optgroup>
-        `).join('');
-        const options = currentOptions();
-        if (!options.some((entry) => entry.id === state.covering)) state.covering = defaultCoveringFor(state.exposure).id;
-        select.value = state.covering;
-        $('covering-count').textContent = `${options.length} of ${WALL_COVERINGS.length}`;
-    }
-
-    function fillSubstrateSelect() {
-        const select = $('substrate');
-        const covering = coveringById(state.covering);
-        const ordered = [...SUBSTRATES].sort((a, b) => {
-            const aFit = covering.substrates.includes(a.id) ? 0 : 1;
-            const bFit = covering.substrates.includes(b.id) ? 0 : 1;
-            return aFit - bFit;
-        });
-        select.innerHTML = ordered.map((entry) => `
-            <option value="${entry.id}">${entry.label}${covering.substrates.includes(entry.id) ? '' : ' · not listed'}</option>
-        `).join('');
-        if (!covering.substrates.includes(state.substrate)) {
-            state.substrate = defaultSubstrateFor(covering, state.exposure);
-        }
-        select.value = state.substrate;
-    }
-
-    function fillPaintSelects() {
-        const sheenSelect = $('sheen');
-        if (!sheenSelect.options.length) {
-            sheenSelect.innerHTML = PAINT_SHEENS.map((entry) => `<option value="${entry.id}">${entry.label} · ${entry.glossUnits} GU</option>`).join('');
-        }
-        const covering = coveringById(state.covering);
-        if (covering.family === 'paint') {
-            if (!state.sheen) state.sheen = covering.sheen;
-            sheenSelect.value = state.sheen;
-        }
-        $('harmony').innerHTML = HARMONIES.map((entry) => `<option value="${entry.id}">${entry.label}</option>`).join('');
-        $('harmony').value = state.harmony;
-        $('colour-grid').innerHTML = PAINT_COLOURS.map((entry) => `
-            <button type="button" class="colour-button w-5 h-5 rounded border border-slate-300" data-colour="${entry.id}"
-                style="background:${entry.hex}" title="${entry.label} · ${entry.hex}"></button>
-        `).join('');
-        $('colour-count').textContent = `${PAINT_COLOURS.length} colours`;
-    }
-
-    // --- Inputs ------------------------------------------------------
-    function bindNumber(id, key, transform = Number) {
-        const element = $(id);
-        element.addEventListener('input', () => {
-            const value = transform(element.value);
-            if (Number.isFinite(value)) {
-                state[key] = value;
-                render();
-            }
-        });
-        if (element.type === 'number') element.value = String(state[key] ?? element.value);
-    }
-
-    function bindSelect(id, key, cast = String) {
-        const element = $(id);
-        element.addEventListener('change', () => {
-            state[key] = cast(element.value);
-            render();
-        });
-        if (state[key] != null) element.value = String(state[key]);
-    }
-
-    function bindToggle(id, key) {
-        const element = $(id);
-        element.checked = Boolean(state[key]);
-        element.addEventListener('change', () => {
-            state[key] = element.checked;
-            render();
-        });
-    }
-
-    ['length', 'height', 'openings', 'perimeter', 'coats'].forEach((key) => {
-        const id = key === 'openings' ? 'openings' : key;
-        const element = $(id);
-        element.value = String(state[key] ?? element.value);
-        element.addEventListener('input', () => {
-            const value = Number(element.value);
-            if (Number.isFinite(value) && value >= 0) {
-                state[key] = value;
-                render();
-            }
-        });
-    });
-    bindNumber('building-year', 'buildingYear');
-    bindNumber('temperature', 'temperatureC');
-    bindNumber('grade', 'gradeClearanceMm');
-    bindNumber('wind', 'windMph');
-    bindNumber('waste', 'waste', (value) => Number(value) / 100);
-
-    bindSelect('condition', 'condition');
-    bindSelect('fire-rating', 'fireRating');
-    bindSelect('climate', 'climateZone', Number);
-    bindSelect('harmony', 'harmony');
-
-    bindToggle('wet-area', 'wetArea');
-    bindToggle('primer', 'primer');
-    bindToggle('trim', 'trim');
-    bindToggle('wrb', 'wrb');
-    bindToggle('rain-screen', 'rainScreen');
-    bindToggle('flashing', 'flashing');
-    bindToggle('rain', 'rainExpected');
-
-    $('covering').addEventListener('change', () => {
-        state.covering = $('covering').value;
-        state.coats = null;
-        state.waste = null;
-        state.sheen = null;
-        const covering = coveringById(state.covering);
-        if (covering.exposure !== 'both') state.exposure = covering.exposure;
-        if (!covering.substrates.includes(state.substrate)) {
-            state.substrate = defaultSubstrateFor(covering, state.exposure);
-        }
-        fillSubstrateSelect();
-        fillPaintSelects();
-        syncExposureButtons();
-        render();
-    });
-
-    $('substrate').addEventListener('change', () => {
-        state.substrate = $('substrate').value;
-        render();
-    });
-
-    $('sheen').addEventListener('change', () => {
-        state.sheen = $('sheen').value;
-        render();
-    });
-
-    $('colour-grid').addEventListener('click', (event) => {
-        const button = event.target.closest('[data-colour]');
-        if (!button) return;
-        state.colour = button.dataset.colour;
-        render();
-    });
-
-    document.querySelectorAll('.exposure').forEach((button) => {
-        button.addEventListener('click', () => {
-            state.exposure = button.dataset.exposure;
-            state.covering = defaultCoveringFor(state.exposure).id;
-            const covering = coveringById(state.covering);
-            state.substrate = defaultSubstrateFor(covering, state.exposure);
-            state.coats = null;
-            state.waste = null;
-            state.sheen = null;
-            fillCoveringSelect();
-            fillSubstrateSelect();
-            fillPaintSelects();
-            syncExposureButtons();
-            render();
-        });
-    });
-
-    function syncExposureButtons() {
-        document.querySelectorAll('.exposure').forEach((button) => {
-            const active = button.dataset.exposure === state.exposure;
-            button.classList.toggle('active', active);
-            button.classList.toggle('text-slate-500', !active);
-        });
-        $('exterior-options').classList.toggle('hidden', state.exposure !== 'exterior');
-    }
-
-    // --- Render ------------------------------------------------------
-    function checkClass(severity) {
-        return severity === 'error' ? 'severity-error'
-            : severity === 'warn' ? 'severity-warn'
-                : severity === 'ok' ? 'severity-ok' : 'severity-info';
-    }
-
-    function renderTakeoff() {
-        $('takeoff-body').innerHTML = design.rows.map((row) => `
-            <tr class="border-t border-slate-100">
-                <td class="px-2 py-1">
-                    <span class="text-[9px] uppercase tracking-wide text-slate-400 block">${row.group}</span>
-                    ${row.item}
-                </td>
-                <td class="px-2 py-1 text-right font-mono">${row.qty}</td>
-                <td class="px-2 py-1 text-slate-500">${row.packLabel || row.unit}</td>
-                <td class="px-2 py-1 text-right font-mono">${money(row.cost)}</td>
-            </tr>
-        `).join('');
-        $('takeoff-area').textContent = `${num(design.areas.net)} m²`;
-        $('takeoff-finish').textContent = design.paint
-            ? `${num(design.paint.litres, 1)} L`
-            : `${design.rows.reduce((sum, row) => sum + row.qty, 0)} packs`;
-        $('takeoff-material').textContent = money(design.costs.material);
-        $('takeoff-total').textContent = money(design.costs.total);
-        $('takeoff-labour').textContent = money(design.costs.labour);
-        $('takeoff-note').textContent = design.paint
-            ? `${design.paint.cans} finish cans + ${design.paint.primerCans} primer cans at ${design.paint.coverageRate} m²/L.`
-            : `${design.rows.length} material lines for ${design.covering.unit}s, with ${Math.round(design.areas.waste * 100)}% waste.`;
-
-        $('prep-list').innerHTML = design.prep.map((task) => `
-            <li>
-                <b class="font-semibold">${task.task}</b>
-                <span class="text-[10px] text-slate-500"> · ${task.hours.toFixed(2)} h</span>
-                <span class="block text-[10px] text-slate-400">${task.note}</span>
-            </li>
-        `).join('');
-        $('prep-hours').textContent = `${num(design.prepHours, 2)} h`;
-
-        $('checks').innerHTML = design.checks.map((check) => `
-            <li class="${checkClass(check.severity)}">
-                <b class="uppercase text-[9px] tracking-wide mr-1">${check.severity}</b>${check.label}
-                ${check.detail ? `<span class="block text-[10px] text-slate-500">${check.detail}</span>` : ''}
-            </li>
-        `).join('');
-        const errors = design.checks.filter((check) => check.severity === 'error').length;
-        const warnings = design.checks.filter((check) => check.severity === 'warn').length;
-        $('check-counts').textContent = `${errors} errors · ${warnings} warnings`;
-        $('check-summary').textContent = `${errors} errors · ${warnings} warnings`;
-        $('check-summary').className = `text-[10px] font-mono mt-1 ${errors ? 'severity-error' : warnings ? 'severity-warn' : 'severity-ok'}`;
-
-        $('drying').innerHTML = `
-            <span class="text-slate-500">Recoat</span><b class="text-right">${design.drying.recoatHours} h</b>
-            <span class="text-slate-500">Cure</span><b class="text-right">${design.drying.cureDays} days</b>
-            <span class="text-slate-500">Service life</span><b class="text-right">${design.covering.lifeYears} years</b>
-            <span class="text-slate-500">Maintenance</span><b class="text-right">${design.covering.maintenanceYears} years</b>
-            <span class="text-slate-500">VOC</span><b class="text-right">${design.covering.vocGL} g/L</b>
-            <span class="text-slate-500">Fire class</span><b class="text-right">${design.covering.fireClass}</b>
-        `;
-    }
-
-    function renderScheme() {
-        const scheme = design.scheme;
-        $('scheme-swatches').innerHTML = [
-            ['Wall', scheme.wall],
-            ['Trim', scheme.trim],
-            ['Accent', scheme.accent],
-            ['Ceiling', scheme.ceiling]
-        ].map(([label, entry]) => `
-            <div class="rounded border border-slate-200 overflow-hidden">
-                <div class="h-6" style="background:${entry.hex}"></div>
-                <p class="text-[8px] font-bold px-1 pt-0.5 truncate">${label}</p>
-                <p class="text-[8px] font-mono text-slate-400 px-1 pb-0.5">LRV ${Math.round(entry.lrv)}</p>
-            </div>
-        `).join('');
-        $('scheme-note').textContent = `${scheme.harmony} · trim +${num(scheme.contrast.trim, 1)} LRV · accent ${num(scheme.contrast.accent, 1)} · ceiling +${num(scheme.contrast.ceiling, 1)}`;
-    }
-
-    function renderReference(filter = '') {
-        const groups = filter
-            ? [{ category: 'Search results', terms: searchWallGlossary(filter) }]
-            : wallGlossaryByCategory();
-        $('glossary').innerHTML = groups.map((group) => `
-            <section>
-                <h3 class="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">${group.category} · ${group.terms.length}</h3>
-                <dl class="space-y-1.5">
-                    ${group.terms.map((entry) => `
-                        <div class="rounded-lg border border-slate-100 bg-slate-50/60 px-2 py-1.5">
-                            <dt class="text-[11px] font-bold">${entry.term}${entry.aka ? `<span class="font-normal text-slate-400"> · ${entry.aka}</span>` : ''}</dt>
-                            <dd class="text-[10px] text-slate-600 leading-snug">${entry.definition}</dd>
-                            ${entry.detail ? `<dd class="text-[10px] text-slate-400 leading-snug mt-0.5">${entry.detail}</dd>` : ''}
-                        </div>
-                    `).join('')}
-                </dl>
-            </section>
-        `).join('');
-        $('glossary-count').textContent = `${WALL_GLOSSARY.length} terms`;
-    }
-
-    function render() {
-        design = computeWallDesign(state);
-        state.covering = design.covering.id;
-        state.colour = design.colour.id;
-        state.substrate = design.substrate.id;
-        if (design.covering.family === 'paint') state.sheen = design.sheen.id;
-
-        $('covering').value = design.covering.id;
-        $('substrate').value = design.substrate.id;
-        $('covering-note').textContent = `${design.covering.note} ${design.covering.lifeYears}-year life · Class ${design.covering.fireClass}${design.covering.vapourClass ? ` · Class ${design.covering.vapourClass} vapour retarder` : ''}.`;
-
-        const paint = design.covering.family === 'paint';
-        $('paint-options').classList.toggle('hidden', !paint);
-        if (paint) {
-            $('sheen').value = design.sheen.id;
-            $('sheen-note').textContent = `${design.sheen.bestFor}. ${design.sheen.note}`;
-            document.querySelectorAll('#colour-grid [data-colour]').forEach((button) => {
-                button.classList.toggle('selected', button.dataset.colour === design.colour.id);
-            });
-            renderScheme();
-        }
-
-        // Coats and waste follow the product until the user sets them.
-        if (state.coats == null) $('coats').value = String(design.areas.coats);
-        if (state.waste == null) $('waste').value = String(Math.round(design.areas.waste * 100));
-        $('area-note').textContent = `${num(design.areas.gross)} gross − ${num(design.areas.openings)} openings = ${num(design.areas.net)} m² · ${num(design.areas.netWithWaste)} m² with waste`;
-        $('net-area').textContent = `${num(design.areas.net)} m²`;
-        $('finish-qty').textContent = design.paint ? `${num(design.paint.litres, 1)} L` : `${design.rows.reduce((sum, row) => sum + row.qty, 0)} packs`;
-        $('primer-qty').textContent = design.paint
-            ? `${num(design.paint.primerLitres, 1)} L`
-            : (design.config.primer ? 'included' : 'off');
-        $('pack-qty').textContent = String(design.rows.reduce((sum, row) => sum + row.qty, 0));
-        $('material-cost').textContent = money(design.costs.material);
-        $('labour-cost').textContent = money(design.costs.labour);
-        $('total-cost').textContent = money(design.costs.total);
-        $('cost-note').textContent = `${money(design.costs.perM2)}/m² · ${design.prepHours} prep h`;
-
-        renderTakeoff();
-        drawWallElevation($('elevation'), design);
-        viewer.update(design);
-
-        try {
-            localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
-        } catch (error) { /* private mode: the page still works without a draft */ }
-    }
-
-    // --- Tabs --------------------------------------------------------
-    const panels = { design: $('panel-design'), takeoff: $('panel-takeoff'), reference: $('panel-reference') };
-    const notes = {
-        design: 'elevation and 3D share the design',
-        takeoff: 'quantities, preparation, checks and the illustrative bill',
-        reference: 'every term, the formulas and the palette'
-    };
-    function selectTab(name) {
-        Object.entries(panels).forEach(([key, panel]) => {
-            panel.classList.toggle('hidden', key !== name);
-            panel.classList.toggle('flex', key === name);
-        });
-        document.querySelectorAll('.tab').forEach((tab) => {
-            const active = tab.dataset.tab === name;
-            tab.classList.toggle('active', active);
-            tab.classList.toggle('bg-white', !active);
-            tab.classList.toggle('hover:bg-slate-50', !active);
-        });
-        $('tab-note').textContent = notes[name] || '';
-        if (name === 'design') {
-            requestAnimationFrame(() => {
-                drawWallElevation($('elevation'), design);
-                window.dispatchEvent(new Event('resize'));
-            });
-        }
-    }
-    document.querySelectorAll('.tab').forEach((tab) => {
-        tab.addEventListener('click', () => selectTab(tab.dataset.tab));
-    });
-    ['glossary-link', 'rules-link'].forEach((id) => {
-        $(id).addEventListener('click', (event) => {
-            event.preventDefault();
-            selectTab('reference');
-        });
-    });
-
-    $('glossary-search').addEventListener('input', (event) => {
-        renderReference(event.target.value);
-    });
-
-    // --- Actions -----------------------------------------------------
-    function download(name, text, type = 'text/csv') {
-        const blob = new Blob([text], { type });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = name;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
-    }
-
-    $('download-csv').addEventListener('click', () => {
-        const name = `wall-takeoff-${design.covering.id}-${design.areas.net.toFixed(1)}m2.csv`;
-        download(name, wallTakeoffCsv(design));
-        $('status').textContent = `Saved ${name}`;
-    });
-
-    $('send-editor').addEventListener('click', () => {
-        // Paint is one product per sheen in the editor, so hand over the
-        // product that matches the selected sheen rather than the base entry.
-        const sheenCovering = design.covering.family === 'paint' ? paintCoveringForSheen(design.sheen.id) : null;
-        const draft = {
-            covering: sheenCovering || design.covering.id,
-            colour: design.colour.id,
-            sheen: design.sheen.id,
-            exposure: design.config.exposure,
-            savedAt: new Date().toISOString()
-        };
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
-        localStorage.setItem('wall-editor-draft', JSON.stringify(draft));
-        $('status').textContent = 'Covering sent to the editor — open Editor.html and check the Finishes panel.';
-        window.location.href = 'Editor.html';
-    });
-
-    $('reset').addEventListener('click', () => {
-        state = {
-            ...WALL_DEFAULTS,
-            exposure: 'interior',
-            covering: 'paint-eggshell',
-            colour: 'cotton-white',
-            substrate: 'gypsum-painted'
-        };
-        localStorage.removeItem(DRAFT_KEY);
-        localStorage.removeItem('wall-editor-draft');
-        window.location.reload();
-    });
-
-    // --- Boot --------------------------------------------------------
-    fillCoveringSelect();
-    fillSubstrateSelect();
-    fillPaintSelects();
-    syncExposureButtons();
-    renderReference('');
-    $('formulas').innerHTML = WALL_FORMULAS.map((entry) => `
-        <tr class="border-t border-slate-100">
-            <td class="px-2 py-1 font-semibold">${entry.label}</td>
-            <td class="px-2 py-1 font-mono text-[10px]">${entry.formula}</td>
-            <td class="px-2 py-1 text-slate-500">${entry.note}</td>
-        </tr>
-    `).join('');
-    $('palette-table').innerHTML = `
-        <table class="w-full text-[11px]">
-            <thead><tr class="text-left text-slate-400"><th class="px-2 py-1">Colour</th><th class="px-2 py-1">Hex</th><th class="px-2 py-1">Family</th><th class="px-2 py-1 text-right">LRV</th></tr></thead>
-            <tbody>
-                ${PAINT_COLOURS.map((entry) => `
-                    <tr class="border-t border-slate-100">
-                        <td class="px-2 py-1"><span class="inline-block w-3 h-3 rounded border border-slate-200 mr-1 align-middle" style="background:${entry.hex}"></span>${entry.label}</td>
-                        <td class="px-2 py-1 font-mono text-[10px] text-slate-500">${entry.hex}</td>
-                        <td class="px-2 py-1 text-slate-500">${entry.family} · ${entry.undertone}</td>
-                        <td class="px-2 py-1 text-right font-mono">${Math.round(lrvOf(entry.hex))}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-    render();
-    selectTab('design');
-
-    window.addEventListener('resize', () => drawWallElevation($('elevation'), design));
-    window.wallSuite = {
-        get design() { return design; },
-        get state() { return { ...state }; },
-        setOption(key, value) {
-            state[key] = value;
-            if (key === 'exposure') {
-                state.covering = defaultCoveringFor(state.exposure).id;
-                state.substrate = defaultSubstrateFor(coveringById(state.covering), state.exposure);
-                fillCoveringSelect();
-                fillSubstrateSelect();
-            }
-            render();
-        },
-        csv: () => wallTakeoffCsv(design)
-    };
-</script>
-</body>
-</html>
+<span class="text-[10px] text-cyan-400/80 font-mono-draft truncate border-l border-[#1e3a63] pl-3">PAINT · PLASTER · WALLPAPER · PANELS · TILE · TAKEOFF &amp; PREVIEWS</span>
+</div>
+<div class="flex items-center gap-2 text-[10px] font-mono-draft shrink-0">
+<a class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-200 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" href="Editor.html">Editor</a>
+<a class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-200 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" href="roof-designer.html">Roof</a>
+<a class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-200 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" href="stair-designer.html">Stairs</a>
+<a class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-200 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" href="#reference" id="rules-link" title="Glossary, formulas and the code checks">Rules</a>
+<button class="px-2.5 py-1 rounded border border-[#1e3a63] bg-[#0e2444]/60 text-sky-300 hover:text-white hover:border-cyan-400 transition-colors uppercase tracking-wider" id="reset">Reset</button>
+<button class="px-2.5 py-1 rounded border border-amber-500/40 bg-amber-950/30 text-amber-300 hover:border-amber-400 hover:text-amber-200 transition-colors uppercase tracking-wider" id="download-csv">Takeoff CSV</button>
+<button class="px-3 py-1 rounded bg-[#0284c7] hover:bg-[#00f2fe] text-white hover:text-slate-950 font-bold border border-cyan-400 shadow-[0_0_12px_rgba(0,242,254,0.3)] transition-all uppercase tracking-wider" id="send-editor">Send to editor</button>
+</div>
+</header>
+<main class="flex-1 min-h-0 flex">
+<!-- Blueprint Control Sidebar -->
+<aside class="w-[392px] shrink-0 overflow-y-auto bg-[#0a192f]/90 border-r border-[#1e3a63] p-4 space-y-4">
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<div class="grid grid-cols-2 gap-1 rounded-lg bg-[#071326] p-1 border border-[#1e3a63]">
+<button class="exposure active px-2 py-1 rounded-md text-[11px] font-bold font-mono-draft uppercase tracking-wider" data-exposure="interior" id="exposure-interior">Interior</button>
+<button class="exposure px-2 py-1 rounded-md text-[11px] font-bold font-mono-draft text-slate-400 uppercase tracking-wider" data-exposure="exterior" id="exposure-exterior">Exterior</button>
+</div>
+</section>
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<div class="flex items-baseline justify-between mb-1">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Covering
+                    </h2>
+<span class="text-[9px] font-mono-draft px-1.5 py-0.5 rounded bg-[#0e2444] border border-[#1e3a63] text-cyan-300" id="covering-count">28 of 32</span>
+</div>
+<select class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[11px] font-mono-draft" id="covering">
+<optgroup class="bg-[#0a1b35] text-cyan-300" label="Paint">
+<option selected="" value="paint-eggshell">Eggshell interior latex</option>
+<option value="paint-matte">Matte interior latex</option>
+<option value="paint-satin">Satin interior enamel</option>
+</optgroup>
+<optgroup class="bg-[#0a1b35] text-cyan-300" label="Tile">
+<option value="ceramic-subway">Ceramic subway tile</option>
+<option value="porcelain-large">Large format porcelain</option>
+</optgroup>
+<optgroup class="bg-[#0a1b35] text-cyan-300" label="Panels">
+<option value="oak-slat">Vertical oak acoustic slat</option>
+<option value="shiplap">Primed MDF shiplap</option>
+</optgroup>
+</select>
+<p class="text-[9.5px] text-sky-300/70 leading-snug mt-1.5 font-mono-draft border-l border-cyan-500/50 pl-2" id="covering-note">Washable low-sheen wall paint for living areas and bedrooms. 8-year life · Class A · Class III vapour retarder.</p>
+</section>
+<section class="border-b border-[#1e3a63]/70 pb-3 space-y-2.5" id="paint-options">
+<label class="block text-[10.5px] text-sky-300 font-mono-draft">Sheen
+                    <select class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[11px] font-mono-draft" id="sheen">
+<option value="matte">Matte · 3 GU</option>
+<option selected="" value="eggshell">Eggshell · 15 GU</option>
+<option value="satin">Satin · 28 GU</option>
+<option value="semi-gloss">Semi-gloss · 50 GU</option>
+</select>
+</label>
+<p class="text-[9.5px] text-cyan-400/80 leading-snug font-mono-draft" id="sheen-note">Living spaces and halls. Soft glow, wipes clean without polishing.</p>
+<div class="flex items-baseline justify-between pt-1">
+<p class="text-[10px] uppercase tracking-wider text-sky-300 font-mono-draft">Colour</p>
+<span class="text-[9px] font-mono-draft text-cyan-300/80" id="colour-count">26 colours</span>
+</div>
+<div class="grid gap-1.5" id="colour-grid" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
+<button class="colour-button selected w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#f4f3ef" title="Cotton White"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#ebe7df" title="Alabaster"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#ded8cb" title="Limestone"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#c5bcab" title="Parchment"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#a39a88" title="Stone Grey"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#706859" title="Umber"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#3d372e" title="Espresso"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#cbd5e1" title="Slate Soft"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#94a3b8" title="Slate Mid"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#475569" title="Slate Deep"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#0284c7" title="Cobalt Accent"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#c2410c" title="Terracotta"></button>
+<button class="colour-button w-5 h-5 rounded border border-[#1e3a63] hover:scale-110 transition-transform" style="background:#059669" title="Sage Green"></button>
+</div>
+<label class="block text-[10.5px] text-sky-300 font-mono-draft mt-2">Harmony
+                    <select class="mt-1 w-full rounded border border-[#1e3a63] px-1.5 py-1 text-[11px] font-mono-draft" id="harmony">
+<option selected="" value="monochrome">Monochromatic architectural</option>
+<option value="contrast">High contrast trim</option>
+<option value="warm">Warm tone-on-tone</option>
+</select>
+</label>
+<div class="grid grid-cols-4 gap-1.5 mt-2" id="scheme-swatches">
+<div class="rounded border border-[#1e3a63] bg-[#071326] overflow-hidden">
+<div class="h-6" style="background:#f4f3ef"></div>
+<p class="text-[8px] font-bold px-1 pt-1 truncate text-white font-mono-draft">Wall</p>
+<p class="text-[8px] font-mono-draft text-cyan-400/80 px-1 pb-1">LRV 84</p>
+</div>
+<div class="rounded border border-[#1e3a63] bg-[#071326] overflow-hidden">
+<div class="h-6" style="background:#ffffff"></div>
+<p class="text-[8px] font-bold px-1 pt-1 truncate text-white font-mono-draft">Trim</p>
+<p class="text-[8px] font-mono-draft text-cyan-400/80 px-1 pb-1">LRV 92</p>
+</div>
+<div class="rounded border border-[#1e3a63] bg-[#071326] overflow-hidden">
+<div class="h-6" style="background:#ded8cb"></div>
+<p class="text-[8px] font-bold px-1 pt-1 truncate text-white font-mono-draft">Accent</p>
+<p class="text-[8px] font-mono-draft text-cyan-400/80 px-1 pb-1">LRV 68</p>
+</div>
+<div class="rounded border border-[#1e3a63] bg-[#071326] overflow-hidden">
+<div class="h-6" style="background:#ffffff"></div>
+<p class="text-[8px] font-bold px-1 pt-1 truncate text-white font-mono-draft">Ceiling</p>
+<p class="text-[8px] font-mono-draft text-cyan-400/80 px-1 pb-1">LRV 92</p>
+</div>
+</div>
+<p class="text-[9.5px] font-mono-draft text-cyan-300/70 leading-snug" id="scheme-note">Monochrome · trim +8.0 LRV · accent -16.0 · ceiling +8.0</p>
+</section>
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft mb-2 flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Surface and Condition
+                </h2>
+<div class="grid grid-cols-2 gap-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Substrate
+                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1 py-1 text-[10.5px] font-mono-draft" id="substrate">
+<option selected="" value="gypsum-painted">Painted drywall</option>
+<option value="gypsum-new">New bare drywall (L4)</option>
+<option value="plaster">Smooth lime plaster</option>
+<option value="masonry">Concrete masonry</option>
+</select>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Condition
+                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1 py-1 text-[10.5px] font-mono-draft" id="condition">
+<option value="new">New work</option>
+<option selected="" value="repaint">Repaint sound</option>
+<option value="wallpaper">Old wallpaper</option>
+<option value="damaged">Damaged wall</option>
+</select>
+</label>
+</div>
+<div class="grid grid-cols-2 gap-2 mt-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Fire separation
+                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1 py-1 text-[10.5px] font-mono-draft" id="fire-rating">
+<option selected="" value="none">None</option>
+<option value="1-hour">1 hour</option>
+<option value="2-hour">2 hour</option>
+</select>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Climate zone
+                        <select class="mt-0.5 w-full rounded border border-[#1e3a63] px-1 py-1 text-[10.5px] font-mono-draft" id="climate">
+<option selected="" value="4">4 · mixed</option>
+<option value="5">5 · cold</option>
+</select>
+</label>
+</div>
+<div class="grid grid-cols-2 gap-2 mt-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Building year
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="building-year" type="number" value="2005"/>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Temperature °C
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="temperature" type="number" value="20"/>
+</label>
+</div>
+<div class="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[10.5px] text-sky-200 font-mono-draft">
+<label class="flex items-center gap-1.5 cursor-pointer"><input class="rounded border-[#1e3a63]" id="wet-area" type="checkbox"/> Wet area</label>
+<label class="flex items-center gap-1.5 cursor-pointer"><input checked="" class="rounded border-[#1e3a63]" id="primer" type="checkbox"/> Primer</label>
+<label class="flex items-center gap-1.5 cursor-pointer"><input checked="" class="rounded border-[#1e3a63]" id="trim" type="checkbox"/> Trim contrast</label>
+</div>
+</section>
+<section class="border-b border-[#1e3a63]/70 pb-3">
+<h2 class="text-[10px] uppercase tracking-widest font-bold text-cyan-400 font-mono-draft mb-2 flex items-center gap-1.5">
+<span class="inline-block w-1.5 h-1.5 bg-cyan-400"></span> Wall Run Geometry
+                </h2>
+<div class="grid grid-cols-2 gap-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Length (m)
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="length" type="number" value="12"/>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Height (m)
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="height" type="number" value="2.7"/>
+</label>
+</div>
+<div class="grid grid-cols-2 gap-2 mt-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Openings (m²)
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="openings" type="number" value="3.2"/>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Perimeter (m)
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="perimeter" type="number" value="18"/>
+</label>
+</div>
+<div class="grid grid-cols-2 gap-2 mt-2">
+<label class="block text-[10px] text-sky-300 font-mono-draft">Coats
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="coats" type="number" value="2"/>
+</label>
+<label class="block text-[10px] text-sky-300 font-mono-draft">Waste %
+                        <input class="mt-0.5 w-full rounded border border-[#1e3a63] px-1.5 py-1 font-mono-draft text-[11px]" id="waste" type="number" value="5"/>
+</label>
+</div>
+<p class="text-[9.5px] font-mono-draft text-cyan-400/80 mt-1.5" id="area-note">32.40 gross − 3.20 openings = 29.20 m² · 30.66 m² with waste</p>
+</section>
+<!-- Blueprint Takeoff Matrix Result -->
+<section class="rounded-lg border border-[#00f2fe]/40 bg-[#0e2444]/90 p-3 shadow-[0_0_15px_rgba(0,242,254,0.1)] relative overflow-hidden">
+<div class="absolute top-0 right-0 w-12 h-12 bg-gradient-to-bl from-cyan-500/20 to-transparent pointer-events-none"></div>
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-[10.5px] uppercase tracking-wider font-bold text-white font-mono-draft flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span> Result Metrics
+                    </h2>
+<span class="text-[9px] font-mono-draft text-amber-300">EST. BILL OF MTLS</span>
+</div>
+<div class="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] font-mono-draft">
+<span class="text-sky-300/80">Net area</span><b class="text-right text-cyan-300 font-bold" id="net-area">29.20 m²</b>
+<span class="text-sky-300/80">Finish</span><b class="text-right text-white" id="finish-qty">5.1 L</b>
+<span class="text-sky-300/80">Primer</span><b class="text-right text-white" id="primer-qty">2.6 L</b>
+<span class="text-sky-300/80">Packs</span><b class="text-right text-white" id="pack-qty">3 cans</b>
+<span class="text-sky-300/80">Material</span><b class="text-right text-cyan-300" id="material-cost">$248</b>
+<span class="text-sky-300/80">Labour</span><b class="text-right text-white" id="labour-cost">$438</b>
+</div>
+<div class="mt-3 pt-2.5 border-t border-[#1e3a63] flex items-baseline justify-between">
+<div>
+<span class="text-[9px] uppercase tracking-wider text-sky-400 font-mono-draft block">TOTAL ESTIMATE</span>
+<p class="text-[9px] font-mono-draft text-emerald-400 font-semibold mt-0.5" id="check-summary">✓ 0 ERRORS · 0 WARNINGS</p>
+</div>
+<div class="text-right">
+<b class="text-lg font-mono-draft text-[#00f2fe] font-bold drop-shadow-[0_0_8px_rgba(0,242,254,0.4)]" id="total-cost">$686</b>
+<p class="text-[9.5px] font-mono-draft text-sky-400/80" id="cost-note">$23/m² · 5.5 prep h</p>
+</div>
+</div>
+</section>
+<p class="text-[9.5px] text-sky-400/60 leading-snug font-mono-draft">
+                ENGINEERING AID: Metric design aid. Areas, litres, packs, labour and checks follow IRC 2021 Chapter 7 and product data sheets.
+                <a class="underline text-cyan-400 hover:text-cyan-200" href="#reference">Glossary &amp; formulas</a> ·
+                <a class="underline text-cyan-400 hover:text-cyan-200" href="wall-suite.md">Suite notes</a>.
+            </p>
+<p class="text-[10px] text-[#00f2fe] min-h-[1rem] font-mono-draft" id="status"></p>
+</aside>
+<!-- Right Blueprint Canvas Area -->
+<div class="flex-1 min-w-0 flex flex-col bg-[#071326]">
+<!-- Blueprint View Tabs -->
+<nav class="flex items-center gap-2 px-4 pt-2 pb-1 bg-[#0a192f] border-b border-[#1e3a63]">
+<button class="tab active px-3.5 py-1.5 rounded text-[11px] font-mono-draft font-bold border tracking-wider flex items-center gap-1.5" data-tab="design">
+<span class="w-2 h-2 rounded-full bg-cyan-400"></span> 01 // DRAFTING &amp; 3D
+                </button>
+<button class="tab px-3.5 py-1.5 rounded text-[11px] font-mono-draft font-bold border tracking-wider" data-tab="takeoff">
+                    02 // SCHEDULE TAKEOFF
+                </button>
+<button class="tab px-3.5 py-1.5 rounded text-[11px] font-mono-draft font-bold border tracking-wider" data-tab="reference">
+                    03 // CODE &amp; CALC SPECS
+                </button>
+<div class="ml-auto flex items-center gap-3 pr-2 text-[10px] font-mono-draft text-cyan-400/80">
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-amber-400 rounded-full"></span> SCALE 1:25</span>
+<span class="border-l border-[#1e3a63] pl-2">GRID: 0.25M UNIT</span>
+</div>
+</nav>
+<div class="flex-1 min-h-0 flex flex-col p-3 gap-3 overflow-hidden" id="panel-design">
+<!-- 2D Technical Elevation Section Blueprint -->
+<section class="flex-1 min-h-0 bg-[#0a192f] rounded-lg border border-[#1e3a63] flex flex-col shadow-lg relative overflow-hidden">
+<div class="flex items-center justify-between px-3 py-1.5 bg-[#0e2444] border-b border-[#1e3a63]">
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-mono-draft text-[9px] border border-cyan-800">DWG-ELV-01</span>
+<h2 class="text-[11px] uppercase tracking-wider font-bold text-white font-mono-draft">ELEVATION SECTION // WALL RUN &amp; CUTAWAY</h2>
+</div>
+<span class="text-[10px] font-mono-draft text-cyan-400/80">SUBSTRATE · PRIMER · FINISH COAT · OPENING</span>
+</div>
+<div class="flex-1 min-h-0 relative p-2 flex items-center justify-center bg-[#071326] overflow-hidden">
+<!-- Wall Elevation Schematic SVG Blueprint -->
+<svg class="w-full h-full max-h-[290px]" preserveaspectratio="xMidYMid meet" viewbox="0 0 800 280">
+<!-- Technical Blueprint Grids & Patterns -->
+<defs>
+<pattern height="10" id="bp-small-grid" patternunits="userSpaceOnUse" width="10">
+<path d="M 10 0 L 0 0 0 10" fill="none" stroke="#102544" stroke-width="0.5"></path>
+</pattern>
+<pattern height="40" id="bp-major-grid" patternunits="userSpaceOnUse" width="40">
+<rect fill="url(#bp-small-grid)" height="40" width="40"></rect>
+<path d="M 40 0 L 0 0 0 40" fill="none" stroke="#163560" stroke-width="1"></path>
+</pattern>
+<!-- Technical Substrate Hatching -->
+<pattern height="8" id="hatch-substrate" patterntransform="rotate(45 0 0)" patternunits="userSpaceOnUse" width="8">
+<line stroke="#1e4a7a" stroke-width="1" x1="0" x2="0" y1="0" y2="8"></line>
+</pattern>
+<!-- Arrowheads -->
+<marker id="arrow-cyan" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="5" refy="5" viewbox="0 0 10 10">
+<path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#00f2fe"></path>
+</marker>
+<marker id="arrow-amber" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="5" refy="5" viewbox="0 0 10 10">
+<path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#fbbf24"></path>
+</marker>
+</defs>
+<rect fill="url(#bp-major-grid)" height="280" width="800"></rect>
+<!-- Blueprint Coordinate Border Framing -->
+<rect fill="none" height="264" stroke="#1e3a63" stroke-width="1.5" width="780" x="10" y="8"></rect>
+<circle cx="10" cy="8" fill="#00f2fe" r="3"></circle>
+<circle cx="790" cy="8" fill="#00f2fe" r="3"></circle>
+<circle cx="10" cy="272" fill="#00f2fe" r="3"></circle>
+<circle cx="790" cy="272" fill="#00f2fe" r="3"></circle>
+<!-- Datum Lines -->
+<line stroke="#00f2fe" stroke-dasharray="6 3 2 3" stroke-opacity="0.8" stroke-width="1" x1="50" x2="750" y1="36" y2="36"></line>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" x="54" y="28">CEILING DATUM +2.700m (CL)</text>
+<line stroke="#38bdf8" stroke-width="1.5" x1="50" x2="750" y1="230" y2="230"></line>
+<text fill="#38bdf8" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" x="54" y="244">FINISHED FLOOR LEVEL ±0.000m (FFL)</text>
+<!-- Substrate Layer Cutaway (Left) -->
+<rect fill="#0c2344" height="182" stroke="#1e3a63" stroke-width="1.5" width="160" x="70" y="36"></rect>
+<rect fill="url(#hatch-substrate)" height="182" opacity="0.65" width="160" x="70" y="36"></rect>
+<g transform="translate(82, 60)">
+<rect fill="#071326" height="48" rx="2" stroke="#1e4a7a" stroke-width="1" width="136" x="0" y="0"></rect>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="9" font-weight="bold" x="8" y="15">SUBSTRATE</text>
+<text fill="#94a3b8" font-family="'Chivo Mono', monospace" font-size="7.5" x="8" y="29">12.7mm Gypsum Board</text>
+<text fill="#38bdf8" font-family="'Chivo Mono', monospace" font-size="7.5" x="8" y="40">Level 4 Joint Finish</text>
+</g>
+<!-- Primer Layer Cutaway (Middle-left) -->
+<polygon fill="#102d54" points="230,36 340,36 315,218 230,218" stroke="#0284c7" stroke-width="1.5"></polygon>
+<g transform="translate(242, 110)">
+<rect fill="#071326" height="36" rx="2" stroke="#0284c7" stroke-width="1" width="85" x="0" y="0"></rect>
+<text fill="#38bdf8" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" x="6" y="14">PRIMER</text>
+<text fill="#94a3b8" font-family="'Chivo Mono', monospace" font-size="7.5" x="6" y="26">PVA High-Hide</text>
+</g>
+<!-- Finish Paint Layer (Main wall body) with glowing blueprint edges -->
+<polygon fill="#0b2242" points="340,36 730,36 730,218 315,218" stroke="#00f2fe" stroke-width="2"></polygon>
+<!-- Baseboard / Skirting in drafting blueprint style -->
+<rect fill="#061933" height="12" stroke="#00f2fe" stroke-width="1.2" width="660" x="70" y="218"></rect>
+<text fill="#7dd3fc" font-family="'Chivo Mono', monospace" font-size="7.5" x="736" y="226">120mm Primed Trim</text>
+<!-- Window Opening Cutout with Technical Hatch & Dimensions -->
+<g transform="translate(430, 68)">
+<rect fill="#051020" height="116" stroke="#00f2fe" stroke-width="1.8" width="170" x="0" y="0"></rect>
+<rect fill="#0a2140" fill-opacity="0.7" height="104" stroke="#38bdf8" stroke-dasharray="3 3" stroke-width="1" width="158" x="6" y="6"></rect>
+<line stroke="#00f2fe" stroke-width="1.5" x1="85" x2="85" y1="6" y2="110"></line>
+<circle cx="85" cy="58" fill="#fbbf24" r="3"></circle>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="9" font-weight="bold" x="14" y="52">WINDOW OPENING</text>
+<text fill="#fbbf24" font-family="'Chivo Mono', monospace" font-size="8" x="14" y="66">1.60m × 1.10m (1.76 m²)</text>
+<text fill="#7dd3fc" font-family="'Chivo Mono', monospace" font-size="7.5" x="14" y="78">SILL HT: +0.900m</text>
+</g>
+<!-- Total Run Dimension Line -->
+<g transform="translate(70, 255)">
+<line stroke="#00f2fe" stroke-width="1" x1="0" x2="0" y1="-8" y2="0"></line>
+<line stroke="#00f2fe" stroke-width="1" x1="660" x2="660" y1="-8" y2="0"></line>
+<line marker-end="url(#arrow-cyan)" marker-start="url(#arrow-cyan)" stroke="#00f2fe" stroke-width="1.2" x1="0" x2="660" y1="-4" y2="-4"></line>
+<rect fill="#071326" height="16" stroke="#1e3a63" stroke-width="0.8" width="120" x="270" y="-12"></rect>
+<text fill="#ffffff" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" text-anchor="middle" x="330" y="0">TOTAL WALL RUN: 12.00 m</text>
+</g>
+<!-- Technical Specification Block -->
+<g transform="translate(615, 48)">
+<rect fill="#0a192f" filter="drop-shadow(0 0 6px rgba(0,242,254,0.25))" height="52" rx="3" stroke="#00f2fe" stroke-width="1.2" width="110" x="0" y="0"></rect>
+<text fill="#ffffff" font-family="'Chivo Mono', monospace" font-size="9.5" font-weight="bold" x="8" y="16">COTTON WHITE</text>
+<text fill="#38bdf8" font-family="'Chivo Mono', monospace" font-size="8" x="8" y="29">Eggshell · 2 Coats</text>
+<text fill="#fbbf24" font-family="'Chivo Mono', monospace" font-size="8" x="8" y="42">LRV 84 · 15 GU</text>
+</g>
+</svg>
+</div>
+</section>
+<!-- 3D Axonometric Structural Stage Blueprint -->
+<section class="flex-1 min-h-0 bg-[#0a192f] rounded-lg border border-[#1e3a63] flex flex-col shadow-lg relative overflow-hidden">
+<div class="flex items-center justify-between px-3 py-1.5 bg-[#0e2444] border-b border-[#1e3a63]">
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-mono-draft text-[9px] border border-cyan-800">3D-AXIS-ISO</span>
+<h2 class="text-[11px] uppercase tracking-wider font-bold text-white font-mono-draft">3D AXONOMETRIC CORNER // STAGE PREVIEW</h2>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[9.5px] font-mono-draft text-cyan-400/80">DRAG TO ORBIT · SCROLL TO ZOOM</span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono-draft bg-cyan-950 text-cyan-300 border border-cyan-500/50 shadow-[0_0_6px_rgba(0,242,254,0.2)]">
+                                INTERNAL 90° CORNER
+                            </span>
+</div>
+</div>
+<div class="flex-1 min-h-0 relative p-2 flex items-center justify-center bg-[#050c18] overflow-hidden">
+<!-- Isometric Blueprint SVG Model -->
+<svg class="w-full h-full max-h-[280px]" preserveaspectratio="xMidYMid meet" viewbox="0 0 700 280">
+<defs>
+<pattern height="20" id="iso-dots" patternunits="userSpaceOnUse" width="20">
+<circle cx="2" cy="2" fill="#162e52" r="1"></circle>
+</pattern>
+</defs>
+<rect fill="url(#iso-dots)" height="100%" width="100%"></rect>
+<!-- XYZ Orientation Axes in Corner -->
+<g transform="translate(35, 235)">
+<line stroke="#ef4444" stroke-width="1.5" x1="0" x2="35" y1="0" y2="0"></line>
+<text fill="#ef4444" font-family="'Chivo Mono', monospace" font-size="8" x="40" y="3">X (WIDTH)</text>
+<line stroke="#22c55e" stroke-width="1.5" x1="0" x2="0" y1="0" y2="-32"></line>
+<text fill="#22c55e" font-family="'Chivo Mono', monospace" font-size="8" x="-3" y="-36">Z (H: 2.7m)</text>
+<line stroke="#00f2fe" stroke-width="1.5" x1="0" x2="-22" y1="0" y2="18"></line>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="8" x="-48" y="28">Y (RUN)</text>
+</g>
+<!-- Floor Plate in Blueprint Dark Palette -->
+<polygon fill="#081830" points="350,225 620,165 350,110 80,165" stroke="#1e3a63" stroke-width="1.5"></polygon>
+<polygon fill="#0b2242" points="350,225 620,165 620,175 350,235" stroke="#1e3a63" stroke-width="1"></polygon>
+<polygon fill="#07172c" points="350,225 80,165 80,175 350,235" stroke="#1e3a63" stroke-width="1"></polygon>
+<!-- Floor Blueprint Isometric Grid Lines -->
+<line stroke="#1e4a7a" stroke-dasharray="3 3" stroke-width="0.8" x1="215" x2="485" y1="137" y2="195"></line>
+<line stroke="#1e4a7a" stroke-dasharray="3 3" stroke-width="0.8" x1="282" x2="552" y1="123" y2="181"></line>
+<line stroke="#1e4a7a" stroke-dasharray="3 3" stroke-width="0.8" x1="485" x2="215" y1="137" y2="195"></line>
+<line stroke="#1e4a7a" stroke-dasharray="3 3" stroke-width="0.8" x1="417" x2="147" y1="123" y2="181"></line>
+<!-- Left Wall (Main finish: Cotton White Wireframe) -->
+<polygon fill="#0e2a4d" fill-opacity="0.85" points="80,165 350,110 350,25 80,75" stroke="#00f2fe" stroke-width="1.8"></polygon>
+<!-- Right Wall (Accent Wall) -->
+<polygon fill="#0a203c" fill-opacity="0.85" points="350,110 620,165 620,75 350,25" stroke="#38bdf8" stroke-width="1.5"></polygon>
+<!-- Left Wall Skirting Wire -->
+<polygon fill="#071b33" points="80,165 350,110 350,104 80,158" stroke="#00f2fe" stroke-width="1"></polygon>
+<!-- Right Wall Skirting Wire -->
+<polygon fill="#071b33" points="350,110 620,165 620,158 350,104" stroke="#38bdf8" stroke-width="1"></polygon>
+<!-- Window on Right Wall in Technical Blueprint Styling -->
+<polygon fill="#061426" points="410,105 520,128 520,78 410,58" stroke="#00f2fe" stroke-width="1.5"></polygon>
+<polygon fill="#0284c7" fill-opacity="0.25" points="416,102 514,124 514,81 416,63" stroke="#38bdf8" stroke-dasharray="2 2" stroke-width="1"></polygon>
+<line stroke="#00f2fe" stroke-width="1.2" x1="465" x2="465" y1="91" y2="70"></line>
+<!-- Dimension Callout Vector: Height -->
+<line stroke="#fbbf24" stroke-dasharray="3 3" stroke-width="1.2" x1="72" x2="72" y1="75" y2="165"></line>
+<circle cx="72" cy="75" fill="#fbbf24" r="2"></circle>
+<circle cx="72" cy="165" fill="#fbbf24" r="2"></circle>
+<text fill="#fbbf24" font-family="'Chivo Mono', monospace" font-size="9" font-weight="bold" x="36" y="124">H: 2.70m</text>
+<!-- Internal Corner Coordinate Node -->
+<circle cx="350" cy="110" fill="#00f2fe" filter="drop-shadow(0 0 6px #00f2fe)" r="4"></circle>
+<line stroke="#00f2fe" stroke-width="1" x1="350" x2="385" y1="110" y2="135"></line>
+<rect fill="#071326" height="18" rx="2" stroke="#00f2fe" stroke-width="1" width="145" x="385" y="125"></rect>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" x="392" y="138">INTERNAL CORNER 90.0°</text>
+<!-- Floating HUD Callout in Viewport -->
+<g transform="translate(485, 218)">
+<rect fill="#0a192f" fill-opacity="0.9" height="46" rx="4" stroke="#00f2fe" stroke-width="1" width="180"></rect>
+<text fill="#00f2fe" font-family="'Chivo Mono', monospace" font-size="8.5" font-weight="bold" x="10" y="15">AXONOMETRIC STAGE</text>
+<text fill="#ffffff" font-family="'Chivo Mono', monospace" font-size="8" x="10" y="27">RUN: 12.0m · H: 2.70m</text>
+<text fill="#fbbf24" font-family="'Chivo Mono', monospace" font-size="8" x="10" y="38">FINISH: EGGSHELL (LRV 84)</text>
+</g>
+</svg>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+</body></html>
