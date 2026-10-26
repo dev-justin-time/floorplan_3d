@@ -1,0 +1,52 @@
+<!-- Add this inside your #shared-viewer-container div, right after viewer-3d-view -->
+<div id="upload-overlay" class="absolute bottom-4 right-4 z-10">
+    <label class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg shadow-lg cursor-pointer hover:bg-opacity-90 transition-all">
+        <span class="material-symbols-outlined text-base">upload_file</span>
+        <span class="text-sm font-bold">Upload Blueprint</span>
+        <input type="file" id="floorplan-upload" accept="image/*" class="hidden">
+    </label>
+</div>
+<div id="processing-toast" class="absolute top-4 left-1/2 -translate-x-1/2 z-10 hidden px-4 py-2 bg-black/70 text-white rounded-full text-sm font-medium backdrop-blur-sm">
+    <span class="inline-block animate-spin mr-2">⏳</span> Processing 2D to 3D...
+</div>
+
+<script type="module">
+import { SharedViewer } from './SharedViewer.js';
+import { FloorPlanProcessor } from './floorPlanProcessor.js'; // Ensure this file exists from our previous chat
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const viewer = new SharedViewer();
+    await viewer.init('shared-viewer-container');
+
+    // Wire up the Upload Button
+    const uploadInput = document.getElementById('floorplan-upload');
+    const toast = document.getElementById('processing-toast');
+
+    uploadInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        toast.classList.remove('hidden');
+        
+        try {
+            const processor = new FloorPlanProcessor();
+            const result = await processor.processImage(file);
+            
+            // Inject the extracted walls into the live 3D viewer!
+            viewer.updateFloorplan(result.walls);
+            
+            // Auto-switch to 3D view to show the result
+            document.getElementById('viewer-toggle').checked = true;
+            document.getElementById('viewer-toggle').dispatchEvent(new Event('change'));
+            
+            window.showToast('Floorplan successfully converted to 3D!', 'success');
+        } catch (err) {
+            console.error(err);
+            window.showToast('Failed to process image. Try a clearer blueprint.', 'error');
+        } finally {
+            toast.classList.add('hidden');
+            uploadInput.value = ''; // Reset
+        }
+    });
+});
+</script>

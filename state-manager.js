@@ -422,10 +422,12 @@ export class StateManager {
 
     restore(snapshot) {
         this.isExecuting = true;
-        if (this.onRestore) {
-            this.onRestore(snapshot);
+        try {
+            if (this.onRestore) this.onRestore(snapshot);
+        } finally {
+            // A restore that throws must not leave every later save blocked.
+            this.isExecuting = false;
         }
-        this.isExecuting = false;
     }
 
     /** Debug view of the command stack without exposing the whole document. */
