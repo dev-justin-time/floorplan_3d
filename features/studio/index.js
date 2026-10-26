@@ -20,6 +20,7 @@ export * from './construction.js';
 export * from './shell.js';
 export * from './openings-plan.js';
 export * from './roof.js';
+export * from './instancing.js';
 export * from './walk-mode.js';
 export { STUDIO } from './constants.js';
 export { drawComments } from './overlays.js';

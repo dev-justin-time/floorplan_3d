@@ -1,3 +1,132 @@
+import { graphFromWalls } from './floorplan-graph.js';
+import { findRooms } from './measurements.js';
+import { planToCanvas } from './world-space.js';
+
+const EPSILON = 1e-6;
+const WELD = 0.01; // pixels
+// Traced partitions can end a pixel or two short of the wall they butt into.
+const ON_SEGMENT_TOLERANCE = 2.5;
+
+const cross = (a, b) => a.x * b.y - a.y * b.x;
+
+function pointOnSegment(point, segment, tolerance = ON_SEGMENT_TOLERANCE) {
+    const dx = segment.end.x - segment.start.x;
+    const dy = segment.end.y - segment.start.y;
+    const length = Math.hypot(dx, dy);
+    if (length < EPSILON) return false;
+    const distance = Math.abs((point.x - segment.start.x) * dy - (point.y - segment.start.y) * dx) / length;
+    if (distance > tolerance) return false;
+    const dot = (point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy;
+    return dot > EPSILON && dot < length * length - EPSILON;
+}
+
+function segmentIntersection(a, b) {
+    const p = a.start;
+    const q = b.start;
+    const r = { x: a.end.x - a.start.x, y: a.end.y - a.start.y };
+    const s = { x: b.end.x - b.start.x, y: b.end.y - b.start.y };
+    const denominator = cross(r, s);
+    if (Math.abs(denominator) < EPSILON) return null;
+
+    const diff = { x: q.x - p.x, y: q.y - p.y };
+    const t = cross(diff, s) / denominator;
+    const u = cross(diff, r) / denominator;
+    if (t <= EPSILON || t >= 1 - EPSILON || u <= EPSILON || u >= 1 - EPSILON) return null;
+
+    return { x: p.x + t * r.x, y: p.y + t * r.y };
+}
+
+/**
+ * Split every wall where another wall crosses it or ends on it.
+ *
+ * Image tracing returns long runs with partitions butted into their middle, so
+ * a plain endpoint weld leaves a T-junction unconnected and the room face walk
+ * sees only the outer outline. Splitting at the crossing gives both walls a
+ * shared node without changing the drawn geometry.
+ */
+function splitWallsAtIntersections(walls) {
+    const segments = walls.map((wall, index) => ({
+        id: wall.id ?? `wall_${index}`,
+        start: { x: wall.start.x, y: wall.start.y },
+        end: { x: wall.end.x, y: wall.end.y }
+    }));
+    const cuts = segments.map(() => []);
+
+    const addCut = (index, point) => {
+        const segment = segments[index];
+        if (!point) return;
+        if (Math.hypot(point.x - segment.start.x, point.y - segment.start.y) < WELD) return;
+        if (Math.hypot(point.x - segment.end.x, point.y - segment.end.y) < WELD) return;
+        cuts[index].push(point);
+    };
+
+    for (let i = 0; i < segments.length; i += 1) {
+        for (let j = i + 1; j < segments.length; j += 1) {
+            const a = segments[i];
+            const b = segments[j];
+
+            const crossing = segmentIntersection(a, b);
+            if (crossing) {
+                addCut(i, crossing);
+                addCut(j, crossing);
+            }
+
+            // A butted partition ends in the middle of the wall it meets.
+            [a.start, a.end].forEach((point) => {
+                if (pointOnSegment(point, b)) addCut(j, point);
+            });
+            [b.start, b.end].forEach((point) => {
+                if (pointOnSegment(point, a)) addCut(i, point);
+            });
+        }
+    }
+
+    const split = [];
+    segments.forEach((segment, index) => {
+        const dx = segment.end.x - segment.start.x;
+        const dy = segment.end.y - segment.start.y;
+        const lengthSq = dx * dx + dy * dy;
+        if (lengthSq < EPSILON) return;
+
+        const points = [segment.start, ...cuts[index], segment.end]
+            .map((point) => ({
+                ...point,
+                t: ((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy) / lengthSq
+            }))
+            .filter((point) => point.t >= -EPSILON && point.t <= 1 + EPSILON)
+            .sort((a, b) => a.t - b.t);
+
+        const unique = [];
+        points.forEach((point) => {
+            if (unique.some((other) => Math.hypot(other.x - point.x, other.y - point.y) < WELD)) return;
+            unique.push(point);
+        });
+
+        for (let i = 0; i < unique.length - 1; i += 1) {
+            const start = unique[i];
+            const end = unique[i + 1];
+            if (Math.hypot(end.x - start.x, end.y - start.y) < WELD) continue;
+            split.push({
+                id: `${segment.id}_${i}`,
+                start: { x: start.x, y: start.y },
+                end: { x: end.x, y: end.y }
+            });
+        }
+    });
+
+    // Collinear overlapping runs can produce the same segment twice; the face
+    // walk expects one edge per shared boundary.
+    const seen = new Set();
+    return split.filter((segment) => {
+        const a = `${Math.round(segment.start.x * 100)},${Math.round(segment.start.y * 100)}`;
+        const b = `${Math.round(segment.end.x * 100)},${Math.round(segment.end.y * 100)}`;
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 export class FloorPlanProcessor {
     constructor() {
         this.canvas = document.createElement('canvas');
@@ -34,12 +163,57 @@ export class FloorPlanProcessor {
         // 4. Vectorization: Simplify and extract orthogonal wall segments
         const walls = this.extractWalls(contours, width, height);
 
+        // 5. Room detection: close the wall graph into polygons so the floors
+        // and area labels have something to attach to.
+        const rooms = this.detectRooms(walls, width, height);
+
         return {
             width,
             height,
             walls,
+            rooms,
             debugImage: this.renderDebug(edges, contours, walls) // Optional: for UI preview
         };
+    }
+
+    /**
+     * Closed rooms from the extracted wall segments.
+     *
+     * Walls are welded into a shared-node graph and the bounded faces are walked
+     * with the same planar face walk the editor uses (floorplan-graph +
+     * measurements), so upload detection and hand-drawn plans agree. Coordinates
+     * come back in image pixels, matching the wall output and the 3D room shape.
+     */
+    detectRooms(walls, width, height) {
+        const usable = (walls || []).filter((wall) => wall?.start && wall?.end);
+        if (usable.length < 3) return [];
+
+        const view = { width, height };
+        const graph = graphFromWalls(splitWallsAtIntersections(usable), view, { snapPixels: 3 });
+
+        return findRooms(graph)
+            .filter((room) => room.area >= 0.25)
+            .map((room, index) => {
+                const vertices = room.vertices.map((point) => planToCanvas(point, view));
+                const center = planToCanvas(room.centroid, view);
+
+                return {
+                    id: `room_${index + 1}`,
+                    name: `Room ${index + 1}`,
+                    area: room.area,
+                    center: { x: center.x, y: center.y },
+                    vertices: vertices.map((point) => ({ x: point.x, y: point.y })),
+                    // The React scene consumes edges, while the plan side uses
+                    // vertices; both describe the same closed polygon.
+                    walls: vertices.map((start, edgeIndex) => ({
+                        start: { x: start.x, y: start.y },
+                        end: {
+                            x: vertices[(edgeIndex + 1) % vertices.length].x,
+                            y: vertices[(edgeIndex + 1) % vertices.length].y
+                        }
+                    }))
+                };
+            });
     }
 
     loadImage(file) {
@@ -364,7 +538,7 @@ export async function processFloorPlan(source) {
             ...wall,
             id: wall.id || `wall_${index}`
         })),
-        rooms: [],
+        rooms: result.rooms || [],
         fixtures: [],
         debugImage: result.debugImage
     };

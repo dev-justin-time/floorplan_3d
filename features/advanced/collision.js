@@ -11,6 +11,64 @@ import { itemDimensions } from '../../items.js';
 
 const EPSILON = 0.5; // plan pixels; touching edges are not an overlap
 
+/** Grid cell size in plan pixels: two metres keeps queries local. */
+export const COLLISION_CELL_SIZE = 2 * PIXELS_PER_METER;
+
+export class SpatialHash {
+    constructor(cellSize = COLLISION_CELL_SIZE) {
+        this.cellSize = cellSize > 0 ? cellSize : COLLISION_CELL_SIZE;
+        this.cells = new Map();
+    }
+
+    key(cx, cy) {
+        return `${cx},${cy}`;
+    }
+
+    cellRange(box) {
+        return {
+            minX: Math.floor(box.minX / this.cellSize),
+            maxX: Math.floor(box.maxX / this.cellSize),
+            minY: Math.floor(box.minY / this.cellSize),
+            maxY: Math.floor(box.maxY / this.cellSize)
+        };
+    }
+
+    insert(fixture, box = boundsOf(fixture)) {
+        if (!fixture) return this;
+        const range = this.cellRange(box);
+        for (let cx = range.minX; cx <= range.maxX; cx += 1) {
+            for (let cy = range.minY; cy <= range.maxY; cy += 1) {
+                const key = this.key(cx, cy);
+                if (!this.cells.has(key)) this.cells.set(key, new Set());
+                this.cells.get(key).add(fixture);
+            }
+        }
+        return this;
+    }
+
+    query(box) {
+        const range = this.cellRange(box);
+        const found = new Set();
+        for (let cx = range.minX; cx <= range.maxX; cx += 1) {
+            for (let cy = range.minY; cy <= range.maxY; cy += 1) {
+                const cell = this.cells.get(this.key(cx, cy));
+                if (cell) cell.forEach((fixture) => found.add(fixture));
+            }
+        }
+        return [...found];
+    }
+}
+
+/** Build a reusable index once per drag instead of scanning every fixture. */
+export function buildCollisionIndex(fixtures = [], { cellSize = COLLISION_CELL_SIZE } = {}) {
+    const index = new SpatialHash(cellSize);
+    (fixtures || []).forEach((fixture) => {
+        if (!fixture || fixture.visible === false) return;
+        index.insert(fixture);
+    });
+    return index;
+}
+
 export function boundsOf(fixture) {
     const dims = itemDimensions(fixture);
     const width = dims.width * PIXELS_PER_METER;
@@ -64,13 +122,25 @@ export function findOverlaps(fixtures = []) {
 }
 
 /** Pairs involving one fixture, so a drag can flag just the moving piece. */
-export function overlapsFor(fixture, fixtures = []) {
+export function overlapsFor(fixture, fixtures = [], { index = null } = {}) {
     if (!fixture) return [];
     const box = boundsOf(fixture);
-    return (fixtures || [])
+    const candidates = index ? index.query(box) : (fixtures || []);
+
+    return candidates
         .filter((other) => other && other !== fixture && other.visible !== false)
         .filter((other) => boxesOverlap(box, boundsOf(other)))
         .map((other) => ({ a: fixture, b: other, box: intersectionOf(box, boundsOf(other)) }));
+}
+
+/** Drag result: valid placement plus the pieces blocking it. */
+export function placementValidity(fixture, fixtures = [], options = {}) {
+    const overlaps = overlapsFor(fixture, fixtures, options);
+    return {
+        valid: overlaps.length === 0,
+        overlaps,
+        blockers: overlaps.map(({ b }) => b)
+    };
 }
 
 /** Set of fixture ids that touch something else (for the warning summary). */

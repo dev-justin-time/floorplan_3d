@@ -3,6 +3,7 @@ import { constrainToLocks } from './features/transforms.js';
 import { gridSnap, wallSnap } from './features/advanced/snapping.js';
 import { isStairItem } from './features/stairs/design.js';
 import { stairPlanContains } from './features/stairs/geometry.js';
+import { buildCollisionIndex, overlapsFor } from './features/advanced/collision.js';
 
 /**
  * Dragging for plan objects (fixtures, windows, doors).
@@ -51,14 +52,25 @@ export function fixtureAt(fixtures, point, { slack = 10, storeyHeight } = {}) {
     return null;
 }
 
-/** Capture the grab offset so the object does not jump to the cursor. */
-export function beginDrag(fixture, point) {
+/**
+ * Capture the grab offset so the object does not jump to the cursor, and build
+ * a spatial index of the other pieces once for the whole gesture.
+ */
+export function beginDrag(fixture, point, { fixtures = null, collision = true } = {}) {
     if (!fixture) return null;
+
+    const others = collision && fixtures
+        ? fixtures.filter((other) => other && other !== fixture)
+        : [];
+
     return {
         fixture,
         offset: { x: point.x - fixture.x, y: point.y - fixture.y },
         // Where the piece started, so locked axes have something to stay on.
-        origin: { x: fixture.x, y: fixture.y }
+        origin: { x: fixture.x, y: fixture.y },
+        collisionIndex: others.length ? buildCollisionIndex(others) : null,
+        valid: null,
+        overlaps: []
     };
 }
 
@@ -67,7 +79,7 @@ export function beginDrag(fixture, point) {
  * wall: in-wall items ride the centreline (which updates the wall id used for
  * cutting the opening), floor items sit flush against the wall face.
  */
-export function dragTo(drag, point, walls, { gridSize = 0, snapThreshold = 20, wallSnap: snapToWall = true } = {}) {
+export function dragTo(drag, point, walls, { gridSize = 0, snapThreshold = 20, wallSnap: snapToWall = true, collision = true } = {}) {
     if (!drag || !drag.fixture) return null;
     const { fixture, offset } = drag;
 
@@ -100,6 +112,16 @@ export function dragTo(drag, point, walls, { gridSize = 0, snapThreshold = 20, w
     const constrained = constrainToLocks(fixture, { x: fixture.x, y: fixture.y }, drag.origin);
     fixture.x = constrained.x;
     fixture.y = constrained.y;
+
+    // Collision is feedback, not a hard stop: the plan overlays turn the ghost
+    // red and name nothing, while the user keeps control of the placement.
+    if (collision && drag.collisionIndex) {
+        drag.overlaps = overlapsFor(fixture, [], { index: drag.collisionIndex });
+        drag.valid = drag.overlaps.length === 0;
+    } else {
+        drag.overlaps = [];
+        drag.valid = null;
+    }
 
     return fixture;
 }

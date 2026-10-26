@@ -48,6 +48,7 @@ import {
 import {
     ADVANCED_FEATURES,
     alignDepth,
+    buildCollisionIndex,
     snapToCorner,
     validatePlacements,
     baseOf,
@@ -679,11 +680,10 @@ function init() {
         history: () => ({
             index: stateManager?.historyIndex,
             depth: stateManager?.history?.length || 0,
-            materials: (stateManager?.history || []).map((snapshot) => snapshot.roomMaterials),
-            stories: (stateManager?.history || []).map((snapshot) => ({
-                count: snapshot.stories?.length ?? null,
-                active: snapshot.currentStoryIndex
-            }))
+            // Delta history exposes command metadata, not full project copies.
+            commands: (stateManager?.history || [])
+                .filter((entry) => entry && !entry.initial)
+                .map((entry) => ({ tag: entry.tag || null, at: entry.at || 0 }))
         }),
         manufacturing: () => manufacturingPackage(AppState.fixtures)
     };
@@ -841,10 +841,25 @@ function onPointerDown(e) {
 
         // Locked (or hidden) pieces can be selected and inspected, but never
         // dragged until they are unlocked.
+        const abilityState = abilitiesState();
         const movable = fixture && !fixture.locked && fixture.visible !== false;
-        AppState.drag = movable ? beginDrag(fixture, pos) : null;
+        AppState.drag = movable
+            ? beginDrag(fixture, pos, {
+                fixtures: AppState.fixtures,
+                collision: abilityState.collisionDetect !== false
+            })
+            : null;
         // Group members keep their offsets from the grabbed piece (feature 25).
         AppState.groupDrag = AppState.drag ? captureGroupOffsets(AppState.fixtures, fixture) : null;
+
+        // A group moves together, so its members' old positions must not count
+        // as obstacles to the piece being dragged.
+        if (AppState.drag?.collisionIndex && AppState.groupDrag?.length) {
+            const moving = new Set([fixture, ...AppState.groupDrag.map((entry) => entry.item)]);
+            AppState.drag.collisionIndex = buildCollisionIndex(
+                AppState.fixtures.filter((candidate) => !moving.has(candidate))
+            );
+        }
         draw2D(pos);
         refreshGizmo();
         syncSelectionPanels();
@@ -935,7 +950,8 @@ function onPointerMove(e) {
         dragTo(AppState.drag, dragPos, AppState.walls, {
             gridSize: abilityState.gridSnap === false ? 0 : AppState.gridSize,
             snapThreshold: 20 / AppState.scale,
-            wallSnap: abilityState.wallSnap !== false
+            wallSnap: abilityState.wallSnap !== false,
+            collision: abilityState.collisionDetect !== false
         });
 
         // Advanced snapping rules (feature 20): depth plane + inside corner.
@@ -3334,7 +3350,11 @@ function draw2D(cursorPos = null) {
         fixtures: AppState.fixtures,
         selected: AppState.selectedFixture,
         selectedWallId: AppState.selectedWallId,
-        state: abilityState,
+        state: {
+            ...abilityState,
+            // The drag index reports whether the moving footprint is clear.
+            dragValid: AppState.drag?.valid ?? null
+        },
         roomLabels: AppState.roomLabels,
         snapGuide: currentSnapGuide(),
         dragged: AppState.drag?.fixture || null,

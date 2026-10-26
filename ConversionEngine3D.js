@@ -22,6 +22,7 @@ import {
     storeyConstruction,
     openingToWorld,
     buildTrussRoof,
+    createInstancedBoxes,
     exteriorWallIds
 } from './features/studio/index.js';
 import { buildStairGeometry, isStairItem } from './features/stairs/index.js';
@@ -508,21 +509,33 @@ export class ConversionEngine3D {
     addFloorBand(group, walls, canvasWidth, canvasHeight, floorDepth) {
         if (!walls?.length || !(floorDepth > 0)) return;
         const material = new THREE.MeshStandardMaterial({ color: 0x8f6b45, roughness: 0.9 });
+        const bands = [];
+
         walls.forEach((wall) => {
+            if (!wall?.start || !wall?.end) return;
             const x1 = (wall.start.x - canvasWidth / 2) / SCALE;
             const z1 = (wall.start.y - canvasHeight / 2) / SCALE;
             const x2 = (wall.end.x - canvasWidth / 2) / SCALE;
             const z2 = (wall.end.y - canvasHeight / 2) / SCALE;
             const length = Math.hypot(x2 - x1, z2 - z1);
             if (length < 0.05) return;
-            const band = new THREE.Mesh(new THREE.BoxGeometry(length, floorDepth, 0.06), material);
-            band.position.set((x1 + x2) / 2, -floorDepth / 2, (z1 + z2) / 2);
-            band.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
-            band.name = 'floor-joist-band';
-            band.castShadow = true;
-            band.receiveShadow = true;
-            group.add(band);
+            bands.push({
+                x: (x1 + x2) / 2,
+                y: -floorDepth / 2,
+                z: (z1 + z2) / 2,
+                width: length,
+                height: floorDepth,
+                depth: 0.06,
+                rotationY: -Math.atan2(z2 - z1, x2 - x1)
+            });
         });
+
+        // One draw call for the whole rim instead of one mesh per wall.
+        const bandMesh = createInstancedBoxes(bands, {
+            material,
+            name: 'floor-joist-bands'
+        });
+        if (bandMesh) group.add(bandMesh);
     }
 
     addCeilingToGroup(group, height) {

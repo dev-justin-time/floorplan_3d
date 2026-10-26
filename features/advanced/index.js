@@ -1,4 +1,4 @@
-import { findOverlaps } from './collision.js';
+import { boundsOf, findOverlaps } from './collision.js';
 
 /**
  * Advanced feature kit: items 19-37 of the editor roadmap, in one folder.
@@ -63,18 +63,34 @@ export function drawAdvancedOverlays(ctx, { fixtures = [], state = {}, dragged =
     const overlaps = findOverlaps(fixtures).filter((pair) => (
         !dragged || pair.a === dragged || pair.b === dragged
     ));
-    if (overlaps.length === 0) return;
+    const dragValid = dragged ? state.dragValid : null;
+    const showGhost = Boolean(dragged) && state.ghostPreview !== false && dragValid != null;
+
+    if (overlaps.length === 0 && !showGhost) return;
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 3]);
 
-    overlaps.forEach(({ box }) => {
+    if (overlaps.length) {
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+        overlaps.forEach(({ box }) => {
+            ctx.fillRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
+            ctx.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
+        });
+    }
+
+    if (showGhost) {
+        // Outline the whole moving footprint: green when the spatial index found
+        // no intersection, red when the piece would land inside something else.
+        const box = boundsOf(dragged);
+        ctx.setLineDash([]);
+        ctx.strokeStyle = dragValid ? 'rgba(34, 197, 94, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+        ctx.fillStyle = dragValid ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.14)';
         ctx.fillRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
         ctx.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY);
-    });
+    }
 
     ctx.restore();
 }

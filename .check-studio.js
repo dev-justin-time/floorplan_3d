@@ -207,9 +207,13 @@ const roof = buildTrussRoof(THREE, { walls: roofWalls, view });
 const counts = { truss: 0, joist: 0, plane: 0, band: 0, king: 0, web: 0, bottom: 0, chord: 0 };
 roof.traverse((child) => {
     if (child.name === 'roof-truss') counts.truss += 1;
-    if (child.name === 'roof-ceiling-joist') counts.joist += 1;
+    // Repeated joists and rim bands are one InstancedMesh now; count what it
+    // draws rather than counting scene nodes.
+    if (child.name === 'roof-ceiling-joists' && child.isInstancedMesh) counts.joist += child.count;
+    else if (child.name === 'roof-ceiling-joist') counts.joist += 1;
     if (child.name === 'roof-plane') counts.plane += 1;
-    if (child.name === 'roof-joist-band') counts.band += 1;
+    if (child.name === 'roof-joist-bands' && child.isInstancedMesh) counts.band += child.count;
+    else if (child.name === 'roof-joist-band') counts.band += 1;
     if (child.name === 'truss-king-post') counts.king += 1;
     if (child.name === 'truss-web') counts.web += 1;
     if (child.name === 'truss-bottom-chord') counts.bottom += 1;
@@ -229,8 +233,14 @@ check('ridge runs along the long side', near(roof.userData.span, 300 / PIXELS_PE
     `${roof.userData.span.toFixed(1)} × ${roof.userData.length.toFixed(1)} m`);
 check('roof rise is capped', roof.userData.rise <= 2.4 && roof.userData.rise > 0.7, `${roof.userData.rise.toFixed(2)} m`);
 
-const joistBand = roof.children.find((child) => child.name === 'roof-joist-band');
-check('band sits in the joist space', joistBand && joistBand.position.y < STOREY_PITCH_M - WALL_HEIGHT_M + 0.001);
+const joistBand = roof.children.find((child) => child.name === 'roof-joist-bands' || child.name === 'roof-joist-band');
+const bandMatrix = new THREE.Matrix4();
+if (joistBand?.isInstancedMesh) joistBand.getMatrixAt(0, bandMatrix);
+const bandY = joistBand?.isInstancedMesh
+    ? new THREE.Vector3().setFromMatrixPosition(bandMatrix).y
+    : joistBand?.position.y;
+check('band sits in the joist space', counts.band === roofWalls.length
+    && bandY < STOREY_PITCH_M - WALL_HEIGHT_M + 0.001, `${counts.band} bands at y=${Number(bandY || 0).toFixed(3)}`);
 
 const emptyRoof = buildTrussRoof(THREE, { walls: [], view });
 check('no walls means no roof', emptyRoof.children.length === 0);

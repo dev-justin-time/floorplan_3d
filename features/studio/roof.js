@@ -9,6 +9,7 @@ import {
     hipSegments
 } from '../roof/styles.js';
 import { coveringById } from '../roof/materials.js';
+import { createInstancedBoxes } from './instancing.js';
 
 /**
  * Top-storey roof (studio feature 41).
@@ -197,7 +198,9 @@ export function buildTrussRoof(THREE, {
     });
     const ventMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2f33, roughness: 0.8 });
 
-    // 8 in joist/ceiling band around the shell.
+    // 8 in joist/ceiling band around the shell. The lengths differ, so the
+    // shared unit box is scaled per instance and the whole rim is one draw call.
+    const rimBoxes = [];
     walls.forEach((wall) => {
         if (!wall?.start || !wall?.end) return;
         const x1 = (wall.start.x - view.width / 2) / PIXELS_PER_METER;
@@ -206,12 +209,21 @@ export function buildTrussRoof(THREE, {
         const z2 = (wall.end.y - view.height / 2) / PIXELS_PER_METER;
         const wallLength = Math.hypot(x2 - x1, z2 - z1);
         if (wallLength < 0.05) return;
-        const rim = box(THREE, wallLength, joistDepth, 0.05, rimMaterial);
-        rim.position.set((x1 + x2) / 2, joistDepth / 2, (z1 + z2) / 2);
-        rim.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
-        rim.name = 'roof-joist-band';
-        group.add(rim);
+        rimBoxes.push({
+            x: (x1 + x2) / 2,
+            y: joistDepth / 2,
+            z: (z1 + z2) / 2,
+            width: wallLength,
+            height: joistDepth,
+            depth: 0.05,
+            rotationY: -Math.atan2(z2 - z1, x2 - x1)
+        });
     });
+    const rimMesh = createInstancedBoxes(rimBoxes, {
+        material: rimMaterial,
+        name: 'roof-joist-bands'
+    });
+    if (rimMesh) group.add(rimMesh);
 
     // Everything above the joist space is generated in the roof's local frame
     // (x across the span, z along the ridge) and then turned onto the plan.
@@ -221,21 +233,32 @@ export function buildTrussRoof(THREE, {
     local.name = 'roof-frame';
 
     const count = Math.max(2, Math.ceil(length / spacing) + 1);
+    const ceilingBoxes = [];
     let joists = 0;
     for (let i = 0; i < count; i += 1) {
         const t = count === 1 ? 0.5 : i / (count - 1);
         const along = -length / 2 + t * length;
 
-        const ceiling = box(THREE, span, 0.038, 0.14, joistMaterial);
-        ceiling.position.set(0, joistDepth / 2, along);
-        ceiling.name = 'roof-ceiling-joist';
-        local.add(ceiling);
+        ceilingBoxes.push({
+            x: 0,
+            y: joistDepth / 2,
+            z: along,
+            width: span,
+            height: 0.038,
+            depth: 0.14
+        });
         joists += 1;
 
         const frame = trussMesh(THREE, members, trussMaterial);
         frame.position.set(0, joistDepth, along);
         local.add(frame);
     }
+
+    const ceilingJoists = createInstancedBoxes(ceilingBoxes, {
+        material: joistMaterial,
+        name: 'roof-ceiling-joists'
+    });
+    if (ceilingJoists) local.add(ceilingJoists);
 
     geometry.planes.forEach((plane) => {
         const meshes = planeMeshes(THREE, plane, deckMaterial, coveringMaterial);

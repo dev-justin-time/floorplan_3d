@@ -2,10 +2,10 @@
  * Advanced feature 27 - undo granularity for multi-step edits.
  *
  * Typing in the inspector, nudging or resizing fires `saveAndSync` on every
- * keystroke, which used to fill the history with one-frame snapshots. A tag
- * plus a coalesce window turns a burst of the same kind of edit into a single
- * undo step: the newest snapshot replaces the one at the top of the stack until
- * the burst ends.
+ * keystroke, which used to fill the history with one-frame steps. A tag plus a
+ * coalesce window turns a burst of the same kind of edit into a single undo
+ * step: the newest delta replaces the command at the top of the stack until the
+ * burst ends.
  */
 
 export const COALESCE_MS = 450;
