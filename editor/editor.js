@@ -5,6 +5,7 @@ import { Wall, ItemFactory, itemDimensions } from '../core/items.js';
 import { StateManager } from '../core/state-manager.js';
 import { StorageManager } from '../core/storage.js';
 import { FloorPlanProcessor } from '../engine/floorPlanProcessor.js';
+import { KITCHEN_LINES } from '../features/kitchen/catalog.js';
 import { graphFromWalls } from '../core/floorplan-graph.js';
 import { measurePlan } from '../core/measurements.js';
 import { PIXELS_PER_METER, WALL_HEIGHT, INCH, canvasToWorld, planToCanvas, wallLengthMetres, worldToCanvas } from '../core/world-space.js';
@@ -12,7 +13,7 @@ import { fitCameraToGraph } from '../scene/scene-camera.js';
 import { fixtureAt, beginDrag, dragTo } from '../scene/scene-drag.js';
 import { snapToWalls } from '../core/wall-snap.js';
 import { createItemGizmo, planFromObject, pickItemId } from '../scene/scene-gizmo.js';
-import { createElevationDrag, frameElevation, applyElevationVisibility, ELEVATION_SIDES } from '../scene/scene-elevation.js';
+import { createElevationDrag, frameElevation, applyElevationVisibility, ELEVATION_SIDES, elevationAxes } from '../scene/scene-elevation.js';
 import { createSceneAbilities, apply3DAbilities } from '../scene/scene-abilities.js';
 import { createLabKit } from '../features/lab/kit.js';
 import { drawPlanOverlays, drawScreenOverlays } from '../engine/plan-overlays.js';
@@ -232,6 +233,8 @@ const AppState = {
     
     // Elevation view ('front' | 'back' | 'left' | 'right'); null is the 3D orbit
     elevationSide: null,
+    // The single wall shown by the elevation, stepped with the bar's arrows.
+    elevationWallId: null,
     
     // Derived plan data from the feature kit (recomputed on every save).
     roomLabels: [],
@@ -317,7 +320,9 @@ const AppState = {
     // places that stair, then the pending preset is cleared.
     pendingStairPreset: null,
 
-    lastConvert: null
+    lastConvert: null,
+    // Last kitchen run imported from the suite (features/kitchen).
+    kitchenDraft: null
 };
 
 // Systems
@@ -430,7 +435,10 @@ function init() {
     const electricalDraft = applyElectricalEditorDraft();
     const landscapeDraft = applyLandscapeEditorDraft();
     const framingDraft = applyFramingEditorDraft();
-    if (roofDraft || wallDraft || lightingDraft || deckDraft || electricalDraft || landscapeDraft || framingDraft) update3D();
+    // A kitchen run arrives with its modules and gap spacing, so the cabinets
+    // land in the plan exactly as the suite dimensioned them.
+    const kitchenDraft = applyKitchenEditorDraft();
+    if (roofDraft || wallDraft || lightingDraft || deckDraft || electricalDraft || landscapeDraft || framingDraft || kitchenDraft) update3D();
 
     // Initial Draw
     onResize();
@@ -459,6 +467,17 @@ function init() {
     window.toggleView = toggleView;
     window.setViewMode = (mode) => setViewMode(mode);
     window.setElevationView = setElevationView;
+    // Elevation wall stepping, for the bar buttons and the headless checks.
+    window.setElevationWall = (id) => setElevationWall(id);
+    window.stepElevationWall = (direction) => stepElevationWall(direction);
+    window.elevationKit = {
+        wall: () => AppState.elevationWallId,
+        walls: () => elevationWalls().map((wall) => wall.id),
+        visible: () => (scene3D ? scene3D.children.flatMap(function collect(node) {
+            const found = node.userData?.type === 'wall' && node.visible ? [node.userData.id] : [];
+            return found.concat(node.children.flatMap(collect));
+        }) : [])
+    };
     // Dimensions are an ability toggle, so the header switch flips the same flag.
     window.toggleDimensions = () => {
         if (abilities) abilities.toggle('dimensions');
@@ -783,6 +802,13 @@ function init() {
     window.addCommentHere = () => addCommentAt(AppState.cursor || planCenter());
     window.resolveComment = (id) => resolveComment(id);
     window.selectComment = (id) => selectComment(id);
+    // Kitchen suite handle: the run that was just imported and its checks.
+    window.kitchenKit = {
+        draft: () => AppState.kitchenDraft || null,
+        added: () => AppState.kitchenDraft?.added || 0,
+        layout: () => AppState.layoutReport,
+        analyze: () => analyzeKitchenLayout()
+    };
     window.studioKit = {
         features: STUDIO_FEATURES,
         storeys: () => storeySummary(AppState),
@@ -2455,6 +2481,80 @@ function applyWallCovering(coveringId) {
  * room plan is a local metre grid, so it is centred in the current storey and
  * scaled down if the editor room is smaller than the design room.
  */
+/**
+ * A kitchen run sent from kitchen-designer.html lands along the longest wall.
+ * Module centres are taken from the suite's run layout, so the fillers and air
+ * gaps the suite dimensioned survive as real spacing in the plan.
+ */
+function applyKitchenEditorDraft() {
+    let draft = null;
+    try {
+        const raw = localStorage.getItem('kitchen-editor-draft');
+        if (raw) localStorage.removeItem('kitchen-editor-draft');
+        draft = JSON.parse(raw || 'null');
+    } catch (error) {
+        return false;
+    }
+
+    const modules = (Array.isArray(draft?.modules) ? draft.modules : [])
+        .filter((module) => module && Number.isFinite(Number(module.x)) && Number(module.width) > 0);
+    if (!modules.length) return false;
+
+    const walls = (AppState.walls || []).filter((wall) => wall?.start && wall?.end);
+    if (!walls.length) return false;
+
+    const longest = walls.reduce((best, wall) => {
+        const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y);
+        return !best || length > best.length ? { wall, length } : best;
+    }, null);
+    if (!longest || longest.length < 20) return false;
+    const { wall, length } = longest;
+
+    const dir = { x: (wall.end.x - wall.start.x) / length, y: (wall.end.y - wall.start.y) / length };
+    // The suite's run is measured wall to wall; centre it if the wall is longer.
+    const runLength = Number(draft.runLength) || (modules.reduce((max, module) => Math.max(max, Number(module.end) || 0), 0));
+    const runStart = Math.max(0, (length - runLength * PIXELS_PER_METER) / 2);
+
+    // Point the normal at the plan centre, the same inward side suggestRun uses.
+    const centre = planCenter();
+    const mid = { x: (wall.start.x + wall.end.x) / 2, y: (wall.start.y + wall.end.y) / 2 };
+    let normal = { x: -dir.y, y: dir.x };
+    if ((centre.x - mid.x) * normal.x + (centre.y - mid.y) * normal.y < 0) {
+        normal = { x: -normal.x, y: -normal.y };
+    }
+
+    const line = KITCHEN_LINES[draft.line] || KITCHEN_LINES.shaker;
+    const wallThicknessPx = wall.thickness || 10;
+    let added = 0;
+
+    modules.forEach((module) => {
+        const role = module.itemRole;
+        const type = role === 'stove'
+            ? 'stove'
+            : role === 'fridge'
+                ? 'fridge'
+                : (line[role] || line.base);
+        const item = ItemFactory.create(type, 0, 0, 0);
+        if (!item) return;
+
+        const along = runStart + Number(module.x) * PIXELS_PER_METER;
+        const depth = (itemDimensions(item).depth || line.depth || 0.6) * PIXELS_PER_METER;
+        item.x = wall.start.x + dir.x * along + normal.x * (wallThicknessPx / 2 + depth / 2);
+        item.y = wall.start.y + dir.y * along + normal.y * (wallThicknessPx / 2 + depth / 2);
+        item.rotation = Math.atan2(dir.y, dir.x);
+        // Bind to the wall so the opening/collision logic sees the run.
+        if (typeof item.snapToWall === 'function') item.snapToWall(AppState.walls, 1000);
+        AppState.fixtures.push(item);
+        added += 1;
+    });
+
+    if (!added) return false;
+    AppState.kitchenDraft = { ...draft, added, wallId: wall.id };
+    stateManager?.saveState?.();
+    console.log(`Kitchen suite: ${added} modules placed along the ${length.toFixed(0)} px wall.`);
+    return true;
+}
+
 /**
  * A plan converted on index.html arrives here and becomes the editable plan:
  * the detected walls are placed at the shared 30 px/m scale, the editor zooms
@@ -4279,6 +4379,8 @@ function selectWallById(id) {
     draw2D();
     refreshGizmo();
     syncSelectionPanels();
+    // Picking a wall in 2D/3D shows that wall when the elevation is open.
+    if (id && AppState.elevationSide) setElevationWall(id);
     // The wall builder's highlight is part of its wall signature, so one
     // rebuild swaps the selected material without touching anything else.
     if (AppState.viewMode === '3d') update3D();
@@ -4342,13 +4444,104 @@ function worldBounds() {
     return { minX, maxX, minZ, maxZ };
 }
 
+/** Walls long enough to be a run; the elevation steps through these. */
+function elevationWalls() {
+    return (AppState.walls || []).filter((wall) => wall?.start && wall?.end
+        && Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y) > 10);
+}
+
+/** World-space bounds of one wall, so the camera frames just that run. */
+function elevationWallBounds(wall) {
+    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const a = {
+        x: (wall.start.x - view.width / 2) / PIXELS_PER_METER,
+        z: (wall.start.y - view.height / 2) / PIXELS_PER_METER
+    };
+    const b = {
+        x: (wall.end.x - view.width / 2) / PIXELS_PER_METER,
+        z: (wall.end.y - view.height / 2) / PIXELS_PER_METER
+    };
+    return {
+        minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x),
+        minZ: Math.min(a.z, b.z), maxZ: Math.max(a.z, b.z)
+    };
+}
+
+/**
+ * The wall the elevation is showing: the one already chosen, else the 2D
+ * selection, else the longest wall that faces the camera.
+ */
+function pickElevationWall() {
+    const walls = elevationWalls();
+    if (!walls.length) return null;
+    const chosen = walls.find((wall) => wall.id === AppState.elevationWallId);
+    if (chosen) return chosen;
+    const selected = walls.find((wall) => wall.id === AppState.selectedWallId);
+    if (selected) return selected;
+
+    const axes = elevationAxes(AppState.elevationSide || 'front');
+    let best = null;
+    walls.forEach((wall) => {
+        const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y);
+        const nx = -(wall.end.y - wall.start.y) / length;
+        const ny = (wall.end.x - wall.start.x) / length;
+        const facing = axes ? Math.abs(nx * axes.normal.x + ny * axes.normal.y) : 0;
+        const score = facing * 1000 + length;
+        if (!best || score > best.score) best = { wall, score };
+    });
+    return best?.wall || walls[0];
+}
+
+function updateElevationWallLabel() {
+    const label = document.getElementById('elevation-wall-label');
+    const walls = elevationWalls();
+    const index = walls.findIndex((wall) => wall.id === AppState.elevationWallId);
+    if (label) {
+        if (!AppState.elevationSide || index < 0) {
+            label.textContent = '';
+        } else {
+            const wall = walls[index];
+            const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y) / PIXELS_PER_METER;
+            label.textContent = `Wall ${index + 1}/${walls.length} · ${length.toFixed(2)} m`;
+        }
+    }
+    ['elevation-prev', 'elevation-next'].forEach((id) => {
+        const button = document.getElementById(id);
+        if (button) button.disabled = walls.length < 2;
+    });
+}
+
+/** Step to the next or previous wall while staying in the same elevation. */
+function stepElevationWall(direction) {
+    const walls = elevationWalls();
+    if (!walls.length) return null;
+    const index = walls.findIndex((wall) => wall.id === AppState.elevationWallId);
+    const nextIndex = index < 0
+        ? 0
+        : (index + (direction < 0 ? -1 : 1) + walls.length) % walls.length;
+    AppState.elevationWallId = walls[nextIndex].id;
+    if (AppState.elevationSide) updateElevationCamera();
+    updateElevationButtons();
+    return AppState.elevationWallId;
+}
+
+function setElevationWall(id) {
+    const wall = elevationWalls().find((entry) => entry.id === id);
+    AppState.elevationWallId = wall?.id || null;
+    if (AppState.elevationSide) updateElevationCamera();
+    updateElevationButtons();
+    return AppState.elevationWallId;
+}
+
 function updateElevationCamera() {
     if (!AppState.elevationSide || !orthoCamera3D) return;
     const container = document.getElementById('render-3d-view');
     const width = container?.clientWidth || 1;
     const height = container?.clientHeight || 1;
 
-    elevationBounds = worldBounds();
+    const wall = pickElevationWall();
+    AppState.elevationWallId = wall?.id || null;
+    elevationBounds = wall ? elevationWallBounds(wall) : worldBounds();
     const target = frameElevation(orthoCamera3D, {
         bounds: elevationBounds,
         side: AppState.elevationSide,
@@ -4358,7 +4551,12 @@ function updateElevationCamera() {
         orthoControls3D.target.copy(target);
         orthoControls3D.update();
     }
-    applyElevationVisibility(scene3D, AppState.elevationSide, elevationBounds);
+    applyElevationVisibility(scene3D, AppState.elevationSide, elevationBounds, {
+        wallId: wall?.id || null,
+        wall,
+        fixtures: AppState.fixtures
+    });
+    updateElevationWallLabel();
 }
 
 /**
@@ -4368,6 +4566,8 @@ function updateElevationCamera() {
 function setElevationView(side) {
     const nextSide = side && ELEVATION_SIDES.includes(side) ? side : null;
     AppState.elevationSide = nextSide;
+    // Leaving the elevation restores every wall; entering it frames one wall.
+    AppState.elevationWallId = nextSide ? AppState.elevationWallId : null;
     setViewMode(nextSide ? 'elevation' : '3d');
     if (nextSide) updateElevationCamera();
     updateElevationButtons();
@@ -4412,7 +4612,7 @@ function setViewMode(mode) {
 
     if (show3d) update3D();
     if (AppState.elevationSide) updateElevationCamera();
-    else if (scene3D) applyElevationVisibility(scene3D, null);
+    else if (scene3D) applyElevationVisibility(scene3D, null, null, { fixtures: AppState.fixtures });
 
     if (controls3D) controls3D.enabled = !AppState.elevationSide;
     if (orthoControls3D) {
@@ -4451,9 +4651,10 @@ function updateElevationButtons() {
     const hint = document.getElementById('elevation-hint');
     if (hint) {
         hint.textContent = AppState.elevationSide
-            ? 'Elevation • drag a piece up/down or side to side — it snaps to the run'
+            ? 'Elevation • one wall at a time — ‹ › steps walls, drag a piece up/down or side to side'
             : 'Click an object to select • G move • R rotate • Elevation for up/down';
     }
+    updateElevationWallLabel();
 }
 
 function update3D() {
@@ -4521,10 +4722,9 @@ function update3D() {
     // The rebuild replaces every wall mesh, so the elevation cut has to be
     // re-applied to the new ones.
     if (AppState.elevationSide) {
-        elevationBounds = worldBounds();
-        applyElevationVisibility(scene3D, AppState.elevationSide, elevationBounds);
+        updateElevationCamera();
     } else {
-        applyElevationVisibility(scene3D, null);
+        applyElevationVisibility(scene3D, null, null, { fixtures: AppState.fixtures });
     }
 
     refreshGizmo();
@@ -4796,10 +4996,13 @@ function setupEventListeners() {
         });
     }
 
-    // Elevation view buttons (3D | Front | Back | Left | Right)
+    // Elevation view buttons (3D | Front | Back | Left | Right) and the
+    // single-wall stepper that sits beside them.
     document.querySelectorAll('.elevation-btn').forEach((btn) => {
         btn.addEventListener('click', () => setElevationView(btn.dataset.side || null));
     });
+    document.getElementById('elevation-prev')?.addEventListener('click', () => stepElevationWall(-1));
+    document.getElementById('elevation-next')?.addEventListener('click', () => stepElevationWall(1));
     updateElevationButtons();
 
     // Shaker cabinetry dropdown

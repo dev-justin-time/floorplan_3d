@@ -252,11 +252,20 @@ async function main() {
             // Let deferred module work, WebGL boot and draft hand-offs settle.
             await sleep(3500);
             const report = pageReport(cdp.events);
+            const chrome = await cdp.evaluate(`(() => ({
+                nav: Boolean(document.getElementById('site-nav-menu')),
+                links: document.querySelectorAll('#site-nav-menu a').length,
+                footer: Boolean(document.getElementById('site-footer'))
+            }))()`);
             const count = report.exceptions.length + report.consoleErrors.length
                 + report.badResponses.length + report.failedRequests.length;
-            results.push({ route, report, count });
-            if (count) failures += 1;
-            console.log(`${count ? 'FAIL' : 'ok  '} ${route}${count ? ` — ${count} problem(s)` : ''}`);
+            const chromeMissing = !chrome || !chrome.nav || !chrome.footer || chrome.links < 20;
+            results.push({ route, report, count, chrome });
+            if (count || chromeMissing) failures += 1;
+            console.log(`${count || chromeMissing ? 'FAIL' : 'ok  '} ${route}${count || chromeMissing ? ` — ${count} problem(s)` : ''}`);
+            if (chromeMissing) {
+                console.log(`       chrome:    nav=${chrome?.nav} links=${chrome?.links} footer=${chrome?.footer}`);
+            }
             for (const entry of report.exceptions.slice(0, 3)) console.log(`       exception: ${entry.split('\n')[0]}`);
             for (const entry of report.consoleErrors.slice(0, 3)) console.log(`       console:   ${entry}`);
             for (const entry of report.badResponses.slice(0, 5)) console.log(`       http:      ${entry}`);

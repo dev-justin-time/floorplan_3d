@@ -81,27 +81,65 @@ export function frameElevation(camera, { bounds, side, aspect = 1, height = WALL
     return target;
 }
 
+/** Plan-space distance, in pixels, from a fixture centre to a wall segment. */
+function distanceToWallPx(fixture, wall) {
+    const dx = wall.end.x - wall.start.x;
+    const dy = wall.end.y - wall.start.y;
+    const lengthSq = dx * dx + dy * dy;
+    if (lengthSq < 1e-6) return Infinity;
+    const t = Math.max(0, Math.min(1,
+        ((fixture.x - wall.start.x) * dx + (fixture.y - wall.start.y) * dy) / lengthSq
+    ));
+    const x = wall.start.x + t * dx;
+    const y = wall.start.y + t * dy;
+    return Math.hypot(fixture.x - x, fixture.y - y);
+}
+
 /**
- * Hide the walls that stand between the camera and the plan centre, so a run
- * on the far wall is not buried behind the near wall. Passing no side (or no
- * bounds) makes every wall visible again.
+ * Elevation visibility.
+ *
+ * With no side (or no bounds) every wall and item returns to its own
+ * visibility. With a side, the old behaviour hid the walls between the camera
+ * and the plan centre; passing `wallId` narrows that to a single wall, so an
+ * elevation shows one run at a time. Only items sitting on that wall stay
+ * visible, using their plan position, so the elevation reads as one drawing.
  */
-export function applyElevationVisibility(scene, side, bounds) {
+export function applyElevationVisibility(scene, side, bounds, options = {}) {
     if (!scene) return;
+    const { wallId = null, wall = null, fixtures = null, itemReach = 1.1 } = options;
     const axes = side ? elevationAxes(side) : null;
     const centreX = bounds ? (bounds.minX + bounds.maxX) / 2 : 0;
     const centreZ = bounds ? (bounds.minZ + bounds.maxZ) / 2 : 0;
     const point = new THREE.Vector3();
+    const reachPx = itemReach * PIXELS_PER_METER;
 
     scene.traverse((object) => {
-        if (!object.userData || object.userData.type !== 'wall') return;
-        if (!axes || !bounds) {
-            object.visible = true;
+        const data = object.userData || {};
+        if (data.type === 'wall') {
+            if (!axes || !bounds) {
+                object.visible = true;
+                return;
+            }
+            if (wallId) {
+                object.visible = data.id === wallId;
+                return;
+            }
+            object.getWorldPosition(point);
+            const depth = (point.x - centreX) * axes.normal.x + (point.z - centreZ) * axes.normal.y;
+            object.visible = depth <= 0;
             return;
         }
-        object.getWorldPosition(point);
-        const depth = (point.x - centreX) * axes.normal.x + (point.z - centreZ) * axes.normal.y;
-        object.visible = depth <= 0;
+
+        if (data.type !== 'item' || !fixtures) return;
+        const fixture = fixtures.find((entry) => entry && entry.id === data.id);
+        if (!fixture) return;
+        if (!axes) {
+            object.visible = fixture.visible !== false;
+            return;
+        }
+        if (!wallId || !wall) return;
+        const onWall = distanceToWallPx(fixture, wall) <= reachPx;
+        object.visible = fixture.visible !== false && onWall;
     });
 }
 
