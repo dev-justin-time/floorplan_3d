@@ -16,8 +16,13 @@ import {
     stairOpenings,
     openingCorners,
     openingsForRoom,
+    pointInRoom,
     floorTextureUrl,
-    buildParametricCabinet
+    buildParametricCabinet,
+    storeyConstruction,
+    openingToWorld,
+    buildTrussRoof,
+    exteriorWallIds
 } from './features/studio/index.js';
 import { buildStairGeometry, isStairItem } from './features/stairs/index.js';
 import { buildWaterFeature, isWaterFeature } from './features/landscape/index.js';
@@ -196,11 +201,15 @@ export class ConversionEngine3D {
         let currentElevation = 0;
         let roomCount = 0;
         let openingCount = 0;
+        let roofStats = null;
         const wallStats = { built: 0, reused: 0, removed: 0 };
 
         stories.forEach((story, index) => {
             const isTopStory = index === stories.length - 1;
-            const storyHeight = story.height || ROOM_HEIGHT;
+            const construction = storeyConstruction(story);
+            const storyHeight = construction.pitch;
+            const wallHeight = construction.wallHeight;
+            const floorDepth = construction.floorDepth;
             const visible = story.visible !== false;
             
             const storyGroup = new THREE.Group();
@@ -218,13 +227,22 @@ export class ConversionEngine3D {
                 roomMaterials,
                 roomFloors,
                 storeyIndex: index,
-                stories
+                stories,
+                manualOpenings: story.openings || []
             });
             roomCount += floorStats.rooms;
             openingCount += floorStats.openings;
             
+            // The ceiling sits at the wall top: the 8 in above it is the floor
+            // structure of the storey above.
             if (appState.showCeiling || !isTopStory) {
-                this.addCeilingToGroup(storyGroup, storyHeight);
+                this.addCeilingToGroup(storyGroup, wallHeight);
+            }
+
+            // The 8 in floor structure between this storey and the one above is
+            // a rim band around the shell, visible from outside.
+            if (index > 0) {
+                this.addFloorBand(storyGroup, story.walls || [], canvasWidth, canvasHeight, floorDepth);
             }
 
             // Feature 39: dirty walls only.
@@ -233,7 +251,7 @@ export class ConversionEngine3D {
                 fixtures: story.fixtures || [],
                 canvasWidth,
                 canvasHeight,
-                wallHeight: storyHeight,
+                wallHeight,
                 wallStyles: appState.fixtureStyles,
                 defaultTexture: appState.defaultWallTexture,
                 selectedWallId: appState.selectedWallId,
@@ -260,10 +278,11 @@ export class ConversionEngine3D {
             }
 
             if (isTopStory && appState.showRoof) {
-                this.addRoof(story.walls, currentElevation + storyHeight, canvasWidth, canvasHeight);
+                // Last storey: 8 in ceiling/joist space, then the truss roof.
+                roofStats = this.addRoof(story.walls, currentElevation + wallHeight, canvasWidth, canvasHeight, floorDepth) || null;
             }
 
-            currentElevation += storyHeight;
+            currentElevation += construction.pitch;
         });
 
         this.wallBuilder.prune(stories.length);
@@ -280,6 +299,7 @@ export class ConversionEngine3D {
             rooms: roomCount,
             openings: openingCount,
             walls: wallStats,
+            roof: roofStats,
             ms: Math.round((finishedAt - startedAt) * 10) / 10
         };
         return this.lastConvert;
@@ -296,44 +316,29 @@ export class ConversionEngine3D {
         });
     }
 
-    // FIX 5: Proper Gable Roof using ExtrudeGeometry instead of stretched Cone
-    addRoof(walls, elevation, canvasWidth, canvasHeight) {
-        if (!walls || walls.length === 0) return;
+    /**
+     * Last storey: an 8 in ceiling/joist band, trusses at 24 in o.c. and the
+     * roof planes, all generated from the wall footprint (studio feature 41).
+     */
+    addRoof(walls, elevation, canvasWidth, canvasHeight, floorDepth) {
+        if (!walls || walls.length === 0) return null;
+        const view = { width: canvasWidth, height: canvasHeight };
+        // The roof follows the exterior shell: interior partitions would
+        // otherwise pull the ridge and the truss span off the footprint.
+        const shellIds = exteriorWallIds(walls, view);
+        const shell = walls.filter((wall) => !shellIds.size || shellIds.has(wall.id));
+        if (!shell.length) return null;
 
-        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-        walls.forEach(wall => {
-            const x1 = (wall.start.x - canvasWidth / 2) / SCALE;
-            const z1 = (wall.start.y - canvasHeight / 2) / SCALE;
-            const x2 = (wall.end.x - canvasWidth / 2) / SCALE;
-            const z2 = (wall.end.y - canvasHeight / 2) / SCALE;
-            minX = Math.min(minX, x1, x2); maxX = Math.max(maxX, x1, x2);
-            minZ = Math.min(minZ, z1, z2); maxZ = Math.max(maxZ, z1, z2);
+        const roof = buildTrussRoof(THREE, {
+            walls: shell,
+            view,
+            joistDepth: floorDepth,
+            overhang: GLOBAL_CONFIG.roofOverhang || 0.5
         });
-
-        const overhang = GLOBAL_CONFIG.roofOverhang || 0.5;
-        const pitch = GLOBAL_CONFIG.roofPitch || 1.5;
-        const width = (maxX - minX) + (overhang * 2);
-        const depth = (maxZ - minZ) + (overhang * 2);
-
-        const shape = new THREE.Shape();
-        shape.moveTo(-width / 2, 0);
-        shape.lineTo(0, pitch);
-        shape.lineTo(width / 2, 0);
-        shape.lineTo(-width / 2, 0);
-
-        // The profile is built in XY (width across X, pitch up Y) and extruded
-        // along +Z, which already matches world axes: no rotation needed.
-        const geometry = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: false });
-        const material = new THREE.MeshStandardMaterial({ color: 0x8a4b38, roughness: 0.9 });
-        const roof = new THREE.Mesh(geometry, material);
-
-        roof.position.set(minX - overhang + width / 2, elevation, minZ - overhang);
-        
-        roof.castShadow = true;
-        roof.receiveShadow = true;
-        
+        roof.position.y = elevation;
         this.content.add(roof);
         this.meshes.push(roof);
+        return { ...roof.userData };
     }
 
     addLighting() {
@@ -368,7 +373,7 @@ export class ConversionEngine3D {
      * above. A plan with no closed room still gets the old slab so an empty
      * canvas renders a ground plane.
      */
-    addFloorsToGroup(group, story, { view, defaultFloorTexture, roomMaterials, roomFloors, storeyIndex, stories }) {
+    addFloorsToGroup(group, story, { view, defaultFloorTexture, roomMaterials, roomFloors, storeyIndex, stories, manualOpenings = [] }) {
         // Room ids repeat per storey, so finishes are keyed "storey:room".
         // Unprefixed keys stay valid for a single-storey plan.
         const scopedMaterials = {};
@@ -390,15 +395,23 @@ export class ConversionEngine3D {
         const openings = roomFloors && storeyIndex > 0
             ? stairOpenings(stories[storeyIndex - 1]?.fixtures || [], view)
             : [];
+        // The cutout tool writes world polygons in plan pixels on this storey.
+        const cutouts = manualOpenings
+            .map((opening) => openingToWorld(opening, view))
+            .filter((polygon) => polygon.length >= 3)
+            .map((polygon) => polygon.map((point) => ({ x: point.x, z: point.z })));
 
         if (rooms.length === 0) {
-            this.addFloorToGroup(group, defaultFloorTexture);
-            return { rooms: 0, openings: 0 };
+            this.addFloorToGroup(group, defaultFloorTexture, cutouts);
+            return { rooms: 0, openings: cutouts.length };
         }
 
         let cut = 0;
         rooms.forEach(room => {
-            const roomHoles = openingsForRoom(room, openings);
+            const roomHoles = openingsForRoom(room, openings).map((opening) => openingCorners(opening));
+            cutouts.forEach((polygon) => {
+                if (polygon.some((point) => pointInRoom(point, room.vertices))) roomHoles.push(polygon);
+            });
             cut += roomHoles.length;
             group.add(this.createRoomFloor(room, roomHoles));
         });
@@ -414,9 +427,10 @@ export class ConversionEngine3D {
         });
         shape.closePath();
 
-        openings.forEach(opening => {
+        // Each opening is already a polygon of world x/z points.
+        openings.forEach(points => {
             const hole = new THREE.Path();
-            openingCorners(opening).forEach((corner, index) => {
+            points.forEach((corner, index) => {
                 if (index === 0) hole.moveTo(corner.x, corner.z);
                 else hole.lineTo(corner.x, corner.z);
             });
@@ -443,15 +457,57 @@ export class ConversionEngine3D {
         return floor;
     }
 
-    addFloorToGroup(group, textureId) {
-        const geometry = new THREE.PlaneGeometry(40, 40);
+    addFloorToGroup(group, textureId, holes = []) {
+        let geometry;
+        if (holes.length) {
+            const shape = new THREE.Shape();
+            shape.moveTo(-20, -20);
+            shape.lineTo(20, -20);
+            shape.lineTo(20, 20);
+            shape.lineTo(-20, 20);
+            shape.closePath();
+            holes.forEach((points) => {
+                const hole = new THREE.Path();
+                points.forEach((corner, index) => {
+                    if (index === 0) hole.moveTo(corner.x, corner.z);
+                    else hole.lineTo(corner.x, corner.z);
+                });
+                hole.closePath();
+                shape.holes.push(hole);
+            });
+            geometry = new THREE.ShapeGeometry(shape);
+            geometry.rotateX(Math.PI / 2);
+        } else {
+            geometry = new THREE.PlaneGeometry(40, 40);
+            geometry.rotateX(-Math.PI / 2);
+        }
         const texture = textureId && TEXTURES.floors[textureId] ? loadTexture(TEXTURES.floors[textureId]) : null;
         const material = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.2, map: texture });
         const floor = new THREE.Mesh(geometry, material);
-        floor.rotation.x = -Math.PI / 2;
         floor.receiveShadow = true;
         floor.userData = { type: 'floor-slab' };
         group.add(floor);
+    }
+
+    /** 8 in rim/joist band around a storey floor, below the floor surface. */
+    addFloorBand(group, walls, canvasWidth, canvasHeight, floorDepth) {
+        if (!walls?.length || !(floorDepth > 0)) return;
+        const material = new THREE.MeshStandardMaterial({ color: 0x8f6b45, roughness: 0.9 });
+        walls.forEach((wall) => {
+            const x1 = (wall.start.x - canvasWidth / 2) / SCALE;
+            const z1 = (wall.start.y - canvasHeight / 2) / SCALE;
+            const x2 = (wall.end.x - canvasWidth / 2) / SCALE;
+            const z2 = (wall.end.y - canvasHeight / 2) / SCALE;
+            const length = Math.hypot(x2 - x1, z2 - z1);
+            if (length < 0.05) return;
+            const band = new THREE.Mesh(new THREE.BoxGeometry(length, floorDepth, 0.06), material);
+            band.position.set((x1 + x2) / 2, -floorDepth / 2, (z1 + z2) / 2);
+            band.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
+            band.name = 'floor-joist-band';
+            band.castShadow = true;
+            band.receiveShadow = true;
+            group.add(band);
+        });
     }
 
     addCeilingToGroup(group, height) {

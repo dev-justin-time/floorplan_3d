@@ -13,15 +13,15 @@ import { constructionOptions, storeyConstruction, WALL_HEIGHT_M, JOIST_DEPTH_M }
 
 export const DEFAULT_STOREY_NAME = 'Ground floor';
 
-export function newStorey({ name = 'Floor', height = WALL_HEIGHT, wallHeight = WALL_HEIGHT_M, floorDepth = JOIST_DEPTH_M } = {}) {
-    const construction = constructionOptions({
-        wallHeight: Math.min(wallHeight, height - floorDepth > 1.8 ? height - floorDepth : wallHeight),
-        floorDepth
-    });
+/**
+ * A storey is 96 in of clear wall plus an 8 in floor structure, so its
+ * floor-to-floor pitch is 2.64 m. `height` mirrors the pitch for older callers.
+ */
+export function newStorey({ name = 'Floor', wallHeight = WALL_HEIGHT_M, floorDepth = JOIST_DEPTH_M } = {}) {
     return {
         id: `storey_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         name,
-        ...construction,
+        ...constructionOptions({ wallHeight, floorDepth }),
         visible: true,
         walls: [],
         fixtures: [],
@@ -60,7 +60,6 @@ export function addStorey(state, options = {}) {
     const index = (state.stories?.length || 0) + 1;
     const story = newStorey({
         name: options.name || `Floor ${index}`,
-        height: options.height,
         wallHeight: options.wallHeight,
         floorDepth: options.floorDepth
     });

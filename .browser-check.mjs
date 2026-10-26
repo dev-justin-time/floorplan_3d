@@ -388,6 +388,171 @@ async function main() {
         })()`);
         check('plan canvas has the drawn stair', plan.painted > 500, `${plan.painted} painted pixels`);
 
+        console.log('\nStoreys, cutouts and roof');
+        await load(BASE + '/Editor.html');
+        check('studio kit survives the reload', await waitFor('Boolean(window.studioKit)'));
+        const storeyFlow = await cdp.evaluate(`(() => {
+            window.clearProject();
+            const canvas = document.getElementById('blueprint-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const at = (x, y) => ({
+                clientX: rect.left + (x / canvas.width) * rect.width,
+                clientY: rect.top + (y / canvas.height) * rect.height
+            });
+            const drag = (from, to) => {
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...at(from.x, from.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, ...at(to.x, to.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...at(to.x, to.y) }));
+            };
+            const click = (point) => {
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...at(point.x, point.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...at(point.x, point.y) }));
+            };
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const corners = [
+                { x: cx - 300, y: cy - 240 }, { x: cx + 300, y: cy - 240 },
+                { x: cx + 300, y: cy + 240 }, { x: cx - 300, y: cy + 240 }
+            ];
+            document.querySelector('[data-tool="wall"]').click();
+            corners.forEach((corner, index) => drag(corner, corners[(index + 1) % corners.length]));
+            drag({ x: cx, y: cy - 240 }, { x: cx, y: cy + 240 });
+            document.querySelector('[data-item="window"]').click();
+            click({ x: cx + 60, y: cy - 240 });
+
+            const key = (wall) => [wall.start.x, wall.start.y, wall.end.x, wall.end.y]
+                .map((value) => Number(value).toFixed(2)).join(',');
+            const groundWalls = window.featureKit.walls();
+            const groundKeys = new Set(groundWalls.map(key));
+            const groundWindows = window.featureKit.fixtures().filter((fixture) => fixture.type === 'window');
+
+            window.addStorey();
+            const upperWalls = window.featureKit.walls();
+            const upperWindows = window.featureKit.fixtures().filter((fixture) => fixture.type === 'window');
+            const upperIds = upperWalls.map((wall) => wall.id);
+            const storeys = window.studioKit.storeys();
+            const construction = window.studioKit.construction();
+            const convert = window.studioKit.convert();
+            return {
+                groundWalls: groundWalls.length,
+                groundWindows: groundWindows.length,
+                groundWindowWall: groundWindows[0]?.boundToWallId || null,
+                upperWalls: upperWalls.length,
+                sameFootprint: upperWalls.every((wall) => groundKeys.has(key(wall))),
+                upperWindows: upperWindows.length,
+                rebound: upperWindows[0]?.boundToWallId || null,
+                upperIds,
+                storeys: storeys.map((story) => ({
+                    name: story.name, elevation: story.elevation, height: story.height,
+                    walls: story.walls, fixtures: story.fixtures
+                })),
+                construction,
+                convert,
+                cutoutButton: document.querySelectorAll('.tool-btn[data-tool="cutout"]').length,
+                pitchText: document.getElementById('storey-pitch')?.textContent
+            };
+        })()`);
+        check('cutout tool is in the palette', storeyFlow.cutoutButton === 1, `${storeyFlow.cutoutButton} button`);
+        check('storey pitch is 96 in plus an 8 in joist',
+            Math.abs(storeyFlow.construction.wallHeight - 2.4384) < 1e-6
+            && Math.abs(storeyFlow.construction.floorDepth - 0.2032) < 1e-6
+            && Math.abs(storeyFlow.construction.pitch - 2.6416) < 1e-6,
+            `${storeyFlow.construction.wallHeight.toFixed(4)} + ${storeyFlow.construction.floorDepth.toFixed(4)} = ${storeyFlow.construction.pitch.toFixed(4)} m`);
+        check('storey panel quotes the construction', /96 in walls/.test(storeyFlow.pitchText || ''), storeyFlow.pitchText);
+        check('adding a storey stacks it one pitch up',
+            storeyFlow.storeys.length === 2 && storeyFlow.storeys[1].name === 'Floor 2'
+            && Math.abs(storeyFlow.storeys[1].elevation - 2.6416) < 1e-6,
+            `${storeyFlow.storeys[1]?.name} at ${storeyFlow.storeys[1]?.elevation?.toFixed(2)} m`);
+        check('second floor repeats the exterior footprint',
+            storeyFlow.groundWalls === 5 && storeyFlow.upperWalls === 4 && storeyFlow.sameFootprint,
+            `${storeyFlow.upperWalls} of ${storeyFlow.groundWalls} walls`);
+        check('second floor copies the windows',
+            storeyFlow.groundWindows === 1 && storeyFlow.upperWindows === 1,
+            `${storeyFlow.upperWindows} window(s)`);
+        check('copied window binds to the new wall',
+            storeyFlow.upperIds.includes(storeyFlow.rebound) && storeyFlow.rebound !== storeyFlow.groundWindowWall,
+            `${storeyFlow.rebound}`);
+        check('top storey carries the truss roof',
+            Boolean(storeyFlow.convert?.roof) && storeyFlow.convert.roof.trusses >= 20 && storeyFlow.convert.roof.joists === storeyFlow.convert.roof.trusses,
+            storeyFlow.convert?.roof ? `${storeyFlow.convert.roof.trusses} trusses, ${storeyFlow.convert.roof.rise.toFixed(2)} m rise` : 'none');
+
+        const cutoutFlow = await cdp.evaluate(`(() => {
+            const canvas = document.getElementById('blueprint-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const at = (x, y) => ({
+                clientX: rect.left + (x / canvas.width) * rect.width,
+                clientY: rect.top + (y / canvas.height) * rect.height
+            });
+            const drag = (from, to) => {
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...at(from.x, from.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, ...at(to.x, to.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...at(to.x, to.y) }));
+            };
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            document.querySelector('[data-tool="cutout"]').click();
+            drag({ x: cx - 120, y: cy - 60 }, { x: cx + 120, y: cy + 60 });
+            const created = window.studioKit.openings();
+            const before = created[0] ? created[0].points.map((point) => ({ ...point })) : [];
+
+            // Drag one corner further out.
+            if (before.length) drag(before[0], { x: before[0].x - 30, y: before[0].y - 30 });
+            const reshaped = window.studioKit.openings()[0];
+
+            // Bend an edge with a double-click, then Delete the new point.
+            let bentPoints = 0;
+            let deletedPoints = 0;
+            if (reshaped) {
+                const a = reshaped.points[0];
+                const b = reshaped.points[1];
+                canvas.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, ...at((a.x + b.x) / 2, (a.y + b.y) / 2) }));
+                bentPoints = window.studioKit.openings()[0]?.points.length || 0;
+                document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+                deletedPoints = window.studioKit.openings()[0]?.points.length || 0;
+            }
+
+            window.undo();
+            const undoPoints = window.studioKit.openings()[0]?.points.length || 0;
+            window.redo();
+            const redoPoints = window.studioKit.openings()[0]?.points.length || 0;
+
+            const convert = window.studioKit.convert();
+            window.flushAutosave();
+            const saved = JSON.parse(localStorage.getItem('floorplan3d_autosave') || 'null');
+            const savedStory = saved?.stories?.[1];
+            return {
+                count: created.length,
+                area: created[0]?.area || 0,
+                corner: reshaped?.points[0],
+                bentPoints,
+                deletedPoints,
+                undoPoints,
+                redoPoints,
+                convert,
+                saved: savedStory ? {
+                    openings: savedStory.openings?.length ?? null,
+                    wallHeight: savedStory.wallHeight,
+                    floorDepth: savedStory.floorDepth,
+                    height: savedStory.height
+                } : null,
+                panel: document.getElementById('openings-list')?.textContent.trim()
+            };
+        })()`);
+        check('cutout drag makes one opening', cutoutFlow.count === 1, `${cutoutFlow.count} opening(s)`);
+        check('cutout area is measured in metres', cutoutFlow.area > 20, `${cutoutFlow.area.toFixed(1)} m²`);
+        check('dragging a point reshapes the hole',
+            cutoutFlow.corner && cutoutFlow.corner.x !== undefined && cutoutFlow.corner.y !== undefined,
+            cutoutFlow.corner ? `${cutoutFlow.corner.x.toFixed(0)}, ${cutoutFlow.corner.y.toFixed(0)}` : 'none');
+        check('double-click bends the edge', cutoutFlow.bentPoints === 5, `${cutoutFlow.bentPoints} points`);
+        check('Delete removes the extra point', cutoutFlow.deletedPoints === 4, `${cutoutFlow.deletedPoints} points`);
+        check('undo restores the point', cutoutFlow.undoPoints === 5, `${cutoutFlow.undoPoints} points`);
+        check('redo removes it again', cutoutFlow.redoPoints === 4, `${cutoutFlow.redoPoints} points`);
+        check('3D floor is cut by the opening', cutoutFlow.convert?.openings >= 1, `${cutoutFlow.convert?.openings} hole(s)`);
+        check('opening is listed in the storey panel', /Hole 1/.test(cutoutFlow.panel || ''), cutoutFlow.panel);
+        check('openings persist in the project payload',
+            cutoutFlow.saved?.openings === 1 && Math.abs(cutoutFlow.saved.wallHeight - 2.4384) < 1e-6,
+            JSON.stringify(cutoutFlow.saved));
+
         console.log('\nStair gallery');
         await load(BASE + '/stair-gallery.html');
         check('gallery page boots', await waitFor('Boolean(window.stairGallery)'));

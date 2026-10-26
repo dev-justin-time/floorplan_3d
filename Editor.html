@@ -198,9 +198,20 @@
                         </button>
                     </div>
                     <div id="storeys-list" class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1"></div>
-                    <label class="block text-[10px] uppercase text-gray-400 mt-2">Storey height (m)
-                        <input id="storey-height" type="number" min="1.8" max="8" step="0.1" value="2.7" oninput="window.setStoreyHeight(this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
+                    <label class="block text-[10px] uppercase text-gray-400 mt-2">Clear wall height (m)
+                        <input id="storey-height" type="number" min="1.8" max="6" step="0.01" value="2.44" oninput="window.setStoreyHeight(this.value)" class="mt-0.5 w-full rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 py-0.5 text-[11px] font-mono text-gray-800 dark:text-gray-100">
                     </label>
+                    <p id="storey-pitch" class="text-[10px] font-mono text-gray-400 mt-1">96 in walls + 8 in joists = 2.64 m</p>
+
+                    <!-- Cutout tool output (features/studio/openings-plan.js) -->
+                    <div class="mt-2 rounded-lg bg-gray-50 dark:bg-gray-800/50 p-2 space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] uppercase tracking-wide text-gray-400">Floor openings</span>
+                            <span id="openings-count" class="text-[10px] font-mono text-gray-500">0</span>
+                        </div>
+                        <div id="openings-list" class="space-y-0.5 max-h-28 overflow-y-auto pr-1"></div>
+                        <p class="text-[10px] text-gray-400 leading-snug">Cutout tool (C): drag over the slab; drag a point to reshape; double-click an edge to add one.</p>
+                    </div>
                 </div>
 
                 <!-- Per-room floor materials (features/studio/room-surfaces.js) -->
@@ -257,6 +268,10 @@
                         <button class="tool-btn flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-red-500 hover:text-red-500 transition-all shadow-sm group" data-tool="delete" title="Shortcut: D">
                             <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-red-500 mb-1">delete</span>
                             <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-red-500">Delete</span>
+                        </button>
+                        <button class="tool-btn flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-sky-500 hover:text-sky-500 transition-all shadow-sm group" data-tool="cutout" title="Cut a stair opening in this floor: drag a rectangle, drag a point to reshape, double-click an edge to add a point, Delete to remove (C)">
+                            <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-sky-500 mb-1">crop_free</span>
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:text-sky-500">Cutout</span>
                         </button>
                         <button class="flex flex-col items-center justify-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-500 hover:text-orange-500 transition-all shadow-sm group" onclick="if(confirm('Clear entire project? This cannot be undone.')) window.clearProject()" title="Clear All">
                             <span class="material-symbols-outlined text-gray-700 dark:text-gray-200 group-hover:text-orange-500 mb-1">delete_sweep</span>

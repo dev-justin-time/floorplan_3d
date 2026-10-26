@@ -16,6 +16,10 @@ export * from './collaboration.js';
 export * from './parametric.js';
 export * from './manufacturing.js';
 export * from './layout-solver.js';
+export * from './construction.js';
+export * from './shell.js';
+export * from './openings-plan.js';
+export * from './roof.js';
 export { STUDIO } from './constants.js';
 export { drawComments } from './overlays.js';
 

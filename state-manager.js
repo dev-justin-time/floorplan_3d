@@ -21,7 +21,13 @@ export class StateManager {
             stories: this.appState.stories ? this.appState.stories.map(story => ({
                 ...story,
                 walls: story.walls.map(w => w.toJSON()),
-                fixtures: story.fixtures.map(f => f.toJSON())
+                fixtures: story.fixtures.map(f => f.toJSON()),
+                // Deep copy: undo must not share point objects with the live
+                // floor openings, or a later drag would rewrite history.
+                openings: (story.openings || []).map(opening => ({
+                    id: opening.id,
+                    points: (opening.points || []).map(point => ({ x: point.x, y: point.y }))
+                }))
             })) : null,
 
             walls: this.appState.walls.map(w => w.toJSON()),

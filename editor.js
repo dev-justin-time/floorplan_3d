@@ -96,7 +96,23 @@ import {
     analyzeLayout,
     formatAnalysis,
     suggestRun,
-    drawStudioOverlays
+    drawStudioOverlays,
+    constructionOptions,
+    storeyConstruction,
+    WALL_HEIGHT_M,
+    JOIST_DEPTH_M,
+    shellCloneSpec,
+    rectOpening,
+    openingAt,
+    vertexAt,
+    edgeAt,
+    moveVertex,
+    insertVertex,
+    removeVertex,
+    moveOpening,
+    cloneOpenings,
+    openingAreaMetres,
+    drawFloorOpenings
 } from './features/studio/index.js';
 import {
     computeStairDesign,
@@ -164,7 +180,7 @@ const AppState = {
     // Settings
     showDimensions: true,
     showCeiling: false,
-    showRoof: false,
+    showRoof: true,
     gridSize: 30,
     
     // Viewport
@@ -199,6 +215,12 @@ const AppState = {
     currentStoryIndex: 0,
     roomMaterials: {},
     rooms: [],
+    // Cutout tool: the opening being dragged and the selected polygon, both in
+    // plan canvas pixels on the active storey.
+    cutoutDraft: null,
+    selectedOpeningId: null,
+    selectedVertexIndex: null,
+    openingDrag: null,
     comments: [],
     selectedCommentId: null,
     layoutReport: null,
@@ -460,6 +482,10 @@ function init() {
 
     // --- Studio kit actions ------------------------------------------
     window.addStorey = () => addNewStorey();
+    window.selectOpening = (id) => selectOpening(id);
+    window.deleteOpening = (id) => deleteOpening(id);
+    window.deleteCutoutSelection = () => deleteCutoutSelection();
+    window.refreshOpenings = refreshOpeningsPanel;
     window.setStorey = (index) => setStorey(Number(index));
     window.removeStorey = (index) => removeStoreyAt(Number(index));
     window.toggleStoreyVisible = (index) => toggleStoreyVisible(Number(index));
@@ -516,6 +542,12 @@ function init() {
         features: STUDIO_FEATURES,
         storeys: () => storeySummary(AppState),
         stack: () => storeyStack(AppState.stories),
+        openings: () => activeOpenings().map((opening) => ({
+            id: opening.id,
+            points: opening.points.map((point) => ({ x: point.x, y: point.y })),
+            area: openingAreaMetres(opening)
+        })),
+        construction: () => storeyConstruction(AppState.stories?.[AppState.currentStoryIndex] || {}),
         rooms: () => AppState.rooms,
         layout: () => AppState.layoutReport,
         projects: () => AppState.projects,
@@ -671,6 +703,11 @@ function onPointerDown(e) {
         draw2D(pos);
         refreshGizmo();
         syncSelectionPanels();
+    } else if (AppState.currentTool === 'cutout') {
+        // Cut a stair opening in this storey's floor: drag a new one, drag a
+        // point to reshape, or drag the polygon to move it.
+        startCutout(pos);
+        draw2D(pos);
     } else if (AppState.currentTool) {
         // Place item
         const item = ItemFactory.create(AppState.currentTool, pos.x, pos.y);
@@ -730,6 +767,13 @@ function onPointerMove(e) {
         return;
     }
 
+    if (AppState.openingDrag) {
+        const cutPos = getCanvasCoordinates(e);
+        updateCutout(cutPos);
+        draw2D(cutPos);
+        return;
+    }
+
     if (AppState.wallNodeDrag) {
         const nodePos = getCanvasCoordinates(e);
         moveWallNode(nodePos, e.shiftKey);
@@ -783,6 +827,12 @@ function onPointerUp(e) {
     if (AppState.isPanning) {
         AppState.isPanning = false;
         blueprintCanvas.style.cursor = 'crosshair';
+        return;
+    }
+
+    if (AppState.openingDrag) {
+        finishCutout();
+        draw2D();
         return;
     }
 
@@ -852,6 +902,20 @@ function onDoubleClick(e) {
     // Hit-test the exact point: grid snapping here would miss walls that do not
     // sit on the grid.
     const pos = getPlanCoordinates(e);
+
+    // Cutout tool: a double-click on an edge bends the polygon there.
+    if (AppState.currentTool === 'cutout') {
+        const opening = selectedOpening() || openingAt(activeOpenings(), pos);
+        const edge = opening ? edgeAt(opening, pos, 12 / AppState.scale) : -1;
+        if (opening && edge >= 0) {
+            insertVertex(opening, edge, pos);
+            AppState.selectedOpeningId = opening.id;
+            AppState.selectedVertexIndex = edge + 1;
+            saveAndSync();
+        }
+        return;
+    }
+
     const id = wallAt(pos);
     if (!id) return;
 
@@ -1448,10 +1512,11 @@ function ensureStoreyModel() {
     AppState.stories = [{
         id: 'storey_ground',
         name: 'Ground floor',
-        height: WALL_HEIGHT,
+        ...constructionOptions(),
         visible: true,
         walls: AppState.walls,
-        fixtures: AppState.fixtures
+        fixtures: AppState.fixtures,
+        openings: []
     }];
     AppState.currentStoryIndex = 0;
     return AppState.stories;
@@ -1475,6 +1540,11 @@ function setStorey(index) {
     AppState.selectedWallId = null;
     AppState.drag = null;
     AppState.groupDrag = null;
+    // Openings belong to the storey that was active, so their handles go too.
+    AppState.selectedOpeningId = null;
+    AppState.selectedVertexIndex = null;
+    AppState.cutoutDraft = null;
+    AppState.openingDrag = null;
     refreshPlanDerived();
     refreshStoreyPanel();
     draw2D();
@@ -1486,18 +1556,33 @@ function setStorey(index) {
 
 function addNewStorey(options = {}) {
     ensureStoreyModel();
-    const source = AppState.walls || [];
+    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const source = { walls: AppState.walls || [], fixtures: AppState.fixtures || [] };
+    // Second floor and above: only the exterior wall footprint and the windows
+    // come up from the storey below, not the interior partitions.
+    const shell = shellCloneSpec(source, view);
     addStoreyFeature(AppState, options);
     const story = AppState.stories[AppState.stories.length - 1];
-    // An upper floor repeats the shell of the storey below but starts empty,
-    // so stacking is visible before anything is drawn on it.
-    story.walls = source.map((wall) => new Wall(
+    story.walls = shell.walls.map((wall) => new Wall(
         wall.start.x, wall.start.y, wall.end.x, wall.end.y, wall.thickness, null, wall.height
     ));
-    story.fixtures = [];
+    story.fixtures = shell.windows.map(({ fixture, wallIndex }) => {
+        const clone = ItemFactory.create(fixture.type, fixture.x, fixture.y, fixture.rotation);
+        clone.metadata = fixture.metadata;
+        if (fixture.size) clone.size = { ...fixture.size };
+        if (fixture.elevation) clone.elevation = fixture.elevation;
+        if (fixture.defaultBottom != null) clone.defaultBottom = fixture.defaultBottom;
+        clone.boundToWallId = story.walls[wallIndex]?.id || null;
+        const style = AppState.fixtureStyles?.[fixture.id];
+        if (style) AppState.fixtureStyles[clone.id] = { ...style };
+        return clone;
+    });
+    story.openings = [];
     activateStorey(AppState, AppState.stories.length - 1);
     AppState.selectedFixture = null;
     AppState.selectedWallId = null;
+    AppState.selectedOpeningId = null;
+    AppState.selectedVertexIndex = null;
     refreshPlanDerived();
     refreshStoreyPanel();
     draw2D();
@@ -1516,6 +1601,10 @@ function removeStoreyAt(index) {
     if (!removed) return false;
     AppState.selectedFixture = null;
     AppState.selectedWallId = null;
+    AppState.selectedOpeningId = null;
+    AppState.selectedVertexIndex = null;
+    AppState.cutoutDraft = null;
+    AppState.openingDrag = null;
     refreshPlanDerived();
     refreshStoreyPanel();
     draw2D();
@@ -1536,14 +1625,24 @@ function toggleStoreyVisible(index) {
     return story.visible;
 }
 
+/**
+ * Clear wall height of the active storey, in metres. The 8 in floor structure
+ * above the walls stays fixed, so the storey pitch follows it.
+ */
 function setActiveStoreyHeight(metres) {
     const story = AppState.stories?.[AppState.currentStoryIndex];
     if (!story || !Number.isFinite(metres) || metres <= 0) return null;
-    story.height = Math.min(Math.max(metres, 1.8), 8);
+    const construction = constructionOptions({
+        wallHeight: Math.min(Math.max(metres, 1.8), 6),
+        floorDepth: JOIST_DEPTH_M
+    });
+    story.wallHeight = construction.wallHeight;
+    story.floorDepth = construction.floorDepth;
+    story.height = construction.height;
     refreshStoreyPanel();
     update3D();
     saveToStorage();
-    return story.height;
+    return story.wallHeight;
 }
 
 function refreshStoreyPanel() {
@@ -1578,8 +1677,166 @@ function refreshStoreyPanel() {
     const heightInput = document.getElementById('storey-height');
     const activeStory = AppState.stories?.[AppState.currentStoryIndex];
     if (heightInput && activeStory && document.activeElement !== heightInput) {
-        heightInput.value = Number(activeStory.height || WALL_HEIGHT).toFixed(1);
+        heightInput.value = Number(activeStory.wallHeight || WALL_HEIGHT_M).toFixed(2);
     }
+    const pitch = document.getElementById('storey-pitch');
+    if (pitch && activeStory) {
+        const construction = storeyConstruction(activeStory);
+        pitch.textContent = `${Math.round(construction.wallHeight / 0.0254)} in walls + ${Math.round(construction.floorDepth / 0.0254)} in joists = ${construction.pitch.toFixed(2)} m`;
+    }
+    refreshOpeningsPanel();
+}
+
+// ------------------------------------------------------------------
+// Cutout tool (features/studio/openings-plan.js)
+// ------------------------------------------------------------------
+
+/** Floor openings of the active storey: the holes the cutout tool cuts. */
+function activeOpenings() {
+    const story = AppState.stories?.[AppState.currentStoryIndex];
+    if (!story) return [];
+    if (!Array.isArray(story.openings)) story.openings = [];
+    return story.openings;
+}
+
+function selectedOpening() {
+    return activeOpenings().find((opening) => opening.id === AppState.selectedOpeningId) || null;
+}
+
+/** Press: grab a point, grab the polygon, or rubber-band a new rectangle. */
+function startCutout(pos) {
+    const current = selectedOpening();
+    const vertex = vertexAt(current, pos, 10 / AppState.scale);
+    if (current && vertex >= 0) {
+        AppState.selectedVertexIndex = vertex;
+        AppState.openingDrag = { kind: 'vertex', id: current.id, index: vertex };
+        return AppState.openingDrag;
+    }
+
+    const hit = openingAt(activeOpenings(), pos);
+    if (hit) {
+        AppState.selectedOpeningId = hit.id;
+        AppState.selectedVertexIndex = null;
+        AppState.openingDrag = { kind: 'move', id: hit.id, last: { x: pos.x, y: pos.y } };
+        return AppState.openingDrag;
+    }
+
+    AppState.selectedOpeningId = null;
+    AppState.selectedVertexIndex = null;
+    AppState.cutoutDraft = rectOpening(pos, pos);
+    AppState.openingDrag = { kind: 'new', origin: { x: pos.x, y: pos.y } };
+    return AppState.openingDrag;
+}
+
+/** Drag: stretch the draft, move one point, or move the whole polygon. */
+function updateCutout(pos) {
+    const drag = AppState.openingDrag;
+    if (!drag) return null;
+    if (drag.kind === 'new') {
+        AppState.cutoutDraft = rectOpening(drag.origin, pos);
+        return AppState.cutoutDraft;
+    }
+
+    const opening = activeOpenings().find((entry) => entry.id === drag.id);
+    if (!opening) return null;
+    if (drag.kind === 'vertex') {
+        moveVertex(opening, drag.index, pos);
+        return opening;
+    }
+    moveOpening(opening, pos.x - drag.last.x, pos.y - drag.last.y);
+    drag.last = { x: pos.x, y: pos.y };
+    return opening;
+}
+
+/** Drop: keep the new hole when it covers some floor, then rebuild. */
+function finishCutout() {
+    const drag = AppState.openingDrag;
+    const draft = AppState.cutoutDraft;
+    AppState.openingDrag = null;
+    AppState.cutoutDraft = null;
+    AppState.selectedVertexIndex = null;
+
+    let changed = false;
+    if (drag?.kind === 'new' && draft && openingAreaMetres(draft) >= 0.05) {
+        activeOpenings().push(draft);
+        AppState.selectedOpeningId = draft.id;
+        changed = true;
+    } else if (drag?.kind === 'vertex' || drag?.kind === 'move') {
+        const opening = activeOpenings().find((entry) => entry.id === drag.id);
+        if (opening) AppState.selectedOpeningId = opening.id;
+        changed = true;
+    }
+
+    // A plain click is only a selection: it must not add an undo step.
+    if (changed) saveAndSync();
+    else draw2D();
+    return AppState.selectedOpeningId;
+}
+
+/** Delete the selected point, or the whole hole when it has only three left. */
+function deleteCutoutSelection() {
+    const opening = selectedOpening();
+    if (!opening) return false;
+
+    if (AppState.selectedVertexIndex != null && opening.points.length > 3) {
+        if (!removeVertex(opening, AppState.selectedVertexIndex)) return false;
+    } else {
+        const openings = activeOpenings();
+        const index = openings.findIndex((entry) => entry.id === opening.id);
+        if (index < 0) return false;
+        openings.splice(index, 1);
+        AppState.selectedOpeningId = null;
+    }
+
+    AppState.selectedVertexIndex = null;
+    saveAndSync();
+    return true;
+}
+
+function selectOpening(id) {
+    const opening = activeOpenings().find((entry) => entry.id === id) || null;
+    AppState.selectedOpeningId = opening?.id || null;
+    AppState.selectedVertexIndex = null;
+    if (opening) setTool('cutout');
+    draw2D();
+    return opening;
+}
+
+function deleteOpening(id) {
+    const openings = activeOpenings();
+    const index = openings.findIndex((entry) => entry.id === id);
+    if (index < 0) return false;
+    openings.splice(index, 1);
+    if (AppState.selectedOpeningId === id) AppState.selectedOpeningId = null;
+    saveAndSync();
+    return true;
+}
+
+/** Sidebar list of the active storey's cutouts. */
+function refreshOpeningsPanel() {
+    const list = document.getElementById('openings-list');
+    const count = document.getElementById('openings-count');
+    const openings = activeOpenings();
+    if (count) count.textContent = openings.length ? String(openings.length) : '0';
+    if (!list) return;
+
+    if (!openings.length) {
+        list.innerHTML = '<p class="text-[10px] text-gray-400 leading-snug">No cutouts on this floor. Pick the Cutout tool and drag over the slab.</p>';
+        return;
+    }
+
+    list.innerHTML = openings.map((opening, index) => {
+        const selected = opening.id === AppState.selectedOpeningId;
+        return `
+            <div class="flex items-center justify-between gap-1 rounded ${selected ? 'bg-amber-50 dark:bg-amber-900/20' : ''} px-1 py-0.5">
+                <button onclick="window.selectOpening('${opening.id}')" class="text-left text-[10px] font-mono text-gray-600 dark:text-gray-300 truncate" title="Select this opening">
+                    Hole ${index + 1} · ${openingAreaMetres(opening).toFixed(2)} m²
+                </button>
+                <button onclick="window.deleteOpening('${opening.id}')" class="p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete this opening">
+                    <span class="material-symbols-outlined text-sm text-red-400">delete</span>
+                </button>
+            </div>`;
+    }).join('');
 }
 
 function refreshRoomFloorPanel() {
@@ -2205,6 +2462,18 @@ function draw2D(cursorPos = null) {
         ctx.globalAlpha = 1.0;
     }
     
+    // Floor openings on this storey (the cutout tool's output). Drawn under the
+    // walls so a hole reads as part of the slab, with handles when selected.
+    if (activeOpenings().length || AppState.cutoutDraft) {
+        drawFloorOpenings(ctx, {
+            openings: activeOpenings(),
+            selectedId: AppState.selectedOpeningId,
+            selectedVertexIndex: AppState.selectedVertexIndex,
+            draft: AppState.cutoutDraft,
+            active: AppState.currentTool === 'cutout'
+        });
+    }
+
     // Walls
     AppState.walls.forEach(wall => drawWall(ctx, wall.start, wall.end, false, wall.id === AppState.selectedWallId));
     
@@ -2220,7 +2489,7 @@ function draw2D(cursorPos = null) {
     });
 
     // Ghost Item Preview
-    if (abilityState.ghostPreview !== false && cursorPos && !AppState.drag && AppState.currentTool && !['wall', 'delete', 'select'].includes(AppState.currentTool)) {
+    if (abilityState.ghostPreview !== false && cursorPos && !AppState.drag && AppState.currentTool && !['wall', 'delete', 'select', 'cutout'].includes(AppState.currentTool)) {
         ctx.globalAlpha = 0.5;
         // Mock fixture for drawing
         const ghost = { x: cursorPos.x, y: cursorPos.y, rotation: 0, type: AppState.currentTool, metadata: ItemFactory.create(AppState.currentTool,0,0).metadata };
@@ -2864,10 +3133,19 @@ function setupEventListeners() {
         switch(e.key.toLowerCase()) {
             case 'w': setTool('wall'); setActiveToolBtn('wall'); break;
             case 'd': setTool('delete'); setActiveToolBtn('delete'); break;
+            case 'c': setTool('cutout'); setActiveToolBtn('cutout'); break;
+            case 'delete':
+            case 'backspace':
+                // In the cutout tool, Delete removes a point or the whole hole.
+                if (deleteCutoutSelection()) e.preventDefault();
+                break;
             case 'escape': 
+                AppState.selectedOpeningId = null;
+                AppState.selectedVertexIndex = null;
                 setTool('select'); 
                 document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active', 'border-primary', 'bg-blue-50', 'text-primary'));
                 refreshGizmo();
+                draw2D();
                 break;
             case 'g': setGizmoMode('translate'); break;
             case 'r': setGizmoMode('rotate'); break;
@@ -3052,6 +3330,14 @@ function setTool(tool) {
     AppState.drag = null;
     AppState.groupDrag = null;
     AppState.selectedFixture = null;
+    // Leaving the cutout tool drops its in-progress rectangle and handles, but
+    // the holes themselves stay on the storey.
+    if (tool !== 'cutout') {
+        AppState.cutoutDraft = null;
+        AppState.openingDrag = null;
+        AppState.selectedVertexIndex = null;
+        AppState.selectedOpeningId = null;
+    }
     refreshGizmo();
     console.log('Tool set to:', tool);
 }
@@ -3110,22 +3396,31 @@ function restoreState(data) {
         ? project.stories
         : null;
 
+    // Every storey carries its 96 in wall + 8 in floor parts so a saved project
+    // restores the same pitch, and its cutouts so the holes survive undo/load.
     const stories = rawStories
-        ? rawStories.map((story, index) => ({
-            id: story.id || `storey_${index + 1}`,
-            name: story.name || `Floor ${index + 1}`,
-            height: typeof story.height === 'number' && story.height > 0 ? story.height : WALL_HEIGHT,
-            visible: story.visible !== false,
-            walls: (story.walls || []).map((wall) => Wall.fromJSON(wall)),
-            fixtures: (story.fixtures || []).map((fixture) => ItemFactory.fromJSON(fixture))
-        }))
+        ? rawStories.map((story, index) => {
+            const construction = storeyConstruction(story);
+            return {
+                id: story.id || `storey_${index + 1}`,
+                name: story.name || `Floor ${index + 1}`,
+                wallHeight: construction.wallHeight,
+                floorDepth: construction.floorDepth,
+                height: construction.pitch,
+                visible: story.visible !== false,
+                walls: (story.walls || []).map((wall) => Wall.fromJSON(wall)),
+                fixtures: (story.fixtures || []).map((fixture) => ItemFactory.fromJSON(fixture)),
+                openings: cloneOpenings(story.openings || [])
+            };
+        })
         : [{
             id: 'storey_ground',
             name: 'Ground floor',
-            height: WALL_HEIGHT,
+            ...constructionOptions(),
             visible: true,
             walls: project.walls.map((wall) => Wall.fromJSON(wall)),
-            fixtures: project.fixtures.map((fixture) => ItemFactory.fromJSON(fixture))
+            fixtures: project.fixtures.map((fixture) => ItemFactory.fromJSON(fixture)),
+            openings: []
         }];
 
     const storyIndex = Math.min(Math.max(Number(project.currentStoryIndex) || 0, 0), stories.length - 1);
@@ -3211,10 +3506,13 @@ function projectPayload() {
         stories: AppState.stories.map((story) => ({
             id: story.id,
             name: story.name,
+            wallHeight: story.wallHeight,
+            floorDepth: story.floorDepth,
             height: story.height,
             visible: story.visible !== false,
             walls: (story.walls || []).map((wall) => (wall.toJSON ? wall.toJSON() : wall)),
-            fixtures: (story.fixtures || []).map((fixture) => (fixture.toJSON ? fixture.toJSON() : fixture))
+            fixtures: (story.fixtures || []).map((fixture) => (fixture.toJSON ? fixture.toJSON() : fixture)),
+            openings: cloneOpenings(story.openings || [])
         })),
         currentStoryIndex: AppState.currentStoryIndex || 0,
         roomMaterials: AppState.roomMaterials
@@ -3235,11 +3533,16 @@ function clearProject() {
     AppState.stories = [{
         id: 'storey_ground',
         name: 'Ground floor',
-        height: WALL_HEIGHT,
+        ...constructionOptions(),
         visible: true,
         walls: [],
-        fixtures: []
+        fixtures: [],
+        openings: []
     }];
+    AppState.selectedOpeningId = null;
+    AppState.selectedVertexIndex = null;
+    AppState.cutoutDraft = null;
+    AppState.openingDrag = null;
     AppState.currentStoryIndex = 0;
     AppState.walls = AppState.stories[0].walls;
     AppState.fixtures = AppState.stories[0].fixtures;

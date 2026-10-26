@@ -132,3 +132,85 @@ export function cloneOpenings(openings = []) {
         points: (opening.points || []).map((point) => ({ x: Number(point.x), y: Number(point.y) }))
     }));
 }
+
+export function openingCentroid(opening) {
+    const points = opening?.points || [];
+    if (!points.length) return { x: 0, y: 0 };
+    const sum = points.reduce((total, point) => ({ x: total.x + point.x, y: total.y + point.y }), { x: 0, y: 0 });
+    return { x: sum.x / points.length, y: sum.y / points.length };
+}
+
+/**
+ * Plan symbol for the cutout tool: dashed holes for every opening on the active
+ * storey, amber with draggable points for the selected one, and the rubber-band
+ * rectangle while a new cutout is being dragged.
+ */
+export function drawFloorOpenings(ctx, {
+    openings = [],
+    selectedId = null,
+    selectedVertexIndex = null,
+    draft = null,
+    active = false
+} = {}) {
+    const trace = (points = [], { color, fill, dash = [], width = 2 } = {}) => {
+        if (points.length < 2) return;
+        ctx.save();
+        ctx.beginPath();
+        points.forEach((point, index) => {
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+        });
+        ctx.closePath();
+        if (fill) {
+            ctx.fillStyle = fill;
+            ctx.fill();
+        }
+        ctx.setLineDash(dash);
+        ctx.lineWidth = width;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    };
+
+    openings.forEach((opening) => {
+        const selected = opening.id === selectedId;
+        trace(opening.points, selected
+            ? { color: '#f59e0b', fill: 'rgba(245, 158, 11, 0.14)', width: 2.5 }
+            : { color: '#0ea5e9', fill: 'rgba(14, 165, 233, 0.07)', dash: [6, 4] });
+
+        // Point handles only on the selected opening, so the plan stays quiet.
+        if (selected) {
+            (opening.points || []).forEach((point, index) => {
+                const current = index === selectedVertexIndex;
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, current ? 6 : 4.5, 0, Math.PI * 2);
+                ctx.fillStyle = current ? '#f59e0b' : '#ffffff';
+                ctx.fill();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#b45309';
+                ctx.stroke();
+            });
+        }
+
+        const area = openingAreaMetres(opening);
+        if (!active && !selected) return;
+        if (area < 0.001) return;
+        const centre = openingCentroid(opening);
+        const text = `${area.toFixed(2)} m²`;
+        ctx.save();
+        ctx.font = 'bold 10px "Space Grotesk", sans-serif';
+        const measured = ctx.measureText(text);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(centre.x - measured.width / 2 - 3, centre.y - 7, measured.width + 6, 14);
+        ctx.fillStyle = selected ? '#b45309' : '#0369a1';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, centre.x, centre.y);
+        ctx.restore();
+    });
+
+    if (draft) {
+        trace(draft.points, { color: '#f59e0b', fill: 'rgba(245, 158, 11, 0.1)', dash: [8, 4], width: 2 });
+    }
+}

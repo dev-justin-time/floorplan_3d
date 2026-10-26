@@ -47,29 +47,34 @@ function truss(THREE, span, rise, material) {
 
     const bottom = box(THREE, span, depth, width, material);
     bottom.position.y = 0;
+    bottom.name = 'truss-bottom-chord';
     group.add(bottom);
 
     [1, -1].forEach((side) => {
         const chord = box(THREE, chordLength, depth, width, material);
         chord.position.set((side * half) / 2, rise / 2, 0);
         chord.rotation.z = side > 0 ? angle : -angle;
+        chord.name = 'truss-top-chord';
         group.add(chord);
     });
 
     const king = box(THREE, width, rise, depth, material);
     king.position.y = rise / 2;
+    king.name = 'truss-king-post';
     group.add(king);
 
-    // Two webs each side, from the quarter points to the top chords.
+    // Two webs each side, from the quarter points up to the top chords. The
+    // member is edge-on (3.5 in deep, 1.5 in wide) and leans with the chord.
     [0.5, 0.75].forEach((fraction) => {
         [1, -1].forEach((side) => {
             const x = side * half * fraction;
             const topX = side * half * (fraction / 2);
             const topY = rise * (1 - fraction / 2);
-            const webLength = Math.hypot(x - topX, topY);
-            const web = box(THREE, webLength, width, depth, material);
+            const webLength = Math.hypot(topX - x, topY);
+            const web = box(THREE, webLength, depth, width, material);
             web.position.set((x + topX) / 2, topY / 2, 0);
-            web.rotation.z = Math.atan2(topY, x - topX);
+            web.rotation.z = Math.atan2(topY, topX - x);
+            web.name = 'truss-web';
             group.add(web);
         });
     });

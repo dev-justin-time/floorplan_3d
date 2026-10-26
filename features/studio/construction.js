@@ -24,8 +24,14 @@ export const TRUSS_MEMBER_M = { width: 1.5 * INCH, depth: 3.5 * INCH };
 const positive = (value, fallback) => (Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback);
 
 export function storeyConstruction(story = {}) {
-    const wallHeight = positive(story.wallHeight, WALL_HEIGHT_M);
     const floorDepth = positive(story.floorDepth, JOIST_DEPTH_M);
+    // Older projects, undo snapshots and the stair walker only carry the
+    // floor-to-floor `height`; keep that pitch by taking the 8 in out of it.
+    const legacyPitch = positive(story.height, null);
+    const wallHeight = positive(
+        story.wallHeight,
+        legacyPitch ? Math.max(legacyPitch - floorDepth, WALL_HEIGHT_M) : WALL_HEIGHT_M
+    );
     return {
         wallHeight,
         floorDepth,

@@ -37,18 +37,23 @@ export function exteriorWallIds(walls = [], view = { width: 1, height: 1 }) {
         return ids;
     }
 
-    const probe = 0.3 * PIXELS_PER_METER;
+    // Room vertices are world metres, so probe in metres from the wall centreline.
+    const probe = 0.3;
     walls.forEach((wall) => {
         if (!wall?.id) return;
-        const dx = wall.end.x - wall.start.x;
-        const dy = wall.end.y - wall.start.y;
-        const length = Math.hypot(dx, dy);
+        const ax = (wall.start.x - view.width / 2) / PIXELS_PER_METER;
+        const az = (wall.start.y - view.height / 2) / PIXELS_PER_METER;
+        const bx = (wall.end.x - view.width / 2) / PIXELS_PER_METER;
+        const bz = (wall.end.y - view.height / 2) / PIXELS_PER_METER;
+        const dx = bx - ax;
+        const dz = bz - az;
+        const length = Math.hypot(dx, dz);
         if (!length) return;
-        const nx = -dy / length;
-        const ny = dx / length;
-        const mid = { x: (wall.start.x + wall.end.x) / 2, y: (wall.start.y + wall.end.y) / 2 };
+        const nx = -dz / length;
+        const nz = dx / length;
+        const mid = { x: (ax + bx) / 2, z: (az + bz) / 2 };
         const sides = [1, -1].map((side) => {
-            const point = { x: mid.x + nx * probe * side, z: mid.y + ny * probe * side };
+            const point = { x: mid.x + nx * probe * side, z: mid.z + nz * probe * side };
             return rooms.some((room) => pointInRoom(point, room.vertices));
         });
         if (sides[0] !== sides[1]) ids.add(wall.id);
