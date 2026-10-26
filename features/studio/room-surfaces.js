@@ -1,7 +1,7 @@
 import { planToWorld, PIXELS_PER_METER, WALL_HEIGHT } from '../../world-space.js';
 import { graphFromWalls } from '../../floorplan-graph.js';
 import { findRooms, polygonCentroid } from '../../measurements.js';
-import { TEXTURES } from '../../metadata.js';
+import { TEXTURES, textureUrlFor } from '../../metadata.js';
 
 /**
  * Studio feature 38 - room surfaces.
@@ -74,7 +74,7 @@ export function assignRoomMaterial(materials, roomId, patch = {}) {
 }
 
 export function floorTextureUrl(textureId) {
-    return TEXTURES.floors[textureId] || null;
+    return textureUrlFor(textureId, 'floors');
 }
 
 /**

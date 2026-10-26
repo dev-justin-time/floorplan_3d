@@ -1,5 +1,5 @@
 import { WALL_HEIGHT } from '../world-space.js';
-import { TEXTURES } from '../metadata.js';
+import { textureUrlFor } from '../metadata.js';
 
 /**
  * Per-wall height and finish.
@@ -58,6 +58,6 @@ export function wallFinishOf(wall, styles, defaultTexture = null) {
     return {
         color: style.color || null,
         texture: style.texture || defaultTexture || null,
-        textureUrl: style.texture && TEXTURES.walls[style.texture] ? TEXTURES.walls[style.texture] : null
+        textureUrl: textureUrlFor(style.texture, 'walls')
     };
 }

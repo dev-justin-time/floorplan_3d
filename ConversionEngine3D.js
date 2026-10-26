@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TEXTURES, GLOBAL_CONFIG } from './metadata.js';
+import { TEXTURES, GLOBAL_CONFIG, textureUrlFor } from './metadata.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
@@ -307,7 +307,8 @@ export class ConversionEngine3D {
 
     /** Shared base wall material for the current default texture. */
     createWallMaterial(textureId) {
-        const texture = textureId && TEXTURES.walls[textureId] ? loadTexture(TEXTURES.walls[textureId]) : null;
+        const url = textureUrlFor(textureId, 'walls');
+        const texture = url ? loadTexture(url) : null;
         return new THREE.MeshStandardMaterial({
             color: 0xe0e0e0,
             roughness: 0.7,
@@ -481,7 +482,8 @@ export class ConversionEngine3D {
             geometry = new THREE.PlaneGeometry(40, 40);
             geometry.rotateX(-Math.PI / 2);
         }
-        const texture = textureId && TEXTURES.floors[textureId] ? loadTexture(TEXTURES.floors[textureId]) : null;
+        const textureUrl = textureUrlFor(textureId, 'floors');
+        const texture = textureUrl ? loadTexture(textureUrl) : null;
         const material = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.2, map: texture });
         const floor = new THREE.Mesh(geometry, material);
         floor.receiveShadow = true;
@@ -654,8 +656,9 @@ export class ConversionEngine3D {
         const color = style.color || fixture.metadata?.color || 0xffffff;
         const materialParams = { color: new THREE.Color(color) };
 
-        if (style.texture && TEXTURES.floors[style.texture]) {
-            materialParams.map = loadTexture(TEXTURES.floors[style.texture]);
+        const itemTexture = textureUrlFor(style.texture, 'floors');
+        if (itemTexture) {
+            materialParams.map = loadTexture(itemTexture);
         }
 
         if (style.material === 'metal') {

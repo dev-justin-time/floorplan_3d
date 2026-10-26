@@ -189,6 +189,17 @@ export const GLOBAL_CONFIG = {
 };
 
 
+/**
+ * Resolve a texture setting to an image URL. A preset id maps through
+ * TEXTURES; an uploaded image (data/blob URL) is used as-is.
+ */
+export function textureUrlFor(textureId, kind = 'walls') {
+  if (!textureId) return null;
+  const preset = TEXTURES[kind]?.[textureId];
+  if (preset) return preset;
+  return /^(data:|blob:|https?:|\/)/.test(textureId) ? textureId : null;
+}
+
 export const DEFAULT_TEXTURES = {
   floors: [
     { id: 'marble', name: 'Marble', url: '/textures/marble_floor.jpg' },

@@ -185,16 +185,43 @@
             ]);
 
             const plan = testData.default;
-            const roomColors = Object.fromEntries(plan.rooms.map((room, i) => [room.id, ['#bae6fd', '#fde68a', '#bbf7d0'][i % 3]]));
+            const palette = ['#bae6fd', '#fde68a', '#bbf7d0'];
+            const colorsFor = (data) => Object.fromEntries(
+                (data.rooms || []).map((room, i) => [room.id, palette[i % palette.length]])
+            );
+
+            // One React root for the 3D pane, re-rendered with whichever plan is
+            // current, so the Upload tab can feed FloorPlan3D its own result.
+            const root3d = createRoot(document.getElementById('root-3d'));
+            const renderPlan = (data) => {
+                root3d.render(
+                    React.createElement(Canvas, { shadows: true, camera: { position: [12, 10, 14], fov: 50 } },
+                        React.createElement(floorPlan3D.default, {
+                            floorPlanData: data,
+                            height: 2.6,
+                            roomColors: colorsFor(data)
+                        })
+                    )
+                );
+            };
+            renderPlan(plan);
 
             createRoot(document.getElementById('pane-app')).render(React.createElement(app.default));
             createRoot(document.getElementById('pane-test')).render(React.createElement(testPage.default));
-            createRoot(document.getElementById('pane-upload')).render(React.createElement(upload.default));
-            createRoot(document.getElementById('root-3d')).render(
-                React.createElement(Canvas, { shadows: true, camera: { position: [12, 10, 14], fov: 50 } },
-                    React.createElement(floorPlan3D.default, { floorPlanData: plan, height: 2.6, roomColors })
-                )
-            );
+            createRoot(document.getElementById('pane-upload')).render(React.createElement(upload.default, {
+                // The upload UI has always called this on success; without it the
+                // parsed plan threw "onUpload is not a function". Feed the result
+                // to the 3D pane and show it.
+                onUpload: (data) => {
+                    window.__demoUpload = {
+                        walls: data.walls?.length || 0,
+                        rooms: data.rooms?.length || 0,
+                        dimensions: data.dimensions
+                    };
+                    renderPlan(data);
+                    document.querySelector('.tab[data-pane="pane-3d"]')?.click();
+                }
+            }));
 
             document.querySelectorAll('.tab').forEach((tab) => {
                 tab.addEventListener('click', () => {

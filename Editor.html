@@ -68,6 +68,10 @@
                         <button data-view-mode="3d" onclick="window.setViewMode('3d')" class="px-3 py-1 rounded-md text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-gray-700 transition-colors">3D</button>
                         <button data-view-mode="elevation" onclick="window.setViewMode('elevation')" class="px-3 py-1 rounded-md text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-gray-700 transition-colors">Elevation</button>
                     </div>
+                    <button id="walk-btn" onclick="window.toggleWalk()" class="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="Walk the plan in first person: WASD or arrows to move, mouse or drag to look, Shift to run, Esc to exit">
+                        <span class="material-symbols-outlined text-base">directions_walk</span>
+                        <span>Walk</span>
+                    </button>
                     
                     <div class="flex items-center gap-2 border-l border-gray-300 dark:border-gray-700 pl-4">
                         <label class="flex items-center gap-2 cursor-pointer select-none" title="Toggle Dimensions">
@@ -220,6 +224,25 @@
                         <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Room floors</h3>
                     </div>
                     <div id="room-floors-list" class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- Finish textures, global or per wall (legacy app.html palette) -->
+                <div class="item-category">
+                    <div class="item-category-header py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Finishes</h3>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 dark:bg-gray-800 p-1 mt-2">
+                        <button id="finish-target-wall" onclick="window.setFinishTarget('wall')" class="text-[11px] font-semibold rounded-md py-1 bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-gray-100">Walls</button>
+                        <button id="finish-target-floor" onclick="window.setFinishTarget('floor')" class="text-[11px] font-semibold rounded-md py-1 text-gray-500">Floors</button>
+                    </div>
+                    <div id="finish-textures" class="grid grid-cols-2 gap-1 mt-2"></div>
+                    <p class="text-[10px] uppercase text-gray-400 mt-2">Colour</p>
+                    <div id="finish-colours" class="flex flex-wrap gap-1 mt-1"></div>
+                    <label class="block text-[10px] uppercase text-gray-400 mt-2">Custom image
+                        <input id="finish-upload" type="file" accept="image/*" class="mt-0.5 block w-full text-[10px] text-gray-500 dark:text-gray-400">
+                    </label>
+                    <p id="finish-status" class="text-[10px] font-mono text-gray-400 mt-1">Walls · default</p>
+                    <p class="text-[10px] text-gray-400 leading-snug mt-1">No wall selected applies the texture to every wall; a selected wall takes its own finish.</p>
                 </div>
 
                 <!-- NKBA layout solver (features/studio/layout-solver.js) -->
@@ -726,6 +749,10 @@
                     <div id="height-readout" class="hidden absolute top-4 right-4 z-20 bg-gray-900/85 backdrop-blur text-white px-3 py-1.5 rounded-lg text-[11px] font-mono shadow-lg pointer-events-none"></div>
                     <div id="elevation-hint" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur text-white px-4 py-2 rounded-full text-xs font-medium pointer-events-none shadow-lg">
                         Click an object to select • G move • R rotate • Elevation for up/down
+                    </div>
+                    <!-- First-person walk HUD (features/studio/walk-mode.js) -->
+                    <div id="walk-hud" class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-gray-900/85 backdrop-blur text-white px-4 py-2 rounded-full text-[11px] font-medium shadow-lg pointer-events-none">
+                        WASD / arrows move · mouse or drag to look · Shift to run · Esc to exit
                     </div>
                 </div>
 

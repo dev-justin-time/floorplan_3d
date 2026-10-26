@@ -18,6 +18,7 @@ import { drawPlanOverlays, drawScreenOverlays } from './plan-overlays.js';
 import {
     FEATURES,
     wallHeightOf,
+    wallFinishOf,
     setWallHeight as setWallHeightValue,
     resetWallHeights as resetWallHeightsFeature,
     setWallFinish,
@@ -37,6 +38,7 @@ import {
     setCeiling,
     setRoof,
     syncShellToggles,
+    WALL_FINISH_OPTIONS,
     buildCutList,
     downloadCutList,
     buildElevationAnnotations,
@@ -112,7 +114,8 @@ import {
     moveOpening,
     cloneOpenings,
     openingAreaMetres,
-    drawFloorOpenings
+    drawFloorOpenings,
+    createWalkMode
 } from './features/studio/index.js';
 import {
     computeStairDesign,
@@ -209,6 +212,8 @@ const AppState = {
     fixtureStyles: {},
     defaultWallTexture: null,
     defaultFloorTexture: 'tile',
+    // Finishes palette: which surface the texture buttons apply to.
+    finishTarget: 'wall',
 
     // Studio kit: storeys, per-room floors, comments and layout checks.
     stories: [],
@@ -285,6 +290,10 @@ let renderLoop = null;
 // Stair suite: first-person walker and its clock.
 let stairWalker = null;
 const stairWalkerClock = new THREE.Clock();
+
+// Plan walk mode: first-person WASD camera at eye height on the active storey.
+let planWalk = null;
+const planWalkClock = new THREE.Clock();
 let collaboration = null;
 
 const ACTIVE_PROJECT_KEY = 'floorplan3d_active_project';
@@ -322,6 +331,7 @@ function init() {
     initCollaboration();
     refreshStoreyPanel();
     refreshRoomFloorPanel();
+    refreshFinishPanel();
     refreshProjectsPanel();
     refreshCommentsPanel();
     refreshStairPanel();
@@ -482,6 +492,11 @@ function init() {
 
     // --- Studio kit actions ------------------------------------------
     window.addStorey = () => addNewStorey();
+    window.toggleWalk = () => togglePlanWalk();
+    window.setFinishTarget = (target) => setFinishTarget(target);
+    window.applyFinishTexture = (texture) => applyFinishTexture(texture);
+    window.applyFinishColour = (colour) => applyFinishColour(colour);
+    window.refreshFinishes = refreshFinishPanel;
     window.selectOpening = (id) => selectOpening(id);
     window.deleteOpening = (id) => deleteOpening(id);
     window.deleteCutoutSelection = () => deleteCutoutSelection();
@@ -548,6 +563,13 @@ function init() {
             area: openingAreaMetres(opening)
         })),
         construction: () => storeyConstruction(AppState.stories?.[AppState.currentStoryIndex] || {}),
+        walk: () => planWalk?.status || null,
+        finishes: () => ({
+            target: AppState.finishTarget,
+            wallTexture: AppState.defaultWallTexture,
+            floorTexture: AppState.defaultFloorTexture,
+            wall: selectedWall() ? wallFinishOf(selectedWall(), AppState.fixtureStyles, AppState.defaultWallTexture) : null
+        }),
         rooms: () => AppState.rooms,
         layout: () => AppState.layoutReport,
         projects: () => AppState.projects,
@@ -1163,9 +1185,13 @@ function syncSelectionPanels() {
         }
         const textureSelect = document.getElementById('sel-wall-texture');
         if (textureSelect && document.activeElement !== textureSelect) {
-            textureSelect.value = style.texture || '';
+            // An uploaded image is not a preset; show the default state instead.
+            textureSelect.value = style.texture && !isUploadedTexture(style.texture) ? style.texture : '';
         }
     }
+
+    // The finishes palette follows the selected wall (if any).
+    refreshFinishPanel();
 }
 
 const isCabinetType = (type) => /cabinet|pantry|island|sink_base|drawer_base|oven_tower/.test(String(type || ''));
@@ -1851,8 +1877,11 @@ function refreshRoomFloorPanel() {
 
     list.innerHTML = rooms.map((room, index) => {
         const key = room.key || `${AppState.currentStoryIndex}:${room.id}`;
-        const options = FLOOR_TEXTURES.map((texture) => (
-            `<option value="${texture}" ${texture === room.texture ? 'selected' : ''}>${texture}</option>`
+        // A custom uploaded image is not one of the presets; keep it selectable.
+        const custom = room.texture && !FLOOR_TEXTURES.includes(room.texture);
+        const choices = custom ? [...FLOOR_TEXTURES, room.texture] : FLOOR_TEXTURES;
+        const options = choices.map((texture) => (
+            `<option value="${texture}" ${texture === room.texture ? 'selected' : ''}>${texture === room.texture && custom ? 'Custom image' : texture}</option>`
         )).join('');
         return `
             <div class="px-2 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50 space-y-1">
@@ -1873,6 +1902,141 @@ function setRoomFloor(key, texture) {
     saveAndSync();
     renderKitchenCheck();
     return AppState.roomMaterials[key];
+}
+
+// ------------------------------------------------------------------
+// Finishes palette (the legacy app.html Apply-to Walls/Floors panel)
+// ------------------------------------------------------------------
+
+const FINISH_TEXTURES = {
+    wall: WALL_FINISH_OPTIONS
+        .filter((option) => option.value)
+        .map(({ value, label }) => ({ id: value, label })),
+    floor: FLOOR_TEXTURES.map((id) => ({ id, label: id.charAt(0).toUpperCase() + id.slice(1) }))
+};
+
+// The swatch row from the legacy app.html style panel.
+const FINISH_COLOURS = ['#ffffff', '#5c2b26', '#d9d2c5', '#8b5a2b', '#555555', '#13a4ec'];
+
+const isUploadedTexture = (value) => /^(data:|blob:)/.test(String(value || ''));
+
+const finishLabel = (value) => {
+    if (!value) return 'default';
+    if (isUploadedTexture(value)) return 'custom image';
+    return value;
+};
+
+/** Texture the palette is currently pointing at (selected wall wins). */
+function currentFinishTexture() {
+    if (AppState.finishTarget === 'floor') return AppState.defaultFloorTexture;
+    const wall = selectedWall();
+    return wall
+        ? wallFinishOf(wall, AppState.fixtureStyles, AppState.defaultWallTexture).texture
+        : AppState.defaultWallTexture;
+}
+
+function setFinishTarget(target) {
+    AppState.finishTarget = target === 'floor' ? 'floor' : 'wall';
+    refreshFinishPanel();
+    return AppState.finishTarget;
+}
+
+/**
+ * Apply a texture preset (or an uploaded data URL) to the selected wall, or to
+ * every wall / floor on the storey when nothing is selected.
+ */
+function applyFinishTexture(texture) {
+    const value = texture || null;
+    if (AppState.finishTarget === 'floor') {
+        AppState.defaultFloorTexture = value || 'tile';
+    } else {
+        const wall = selectedWall();
+        if (wall) setWallFinish(AppState.fixtureStyles, wall.id, { texture: value });
+        else AppState.defaultWallTexture = value;
+    }
+    saveAndSync();
+    refreshFinishPanel();
+    return value;
+}
+
+/**
+ * Colour the selected wall or item, exactly like the legacy swatch row: with
+ * nothing selected there is nothing to paint.
+ */
+function applyFinishColour(colour) {
+    const value = String(colour || '');
+    if (!value) return null;
+
+    const wall = selectedWall();
+    if (wall) {
+        setWallFinish(AppState.fixtureStyles, wall.id, { color: value });
+    } else if (AppState.selectedFixture) {
+        const id = AppState.selectedFixture.id;
+        AppState.fixtureStyles[id] = { ...(AppState.fixtureStyles[id] || {}), color: value };
+    } else {
+        return null;
+    }
+
+    saveAndSync();
+    refreshFinishPanel();
+    return value;
+}
+
+/** Read an uploaded image and apply it as the current finish. */
+function applyFinishUpload(file) {
+    if (!file) return Promise.resolve(null);
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(applyFinishTexture(String(event.target?.result || '')));
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+    });
+}
+
+function refreshFinishPanel() {
+    const list = document.getElementById('finish-textures');
+    if (!list) return;
+    const target = AppState.finishTarget === 'floor' ? 'floor' : 'wall';
+    const active = currentFinishTexture();
+
+    const wallBtn = document.getElementById('finish-target-wall');
+    const floorBtn = document.getElementById('finish-target-floor');
+    [wallBtn, floorBtn].forEach((button) => {
+        if (!button) return;
+        const selected = button.id === `finish-target-${target}`;
+        button.classList.toggle('bg-white', selected);
+        button.classList.toggle('dark:bg-gray-700', selected);
+        button.classList.toggle('shadow-sm', selected);
+        button.classList.toggle('text-gray-800', selected);
+        button.classList.toggle('dark:text-gray-100', selected);
+        button.classList.toggle('text-gray-500', !selected);
+    });
+
+    list.innerHTML = FINISH_TEXTURES[target].map((texture) => {
+        const selected = texture.id === active;
+        return `<button data-finish-texture="${texture.id}" onclick="window.applyFinishTexture('${texture.id}')" class="p-1.5 rounded-lg border text-[10px] font-bold transition-colors ${selected ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-primary'}">${texture.label}</button>`;
+    }).join('');
+
+    // Colour swatches paint the selected wall or item only.
+    const swatches = document.getElementById('finish-colours');
+    if (swatches) {
+        const subject = selectedWall();
+        const current = subject
+            ? (AppState.fixtureStyles[subject.id] || {}).color
+            : (AppState.selectedFixture ? (AppState.fixtureStyles[AppState.selectedFixture.id] || {}).color : null);
+        swatches.innerHTML = FINISH_COLOURS.map((colour) => {
+            const selected = colour.toLowerCase() === String(current || '').toLowerCase();
+            return `<button data-finish-color="${colour}" onclick="window.applyFinishColour('${colour}')" style="background:${colour}" class="w-5 h-5 rounded border ${selected ? 'ring-2 ring-primary border-primary' : 'border-gray-300 dark:border-gray-600'}" title="${colour}"></button>`;
+        }).join('');
+    }
+
+    const status = document.getElementById('finish-status');
+    if (status) {
+        const subject = target === 'floor'
+            ? 'Floors'
+            : (selectedWall() ? 'Selected wall' : 'Walls');
+        status.textContent = `${subject} · ${finishLabel(active)}`;
+    }
 }
 
 function updateCabinetConfig(key, value) {
@@ -2728,6 +2892,27 @@ function init3D() {
         getView: () => ({ width: blueprintCanvas.width, height: blueprintCanvas.height })
     });
 
+    // First-person plan walk (legacy app.html Walk button): eye-level camera on
+    // the active storey, WASD movement with wall clearance, mouse look.
+    planWalk = createWalkMode({
+        camera: camera3D,
+        domElement: renderer3D.domElement,
+        getWalls: () => AppState.walls,
+        getView: () => ({ width: blueprintCanvas.width, height: blueprintCanvas.height }),
+        getElevation: () => activeStoreyElevation(),
+        onChange: (walking) => {
+            AppState.walking = Boolean(walking);
+            if (controls3D) controls3D.enabled = !walking;
+            document.getElementById('walk-hud')?.classList.toggle('hidden', !walking);
+            const button = document.getElementById('walk-btn');
+            if (button) {
+                button.classList.toggle('bg-primary', Boolean(walking));
+                button.classList.toggle('text-white', Boolean(walking));
+            }
+            renderLoop?.requestRender();
+        }
+    });
+
     // Live bottom/top/height readout for elevation drags.
     heightReadout = createHeightReadout(document.getElementById('height-readout'));
 
@@ -2768,6 +2953,8 @@ function init3D() {
     renderer3D.domElement.addEventListener('pointerup', (e) => {
         const start = pointerDownAt;
         pointerDownAt = null;
+        // Clicks look around while walking; they must not pick or open the gizmo.
+        if (planWalk?.active) return;
         if (!start || start.button !== 0 || e.button !== 0) return;
         // A press that grabbed a gizmo handle or dragged a piece belongs to the
         // gizmo / elevation drag, not to selection
@@ -2798,6 +2985,7 @@ function init3D() {
         render: () => {
             const controls = AppState.elevationSide ? orthoControls3D : controls3D;
             if (controls) controls.update();
+            if (planWalk?.active) planWalk.update(planWalkClock.getDelta());
             if (walkthrough) walkthrough.update(walkthroughClock.getDelta());
             if (stairWalker?.active) stairWalker.update(stairWalkerClock.getDelta());
             if (AppState.viewMode !== '3d') return;
@@ -2958,6 +3146,8 @@ function setElevationView(side) {
  */
 function setViewMode(mode) {
     const next = ['2d', '3d', 'elevation'].includes(mode) ? mode : '2d';
+    // Switching away from the orbit view leaves the first-person walk.
+    if (next !== '3d' && planWalk?.active) planWalk.exit();
     const v2d = document.getElementById('view-2d');
     const v3d = document.getElementById('view-3d');
     const r3d = document.getElementById('render-3d-view');
@@ -3122,6 +3312,8 @@ function setupEventListeners() {
     // Keyboard Shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT') return; // Ignore if typing
+        // The walk controller owns the keyboard while the walk is running.
+        if (planWalk?.active) return;
 
         // Ctrl/Cmd+D duplicates the selection (before the D delete-tool shortcut).
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
@@ -3178,6 +3370,16 @@ function setupEventListeners() {
         }
     });
     
+    // Custom finish image: applied to the selected wall, or to all walls /
+    // floors when the palette has no selection.
+    const finishUpload = document.getElementById('finish-upload');
+    if (finishUpload) {
+        finishUpload.addEventListener('change', async (event) => {
+            await applyFinishUpload(event.target.files?.[0]);
+            event.target.value = '';
+        });
+    }
+
     // Merlot cabinetry dropdown
     const merlotSelect = document.getElementById('merlot-select');
     if (merlotSelect) {
@@ -3580,6 +3782,23 @@ let landscapePanel = null;
 
 function activeStoreyHeight() {
     return AppState.stories?.[AppState.currentStoryIndex]?.height || WALL_HEIGHT;
+}
+
+/** Height of the active storey's floor above the ground floor, in metres. */
+function activeStoreyElevation() {
+    return storeyStack(AppState.stories || [])[AppState.currentStoryIndex || 0]?.elevation || 0;
+}
+
+/** Legacy app.html Walk button: first person, eye level, WASD + mouse look. */
+function togglePlanWalk() {
+    if (!planWalk) return false;
+    if (planWalk.active) return planWalk.exit();
+    if (AppState.viewMode !== '3d') setViewMode('3d');
+    AppState.selectedFixture = null;
+    AppState.selectedWallId = null;
+    refreshGizmo();
+    syncSelectionPanels();
+    return planWalk.enter();
 }
 
 function stairPanelApi() {

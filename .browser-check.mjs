@@ -416,7 +416,8 @@ async function main() {
             ];
             document.querySelector('[data-tool="wall"]').click();
             corners.forEach((corner, index) => drag(corner, corners[(index + 1) % corners.length]));
-            drag({ x: cx, y: cy - 240 }, { x: cx, y: cy + 240 });
+            // Off-centre partition: the footprint centre stays walkable.
+            drag({ x: cx - 120, y: cy - 240 }, { x: cx - 120, y: cy + 240 });
             document.querySelector('[data-item="window"]').click();
             click({ x: cx + 60, y: cy - 240 });
 
@@ -552,6 +553,137 @@ async function main() {
         check('openings persist in the project payload',
             cutoutFlow.saved?.openings === 1 && Math.abs(cutoutFlow.saved.wallHeight - 2.4384) < 1e-6,
             JSON.stringify(cutoutFlow.saved));
+
+        console.log('\nFirst-person walk');
+        const walkFlow = await cdp.evaluate(`(async () => {
+            const canvas = document.getElementById('blueprint-canvas');
+            const button = document.getElementById('walk-btn');
+            window.toggleWalk();
+            const started = window.studioKit.walk();
+            const hudShown = !document.getElementById('walk-hud').classList.contains('hidden');
+            const viewMode = window.studioKit.walk() ? document.getElementById('view-3d').style.opacity : null;
+
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true }));
+            await new Promise((resolve) => setTimeout(resolve, 700));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true }));
+            const moved = window.studioKit.walk();
+
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true }));
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            return {
+                button: Boolean(button),
+                started,
+                moved,
+                hudShown,
+                viewMode,
+                ended: window.studioKit.walk().active,
+                hudHidden: document.getElementById('walk-hud').classList.contains('hidden'),
+                restoredY: window.studioKit.walk().position.y,
+                canvasPixels: canvas.width
+            };
+        })()`);
+        check('walk button is in the toolbar', walkFlow.button === true);
+        check('walk starts at eye height on the active storey',
+            walkFlow.started?.active === true && Math.abs(walkFlow.started.position.y - (2.6416 + 1.6)) < 0.05,
+            `${walkFlow.started?.position.y?.toFixed(2)} m`);
+        check('walk shows its HUD in the 3D view',
+            walkFlow.hudShown === true && walkFlow.viewMode === '1', `opacity ${walkFlow.viewMode}`);
+        check('WASD moves the walker',
+            Math.hypot(walkFlow.moved.position.x - walkFlow.started.position.x, walkFlow.moved.position.z - walkFlow.started.position.z) > 0.5,
+            `${Math.hypot(walkFlow.moved.position.x - walkFlow.started.position.x, walkFlow.moved.position.z - walkFlow.started.position.z).toFixed(2)} m`);
+        check('Escape leaves the walk and restores the orbit camera',
+            walkFlow.ended === false && walkFlow.hudHidden === true && walkFlow.restoredY > 3,
+            `camera y ${walkFlow.restoredY.toFixed(2)} m`);
+
+        console.log('\nFinishes palette');
+        const finishFlow = await cdp.evaluate(`(() => {
+            window.setFinishTarget('wall');
+            const wallButtons = document.querySelectorAll('#finish-textures [data-finish-texture]').length;
+            document.querySelector('#finish-textures [data-finish-texture="wood"]').click();
+            const afterWood = window.studioKit.finishes();
+            const convert = window.studioKit.convert();
+
+            window.setFinishTarget('floor');
+            const floorButtons = document.querySelectorAll('#finish-textures [data-finish-texture]').length;
+            document.querySelector('#finish-textures [data-finish-texture="carpet"]').click();
+            const afterCarpet = window.studioKit.finishes();
+            const floorStatus = document.getElementById('finish-status').textContent;
+
+            document.getElementById('finish-target-wall').click();
+            const targetAfterClick = window.studioKit.finishes().target;
+            return {
+                wallButtons,
+                floorButtons,
+                afterWood,
+                afterCarpet,
+                floorStatus,
+                targetAfterClick,
+                converted: Boolean(convert) && convert.walls.built + convert.walls.reused >= 4
+            };
+        })()`);
+        check('wall palette lists every wall texture', finishFlow.wallButtons === 6, `${finishFlow.wallButtons} textures`);
+        check('wall texture applies to every wall', finishFlow.afterWood.wallTexture === 'wood' && finishFlow.converted, finishFlow.afterWood.wallTexture);
+        check('floor palette lists every floor texture', finishFlow.floorButtons === 6, `${finishFlow.floorButtons} textures`);
+        check('floor texture applies to the storey', finishFlow.afterCarpet.floorTexture === 'carpet', finishFlow.afterCarpet.floorTexture);
+        check('finish status names the target and texture', /Floors · carpet/.test(finishFlow.floorStatus), finishFlow.floorStatus);
+        check('palette target toggles back to walls', finishFlow.targetAfterClick === 'wall');
+
+        const finishUpload = await cdp.evaluate(`(async () => {
+            window.setFinishTarget('floor');
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#336699';
+            ctx.fillRect(0, 0, 32, 32);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+            const file = new File([blob], 'finish.png', { type: 'image/png' });
+            const transfer = new DataTransfer();
+            transfer.items.add(file);
+            const input = document.getElementById('finish-upload');
+            input.files = transfer.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            return {
+                texture: window.studioKit.finishes().floorTexture,
+                options: [...document.querySelectorAll('#room-floors-list option')].map((option) => option.textContent),
+                status: document.getElementById('finish-status').textContent,
+                convert: window.studioKit.convert()
+            };
+        })()`);
+        check('custom image becomes the floor finish',
+            String(finishUpload.texture || '').startsWith('data:image/png'),
+            String(finishUpload.texture || '').slice(0, 30));
+        check('room floor select offers the custom image', finishUpload.options.includes('Custom image'), finishUpload.options.join(', '));
+        check('custom finish still renders the 3D scene', Boolean(finishUpload.convert));
+        check('finish status says custom image', /custom image/.test(finishUpload.status), finishUpload.status);
+
+        const colourFlow = await cdp.evaluate(`(() => {
+            window.setViewMode('2d');
+            document.querySelector('[data-tool="select"]').click();
+            const canvas = document.getElementById('blueprint-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const point = {
+                clientX: rect.left + ((canvas.width / 2) / canvas.width) * rect.width,
+                clientY: rect.top + ((canvas.height / 2 - 240) / canvas.height) * rect.height
+            };
+            canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...point }));
+            canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...point }));
+            const selectedWall = !document.getElementById('selection-wall').classList.contains('hidden');
+            const swatches = document.querySelectorAll('#finish-colours [data-finish-color]').length;
+            document.querySelector('#finish-colours [data-finish-color="#8b5a2b"]').click();
+            return {
+                selectedWall,
+                swatches,
+                finish: window.studioKit.finishes(),
+                activeSwatches: document.querySelectorAll('#finish-colours .ring-2').length
+            };
+        })()`);
+        check('clicking a wall selects it for finishing', colourFlow.selectedWall === true);
+        check('colour row has every swatch', colourFlow.swatches === 6, `${colourFlow.swatches} swatches`);
+        check('a swatch colours the selected wall',
+            colourFlow.finish.wall?.color === '#8b5a2b' && colourFlow.activeSwatches === 1,
+            colourFlow.finish.wall?.color || 'none');
 
         console.log('\nStair gallery');
         await load(BASE + '/stair-gallery.html');

@@ -37,6 +37,15 @@ import {
     openingCentroid
 } from './features/studio/openings-plan.js';
 import { buildTrussRoof } from './features/studio/roof.js';
+import { textureUrlFor } from './metadata.js';
+import { wallFinishOf } from './features/wall-finish.js';
+import {
+    WALK,
+    clearanceToWalls,
+    walkStartPoint,
+    canvasToWorld,
+    worldToCanvas
+} from './features/studio/walk-mode.js';
 
 let pass = 0;
 let fail = 0;
@@ -234,6 +243,38 @@ const customTrusses = [];
 customRoof.traverse((child) => { if (child.name === 'roof-truss') customTrusses.push(child); });
 check('spacing controls the truss count', customTrusses.length === Math.ceil((400 / PIXELS_PER_METER) / 1.2) + 1, `${customTrusses.length} trusses`);
 check('custom joist depth lifts the trusses', customTrusses[0].position.y >= 0.4 - 1e-6);
+
+console.log('\nFinishes');
+check('wall presets resolve to a texture URL', textureUrlFor('marble', 'walls') === '/textures/marble_wall.jpg');
+check('floor presets resolve to a texture URL', textureUrlFor('wood', 'floors') === '/textures/wood_floor.jpg');
+check('uploaded images pass through', textureUrlFor('data:image/png;base64,AAAA', 'walls') === 'data:image/png;base64,AAAA');
+check('unknown keys resolve to nothing', textureUrlFor('velvet', 'walls') === null && textureUrlFor(null) === null);
+
+const finishedWall = { id: 'w1' };
+const uploaded = wallFinishOf(finishedWall, { w1: { texture: 'data:image/png;base64,AAAA' } });
+check('a wall finish accepts an uploaded image', uploaded.textureUrl === 'data:image/png;base64,AAAA');
+const presetWall = wallFinishOf(finishedWall, { w1: { texture: 'wood' } });
+check('a wall finish resolves its preset', presetWall.textureUrl === '/textures/wood_wall.jpg');
+check('the storey default only names the texture', wallFinishOf(finishedWall, {}, 'paint').textureUrl === null);
+
+console.log('\nFirst-person walk');
+const walkWalls = [
+    new Wall(0, 0, 300, 0),
+    new Wall(300, 0, 300, 300),
+    new Wall(300, 300, 0, 300),
+    new Wall(0, 300, 0, 0)
+];
+check('eye height is 1.6 m', WALK.eyeHeight === 1.6 && WALK.radius > 0.2);
+check('the room centre is clear', near(clearanceToWalls({ x: 150, y: 150 }, walkWalls), 5, 1e-9), `${clearanceToWalls({ x: 150, y: 150 }, walkWalls).toFixed(2)} m`);
+check('standing on a wall has no clearance', near(clearanceToWalls({ x: 150, y: 0 }, walkWalls), 0));
+check('no walls means the canvas centre', near(walkStartPoint([], { width: 600, height: 400 }).x, 300));
+check('the walk starts at the footprint centre', near(walkStartPoint(walkWalls, { width: 600, height: 600 }).x, 150));
+
+const eye = canvasToWorld({ x: 300, y: 300 }, { width: 600, height: 600 }, 2.64 + 1.6);
+check('the canvas centre maps to the world origin', near(eye.x, 0) && near(eye.z, 0), `${eye.x}, ${eye.z}`);
+check('the eye sits above the storey elevation', near(eye.y, 4.24));
+const back = worldToCanvas({ x: 1, z: -2 }, { width: 600, height: 600 });
+check('world points map back to the plan', near(back.x, 330) && near(back.y, 240), `${back.x}, ${back.y}`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
