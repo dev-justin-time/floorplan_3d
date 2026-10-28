@@ -2,9 +2,11 @@
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
+    <script src="../shared/error-reporting.js"></script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wall suite · paint, finishes and coverings</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="../assets/tailwind.css">
     <style>
         html, body { margin: 0; height: 100%; overflow: hidden; background: #f8fafc; }
         input[readonly] { background: #f1f5f9; color: #475569; }
@@ -318,13 +320,16 @@
 </div>
 
 <script type="importmap">
-{
-    "imports": {
-        "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
-        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
+    {
+        "imports": {
+            "three": "/vendor/three/three.module.js",
+            "three/addons/": "/vendor/three/addons/",
+            "three/nodes": "/vendor/three/addons/nodes/Nodes.js",
+            "three-bvh-csg": "/vendor/three-bvh-csg/index.module.js",
+            "three-mesh-bvh": "/vendor/three-mesh-bvh/index.module.js"
+        }
     }
-}
-</script>
+    </script>
 <script type="module">
     import {
         WALL_DEFAULTS,

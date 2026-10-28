@@ -3,12 +3,13 @@
 
 <head>
     <meta charset="UTF-8">
+    <script src="../shared/error-reporting.js"></script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Demo - Floorplan 3D</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-    <style>
+<link rel="stylesheet" href="../assets/tailwind.css">
+    <link rel="stylesheet" href="../assets/fonts/fonts.css">
+<style>
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -352,11 +353,11 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
-            "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
-            "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js",
-            "nipplejs": "https://esm.sh/nipplejs@0.10.1",
-            "three-bvh-csg": "https://esm.sh/three-bvh-csg@0.0.16?external=three"
+            "three": "/vendor/three/three.module.js",
+            "three/addons/": "/vendor/three/addons/",
+            "three/nodes": "/vendor/three/addons/nodes/Nodes.js",
+            "three-bvh-csg": "/vendor/three-bvh-csg/index.module.js",
+            "three-mesh-bvh": "/vendor/three-mesh-bvh/index.module.js"
         }
     }
     </script>

@@ -7,6 +7,7 @@ export * from './materials.js';
 export * from './design.js';
 export * from './glossary.js';
 export * from './preview.js';
+export * from './studio-panel.js';
 
 export const WALL_KIT = [
     { id: 'coverings', label: 'Covering catalogue: 35 paints and systems' },

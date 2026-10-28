@@ -3,7 +3,6 @@ export class StorageManager {
         try {
             const json = JSON.stringify(data);
             localStorage.setItem(`floorplan3d_${name}`, json);
-            console.log('Project saved locally:', name);
             return true;
         } catch (e) {
             console.error('Failed to save project', e);

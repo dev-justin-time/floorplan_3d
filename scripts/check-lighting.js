@@ -288,7 +288,7 @@ check('rules group without losing one', rulesByCategory().reduce((sum, group) =>
 check('a passing check marks a rule pass', ruleStatus(RULES[0], [{ id: RULES[0].checkIds[0], severity: 'ok' }]).state === 'ok');
 check('a failed check marks a rule fix', ruleStatus(RULES[0], [{ id: RULES[0].checkIds[0], severity: 'error' }]).state === 'error');
 check('an unmodelled rule is labelled info', ruleStatus(RULES.find((rule) => !rule.checkIds.length)).state === 'info');
-check('code scope names the IRC and IECC', CODE_SCOPE.title.includes('IRC') && CODE_SCOPE.body.includes('IECC'));
+check('code scope names the California electrical and energy codes', CODE_SCOPE.title.includes('California Electrical Code') && CODE_SCOPE.title.includes('Title 24, Part 6') && CODE_SCOPE.body.includes('Title 24, Part 3'));
 
 const doc = readFileSync(new URL('../docs/LIGHTING.MD', import.meta.url), 'utf8');
 check('the rules document exists and cites chapter 39', doc.includes('E3903.2') && doc.includes('Chapter 39'));

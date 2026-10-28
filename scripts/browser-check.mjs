@@ -566,9 +566,10 @@ async function main() {
             const viewMode = window.studioKit.walk() ? document.getElementById('view-3d').style.opacity : null;
 
             window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true }));
-            // Headless Chrome can throttle animation frames, so hold the key
-            // long enough for the walker's frame-clocked movement to register.
-            await new Promise((resolve) => setTimeout(resolve, 1400));
+            // Headless Chrome renders this scene through SwiftShader at about
+            // 10 fps, so hold the key long enough for the walker's
+            // frame-clocked movement to register on a software renderer too.
+            await new Promise((resolve) => setTimeout(resolve, 4000));
             window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true }));
             const moved = window.studioKit.walk();
 

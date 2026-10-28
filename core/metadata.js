@@ -1,19 +1,19 @@
 export const TEXTURES = {
     floors: {
-        marble: '/textures/marble_floor.jpg',
-        wood: '/textures/wood_floor.jpg',
-        tile: '/textures/ceramic_tile.jpg',
-        concrete: '/textures/concrete_floor.jpg',
-        stone: '/textures/stone_floor.jpg',
-        carpet: '/textures/carpet.jpg'
+        marble: '/textures/marble_floor.png',
+        wood: '/textures/wood_floor.png',
+        tile: '/textures/ceramic_tile.png',
+        concrete: '/textures/concrete_floor.png',
+        stone: '/textures/stone_floor.png',
+        carpet: '/textures/carpet.png'
     },
     walls: {
-        marble: '/textures/marble_wall.jpg',
-        wood: '/textures/wood_wall.jpg',
-        tile: '/textures/wall_tile.jpg',
-        concrete: '/textures/concrete_wall.jpg',
-        stone: '/textures/stone_wall.jpg',
-        paint: '/textures/painted_wall.jpg'
+        marble: '/textures/marble_wall.png',
+        wood: '/textures/wood_wall.png',
+        tile: '/textures/wall_tile.png',
+        concrete: '/textures/concrete_wall.png',
+        stone: '/textures/stone_wall.png',
+        paint: '/textures/painted_wall.png'
     }
 };
 
@@ -221,20 +221,20 @@ export function textureUrlFor(textureId, kind = 'walls') {
 
 export const DEFAULT_TEXTURES = {
   floors: [
-    { id: 'marble', name: 'Marble', url: '/textures/marble_floor.jpg' },
-    { id: 'wood', name: 'Wood', url: '/textures/wood_floor.jpg' },
-    { id: 'tile', name: 'Ceramic Tile', url: '/textures/ceramic_tile.jpg' },
-    { id: 'concrete', name: 'Concrete', url: '/textures/concrete_floor.jpg' },
-    { id: 'stone', name: 'Stone', url: '/textures/stone_floor.jpg' },
-    { id: 'carpet', name: 'Carpet', url: '/textures/carpet.jpg' }
+    { id: 'marble', name: 'Marble', url: '/textures/marble_floor.png' },
+    { id: 'wood', name: 'Wood', url: '/textures/wood_floor.png' },
+    { id: 'tile', name: 'Ceramic Tile', url: '/textures/ceramic_tile.png' },
+    { id: 'concrete', name: 'Concrete', url: '/textures/concrete_floor.png' },
+    { id: 'stone', name: 'Stone', url: '/textures/stone_floor.png' },
+    { id: 'carpet', name: 'Carpet', url: '/textures/carpet.png' }
   ],
   walls: [
-    { id: 'marble', name: 'Marble', url: '/textures/marble_wall.jpg' },
-    { id: 'wood', name: 'Wood Paneling', url: '/textures/wood_wall.jpg' },
-    { id: 'tile', name: 'Wall Tile', url: '/textures/wall_tile.jpg' },
-    { id: 'concrete', name: 'Concrete', url: '/textures/concrete_wall.jpg' },
-    { id: 'stone', name: 'Stone', url: '/textures/stone_wall.jpg' },
-    { id: 'paint', name: 'Painted', url: '/textures/painted_wall.jpg' }
+    { id: 'marble', name: 'Marble', url: '/textures/marble_wall.png' },
+    { id: 'wood', name: 'Wood Paneling', url: '/textures/wood_wall.png' },
+    { id: 'tile', name: 'Wall Tile', url: '/textures/wall_tile.png' },
+    { id: 'concrete', name: 'Concrete', url: '/textures/concrete_wall.png' },
+    { id: 'stone', name: 'Stone', url: '/textures/stone_wall.png' },
+    { id: 'paint', name: 'Painted', url: '/textures/painted_wall.png' }
   ]
 };
 

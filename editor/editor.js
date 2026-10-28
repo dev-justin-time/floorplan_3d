@@ -172,20 +172,17 @@ import {
     POOL_SHAPE_LABELS,
     createLandscapePanel
 } from '../features/landscape/index.js';
-// The editor only needs the catalogue and the engine; the preview belongs to
-// wall-designer.html, so importing the folder index here would pull Three.js
-// viewers the editor never uses.
-import { WALL_COVERINGS, coveringById, finishPatchFor } from '../features/wall/materials.js';
-import { computeWallDesign, wallAreaFromPlan } from '../features/wall/design.js';
-import { computeDeckDesign } from '../features/deck/engine.js';
-import { deckEditorSummary, deckDraftLines } from '../features/deck/panel.js';
-import { buildDeckSceneGroup } from '../features/deck/scene.js';
+// Each cross-suite system is imported through its package barrel: the wall,
+// deck, electrical and framing folders expose one entry point that carries the
+// catalogue, rules, engine, panel, scene and studio panel together. The Systems
+// panel is rendered from features/systems.js, which is also the only place the
+// bid system is assembled inside the Studio.
+import { WALL_COVERINGS, coveringById, finishPatchFor, computeWallDesign, wallAreaFromPlan } from '../features/wall/index.js';
+import { computeDeckDesign, deckEditorSummary, deckDraftLines, buildDeckSceneGroup } from '../features/deck/index.js';
 import { applyPriceBookToDesign } from '../features/pricing/book.js';
-import { computeElectricalDesign } from '../features/electrical/engine.js';
-import { electricalEditorSummary, electricalDraftLines } from '../features/electrical/panel.js';
-import { buildElectricalPanelGroup } from '../features/electrical/scene.js';
-import { computeEditorFraming, buildFramingGroup, disposeFramingGroup, framingSceneStats, readFramingDraft } from '../features/framing/scene.js';
-import { framingEditorSummary, framingDraftLines } from '../features/framing/panel.js';
+import { computeElectricalDesign, electricalEditorSummary, electricalDraftLines, buildElectricalPanelGroup } from '../features/electrical/index.js';
+import { computeEditorFraming, buildFramingGroup, disposeFramingGroup, framingSceneStats, readFramingDraft, framingEditorSummary, framingDraftLines } from '../features/framing/index.js';
+import { STUDIO_SYSTEMS, systemById } from '../features/systems.js';
 
 // Application State
 const AppState = {
@@ -384,11 +381,19 @@ function init() {
     // starts out owning them by reference.
     ensureStoreyModel();
 
-    // Debounced, dirty-only autosave (feature 29).
+    // Debounced, dirty-only autosave (feature 29). A failed write must be
+    // visible: localStorage can be full or blocked, and silently losing the
+    // project is the worst failure this app has.
     autosave = createAutosave({
-        save: (payload) => StorageManager.saveProject('autosave', payload)
+        save: (payload) => {
+            const saved = StorageManager.saveProject('autosave', payload);
+            if (!saved) reportSaveFailure();
+            return saved;
+        }
     });
+    // beforeunload is not reliable on mobile Safari; pagehide covers it.
     window.addEventListener('beforeunload', () => autosave?.flush());
+    window.addEventListener('pagehide', () => autosave?.flush());
 
     init2D();
     init3D();
@@ -764,9 +769,7 @@ function init() {
     // Deck suite handle: the framing config sent from deck-designer.html.
     window.deckKit = {
         draft: () => AppState.deckDraft || null,
-        design: () => (AppState.deckDraft?.config
-            ? applyPriceBookToDesign('deck', computeDeckDesign(AppState.deckDraft.config))
-            : null),
+        design: () => deckEditorDesign(),
         summary: () => deckEditorSummary(window.deckKit.design()),
         lines: () => deckDraftLines(window.deckKit.design()),
         scene: () => suiteSceneStats(deckSceneGroup)
@@ -775,9 +778,7 @@ function init() {
     // Electrical suite handle: the dwelling config sent from its designer.
     window.electricalKit = {
         draft: () => AppState.electricalDraft || null,
-        design: () => (AppState.electricalDraft?.config
-            ? applyPriceBookToDesign('electrical', computeElectricalDesign(AppState.electricalDraft.config))
-            : null),
+        design: () => electricalEditorDesign(),
         summary: () => electricalEditorSummary(window.electricalKit.design()),
         circuits: () => window.electricalKit.design()?.circuits || [],
         lines: () => electricalDraftLines(window.electricalKit.design()),
@@ -798,6 +799,22 @@ function init() {
     };
     window.toggleFraming = toggleFraming;
     refreshFramingPanel();
+
+    // Systems handle: the five cross-suite panels, their current models and the
+    // same actions the panel buttons call.
+    window.systemsKit = {
+        systems: () => STUDIO_SYSTEMS.map(({ id, label, suite }) => ({ id, label, suite })),
+        active: () => activeSystemId,
+        select: (id) => selectSystemPanel(id),
+        refresh: () => { refreshSystemsPanel(); return activeSystemId; },
+        model: (id = activeSystemId) => systemById(id)?.panel(systemsContext()[id] || {}) || null,
+        action: (id) => handleSystemAction(id),
+        bid: () => systemById('bid').snapshot()
+    };
+    window.selectSystemPanel = selectSystemPanel;
+    // Deferred: the bid panel harvests every saved suite, and boot should not
+    // wait on a panel the user has not opened yet.
+    setTimeout(refreshSystemsPanel, 0);
 
     window.addCommentHere = () => addCommentAt(AppState.cursor || planCenter());
     window.resolveComment = (id) => resolveComment(id);
@@ -4902,10 +4919,208 @@ function toggleFraming(force) {
 }
 
 // ------------------------------------------------------------------
+// Systems panel: bid, deck, electrical, framing, wall
+// ------------------------------------------------------------------
+
+// The five cross-suite systems are rendered from features/systems.js, which
+// imports each system's barrel. Only the open tab is rebuilt on a refresh: the
+// bid panel harvests every saved suite, so it is the one panel with real work
+// in it and it should not run on every pointer-up.
+let activeSystemId = 'bid';
+
+function deckEditorDesign() {
+    return AppState.deckDraft?.config
+        ? applyPriceBookToDesign('deck', computeDeckDesign(AppState.deckDraft.config))
+        : null;
+}
+
+function electricalEditorDesign() {
+    return AppState.electricalDraft?.config
+        ? applyPriceBookToDesign('electrical', computeElectricalDesign(AppState.electricalDraft.config))
+        : null;
+}
+
+function systemsContext() {
+    return {
+        bid: {},
+        deck: { design: deckEditorDesign(), draft: AppState.deckDraft || null },
+        electrical: { design: electricalEditorDesign(), draft: AppState.electricalDraft || null },
+        framing: {
+            design: framingResult?.design || null,
+            draft: AppState.framingDraft || null,
+            enabled: Boolean(AppState.framingEnabled)
+        },
+        wall: { design: wallCoveringDesign() }
+    };
+}
+
+const SYSTEM_SEVERITY_CLASS = {
+    error: 'text-red-600 dark:text-red-400',
+    warn: 'text-amber-600 dark:text-amber-400',
+    warning: 'text-amber-600 dark:text-amber-400',
+    ok: 'text-emerald-600 dark:text-emerald-400',
+    info: 'text-gray-400'
+};
+
+function systemsPanelHtml(model) {
+    const rows = (model.rows || []).map((row) => `
+        <div class="flex justify-between gap-2 py-0.5">
+            <span class="text-gray-400">${escapeHtml(row.label)}</span>
+            <span class="font-mono text-right">${escapeHtml(row.value)}</span>
+        </div>`).join('');
+    const checks = (model.checks || []).slice(0, 6).map((check) => `
+        <p class="text-[10px] leading-snug ${SYSTEM_SEVERITY_CLASS[check.severity] || 'text-gray-400'}">${escapeHtml(check.label)}: ${escapeHtml(check.message)}</p>`).join('');
+    const actions = (model.actions || []).map((action) => (action.kind === 'link'
+        ? `<a href="${escapeHtml(action.href)}" class="px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:border-primary text-[10px] font-bold">${escapeHtml(action.label)}</a>`
+        : `<button type="button" data-system-action="${escapeHtml(action.id)}" class="px-2 py-1 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-primary text-[10px] font-bold">${escapeHtml(action.label)}</button>`)).join('');
+
+    return `
+        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+            <div class="flex items-start justify-between gap-2">
+                <p class="text-[11px] font-bold leading-snug">${escapeHtml(model.headline)}</p>
+                <span class="text-[9px] uppercase font-bold ${model.ok ? 'text-emerald-600' : 'text-amber-600'}">${model.empty ? 'empty' : (model.ok ? 'ready' : 'review')}</span>
+            </div>
+            ${rows ? `<div class="mt-1 divide-y divide-gray-100 dark:divide-gray-800 text-[10px]">${rows}</div>` : ''}
+            ${model.detail ? `<p class="text-[10px] text-gray-400 leading-snug mt-1">${escapeHtml(model.detail)}</p>` : ''}
+            ${checks ? `<div class="mt-1 space-y-0.5">${checks}</div>` : ''}
+            <div class="flex flex-wrap gap-1 mt-2">${actions}</div>
+        </div>`;
+}
+
+function renderSystemsTabs() {
+    const host = document.getElementById('systems-tabs');
+    if (!host) return;
+    host.innerHTML = STUDIO_SYSTEMS.map((system) => {
+        const active = system.id === activeSystemId;
+        const tone = active
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-300 hover:border-primary';
+        return `<button type="button" data-system="${system.id}" class="rounded-md border px-1 py-1 text-[10px] font-bold ${tone}" title="${escapeHtml(system.label)} system">${escapeHtml(system.label)}</button>`;
+    }).join('');
+}
+
+let systemsRefreshTimer = null;
+
+/** Coalesce the refresh a burst of edits would otherwise run per commit. */
+function scheduleSystemsRefresh() {
+    if (systemsRefreshTimer) clearTimeout(systemsRefreshTimer);
+    systemsRefreshTimer = setTimeout(() => {
+        systemsRefreshTimer = null;
+        refreshSystemsPanel();
+    }, 400);
+}
+
+function refreshSystemsPanel() {
+    const body = document.getElementById('systems-body');
+    if (!body) return;
+    renderSystemsTabs();
+
+    const system = systemById(activeSystemId) || STUDIO_SYSTEMS[0];
+    let model;
+    try {
+        model = system.panel(systemsContext()[system.id] || {});
+    } catch (error) {
+        window.reportClientError?.(error, { source: `editor:systems:${system.id}`, kind: 'systems' });
+        model = {
+            id: system.id,
+            label: system.label,
+            headline: `${system.label} panel could not be built`,
+            rows: [],
+            checks: [{ severity: 'error', label: 'Panel', message: error.message }],
+            ok: false,
+            empty: true,
+            detail: 'The rest of the studio is unaffected.',
+            actions: [{ id: 'open-suite', label: 'Open suite', kind: 'link', href: system.suite }]
+        };
+    }
+
+    body.innerHTML = systemsPanelHtml(model);
+    const status = document.getElementById('systems-status');
+    if (status) {
+        status.textContent = model.empty ? 'no design' : (model.ok ? 'checks pass' : 'review');
+        status.className = `text-[10px] font-mono ${model.empty ? 'text-gray-400' : (model.ok ? 'text-emerald-600' : 'text-amber-600')}`;
+        status.title = `${model.label}: ${model.headline}`;
+    }
+}
+
+function selectSystemPanel(id) {
+    if (!systemById(id)) return activeSystemId;
+    activeSystemId = id;
+    refreshSystemsPanel();
+    return activeSystemId;
+}
+
+function downloadTextFile(filename, text, type = 'text/plain') {
+    const blob = new Blob([text], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+        return;
+    }
+    fallbackCopy(text);
+}
+
+function fallbackCopy(text) {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand('copy'); } catch { /* the text is still on screen */ }
+    area.remove();
+}
+
+function handleSystemAction(actionId) {
+    const bid = systemById('bid');
+    if (actionId === 'framing-toggle') {
+        toggleFraming();
+        refreshSystemsPanel();
+        return true;
+    }
+    if (actionId === 'bid-refresh') {
+        refreshSystemsPanel();
+        return true;
+    }
+    if (actionId === 'bid-csv') {
+        const built = bid.snapshot();
+        downloadTextFile('bid.csv', bid.csv(built.bid), 'text/csv');
+        return true;
+    }
+    if (actionId === 'bid-proposal') {
+        const built = bid.snapshot();
+        copyTextToClipboard(bid.proposal(built.bid));
+        return true;
+    }
+    return false;
+}
+
+// ------------------------------------------------------------------
 // Interaction & UI
 // ------------------------------------------------------------------
 
 function setupEventListeners() {
+    // Systems panel: tabs select a system, buttons run its actions.
+    document.getElementById('systems-tabs')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-system]');
+        if (button) selectSystemPanel(button.dataset.system);
+    });
+    document.getElementById('systems-body')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-system-action]');
+        if (button) handleSystemAction(button.dataset.systemAction);
+    });
+
     // Canvas events
     blueprintCanvas.addEventListener('pointerdown', onPointerDown);
     blueprintCanvas.addEventListener('pointermove', onPointerMove);
@@ -5333,6 +5548,7 @@ function saveAndSync({ tag = null, coalesce } = {}) {
     draw2D();
     syncSelectionPanels();
     saveToStorage();
+    scheduleSystemsRefresh();
 }
 
 /** The full project payload, stamped with the current schema version. */
@@ -5369,11 +5585,39 @@ function projectPayload() {
 function saveToStorage() {
     const payload = projectPayload();
     if (!autosave) {
-        StorageManager.saveProject('autosave', payload);
+        if (!StorageManager.saveProject('autosave', payload)) reportSaveFailure();
         return;
     }
     // Debounced + dirty-only (feature 29).
     autosave.schedule(payload);
+}
+
+/** A failed local write is shown once per session, with an export escape hatch. */
+let saveFailureShown = false;
+function reportSaveFailure() {
+    window.reportClientError?.(
+        new Error('Could not save the project to local storage'),
+        { source: 'editor:autosave', kind: 'save' }
+    );
+    if (saveFailureShown || !document.body) return;
+    saveFailureShown = true;
+    const notice = document.createElement('div');
+    notice.id = 'save-failure-notice';
+    notice.setAttribute('role', 'alert');
+    notice.className = 'fixed bottom-4 left-4 z-50 max-w-sm rounded-lg bg-red-700 px-4 py-3 text-white shadow-xl';
+    notice.innerHTML = `
+        <strong class="block text-sm font-bold">Project not saved</strong>
+        <span class="text-xs">Local storage is full or blocked. Export the project to keep your work.</span>
+        <div class="mt-2 flex gap-2">
+            <button type="button" class="rounded bg-white/20 px-2 py-1 text-xs font-bold" id="save-failure-export">Export</button>
+            <button type="button" class="rounded px-2 py-1 text-xs" aria-label="Dismiss">Dismiss</button>
+        </div>
+    `;
+    notice.querySelector('#save-failure-export')?.addEventListener('click', () => {
+        try { exportProject(); } catch { /* the export path reports its own errors */ }
+    });
+    notice.querySelector('button[aria-label="Dismiss"]')?.addEventListener('click', () => notice.remove());
+    document.body.appendChild(notice);
 }
 
 function clearProject() {

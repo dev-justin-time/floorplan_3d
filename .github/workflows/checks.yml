@@ -1,0 +1,43 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify the compiled stylesheet is current
+        run: |
+          npm run build:css
+          git diff --exit-code -- assets/tailwind.css
+
+      - name: Verify the vendored three.js closure matches package.json
+        run: |
+          node scripts/vendor-deps.mjs
+          git diff --exit-code -- vendor
+
+      - name: Verify the generated textures are current
+        run: |
+          node scripts/generate-textures.mjs
+          git diff --exit-code -- textures
+
+      - name: Install Chrome for the browser checks
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run every check
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: npm test

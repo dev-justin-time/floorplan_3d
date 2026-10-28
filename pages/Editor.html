@@ -2,14 +2,13 @@
 <html class="dark" lang="en">
 <head>
  <meta charset="utf-8">
+    <script src="../shared/error-reporting.js"></script>
+
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>3D Blueprint Editor</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com" rel="preconnect">
-    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/tailwind.css">
+    <link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="stylesheet" href="../assets/style.css">
 
     <style>
         .material-symbols-outlined {
@@ -28,23 +27,6 @@
         }
     </style>
 
-    <script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        "primary": "#13a4ec",
-                        "background-light": "#f6f7f8",
-                        "background-dark": "#101c22",
-                    },
-                    fontFamily: {
-                        "display": ["Space Grotesk", "sans-serif"]
-                    },
-                },
-            },
-        }
-    </script>
 </head>
 <body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200 overflow-hidden">
     <div class="relative flex h-screen w-full flex-col">
@@ -359,6 +341,18 @@
                         <button onclick="window.suggestKitchenRun(5)" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-[11px] font-bold" title="Place five base cabinets along the longest wall">Suggest run</button>
                     </div>
                     <p class="text-[10px] text-gray-400 leading-snug mt-1">Plan-level clearances. <a href="kitchen-designer.html" class="text-primary underline hover:text-sky-700">Kitchen suite</a> designs a run with fillers, air gaps and landing space.</p>
+                </div>
+
+                <!-- Cross-suite systems: bid, deck, electrical, framing, wall (features/systems.js) -->
+                <div class="item-category">
+                    <div class="item-category-header flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Systems</h3>
+                        <span id="systems-status" class="text-[10px] font-mono text-gray-400" title="Systems with a design in this project">—</span>
+                    </div>
+                    <div id="systems-tabs" class="grid grid-cols-5 gap-1 mt-2"></div>
+                    <div id="systems-body" class="mt-2 space-y-1 max-h-72 overflow-y-auto pr-1">
+                        <p class="text-xs text-gray-400">Select a system.</p>
+                    </div>
                 </div>
 
                 <!-- Presence and comments (features/studio/collaboration.js) -->
@@ -988,10 +982,11 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
-            "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
-            "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js",
-            "three-bvh-csg": "https://esm.sh/three-bvh-csg@0.0.16?external=three"
+            "three": "/vendor/three/three.module.js",
+            "three/addons/": "/vendor/three/addons/",
+            "three/nodes": "/vendor/three/addons/nodes/Nodes.js",
+            "three-bvh-csg": "/vendor/three-bvh-csg/index.module.js",
+            "three-mesh-bvh": "/vendor/three-mesh-bvh/index.module.js"
         }
     }
     </script>

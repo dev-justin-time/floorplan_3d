@@ -94,7 +94,7 @@ try {
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     for (let attempt = 0; attempt < 80; attempt += 1) {
-        if (await cdp.evaluate('Boolean(window.editorKit && window.featureKit)')) break;
+        if (await cdp.evaluate('Boolean(window.editorKit && window.featureKit && window.clearProject && window.systemsKit)')) break;
         await sleep(250);
     }
 

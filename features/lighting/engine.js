@@ -530,13 +530,31 @@ function buildChecks(design, plan, preset) {
 
     // Title 24, Part 6 §150.0(k)2F: dimming in habitable spaces.
     if (habitable.includes(plan.roomType) && installed.length) {
-        const missingDimming = installed.filter((light) => {
-            const hasDimming = controlledBy(light, (type) => type.dimmable);
-            const hasAutoOff = controlledBy(light, (type) => type.type === 'sensor');
-            return !hasDimming && !hasAutoOff && light.watts >= 20;
+        const hasDimming = (light) => controlledBy(light, (type) => type.dimmable);
+        const hasAutoOff = (light) => controlledBy(light, (type) => type.type === 'sensor');
+        const unexempt = installed.filter((light) => !hasDimming(light) && !hasAutoOff(light));
+
+        // The exemption is a *controlled load* under 20 W, so the comparison is
+        // per switch load, not per fitting: nine 14 W downlights on one plain
+        // switch are a 126 W load that needs a dimmer, even though no single
+        // fitting draws 20 W.
+        const switchesFor = (light) => design.switches.filter((device) => (device.controls || []).includes(light.id));
+        const loadBySwitch = new Map();
+        unexempt.forEach((light) => {
+            switchesFor(light).forEach((device) => {
+                loadBySwitch.set(device.id, (loadBySwitch.get(device.id) || 0) + light.watts);
+            });
+        });
+        const missingDimming = unexempt.filter((light) => {
+            const controllers = switchesFor(light);
+            // A fitting with no switch at all is its own load.
+            if (!controllers.length) return light.watts >= 20;
+            return controllers.some((device) => (loadBySwitch.get(device.id) || 0) >= 20);
         });
         if (missingDimming.length) {
-            push('warn', 'energy-controls', `${missingDimming.length} luminaire(s) have no dimmer or automatic-off control.`, 'Title 24 §150.0(k)2F: lighting in habitable spaces needs a wall-mounted dimmer unless the controlled load is under 20 W or an occupancy/vacancy sensor provides automatic-off.');
+            const loads = [...loadBySwitch.values()].filter((watts) => watts >= 20);
+            const heaviest = loads.length ? ` Controlled loads: ${loads.map((watts) => `${Math.round(watts)} W`).join(', ')}.` : '';
+            push('warn', 'energy-controls', `${missingDimming.length} luminaire(s) have no dimmer or automatic-off control.${heaviest}`, 'Title 24 §150.0(k)2F: lighting in habitable spaces needs a wall-mounted dimmer unless the controlled load is under 20 W or an occupancy/vacancy sensor provides automatic-off.');
         } else {
             push('ok', 'energy-controls', 'Habitable-space lighting is dimmable or on an automatic-off sensor.');
         }

@@ -255,8 +255,8 @@ check('spacing controls the truss count', customTrusses.length === Math.ceil((40
 check('custom joist depth lifts the trusses', customTrusses[0].position.y >= 0.4 - 1e-6);
 
 console.log('\nFinishes');
-check('wall presets resolve to a texture URL', textureUrlFor('marble', 'walls') === '/textures/marble_wall.jpg');
-check('floor presets resolve to a texture URL', textureUrlFor('wood', 'floors') === '/textures/wood_floor.jpg');
+check('wall presets resolve to a texture URL', textureUrlFor('marble', 'walls') === '/textures/marble_wall.png');
+check('floor presets resolve to a texture URL', textureUrlFor('wood', 'floors') === '/textures/wood_floor.png');
 check('uploaded images pass through', textureUrlFor('data:image/png;base64,AAAA', 'walls') === 'data:image/png;base64,AAAA');
 check('unknown keys resolve to nothing', textureUrlFor('velvet', 'walls') === null && textureUrlFor(null) === null);
 
@@ -264,7 +264,7 @@ const finishedWall = { id: 'w1' };
 const uploaded = wallFinishOf(finishedWall, { w1: { texture: 'data:image/png;base64,AAAA' } });
 check('a wall finish accepts an uploaded image', uploaded.textureUrl === 'data:image/png;base64,AAAA');
 const presetWall = wallFinishOf(finishedWall, { w1: { texture: 'wood' } });
-check('a wall finish resolves its preset', presetWall.textureUrl === '/textures/wood_wall.jpg');
+check('a wall finish resolves its preset', presetWall.textureUrl === '/textures/wood_wall.png');
 check('the storey default only names the texture', wallFinishOf(finishedWall, {}, 'paint').textureUrl === null);
 
 console.log('\nFirst-person walk');

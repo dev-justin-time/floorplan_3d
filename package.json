@@ -2,11 +2,18 @@
   "name": "shaker-3d-floorplan",
   "version": "1.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "description": "3D floor plan editor, WebGPU viewer and Blueprint Studio (app/js)",
   "scripts": {
     "start": "npx --yes serve . -l 8765",
-    "dev": "npx --yes serve . -l 8765"
+    "dev": "npx --yes serve . -l 8765",
+    "build": "npm run build:css",
+    "build:css": "tailwindcss -c tailwind.config.cjs -i assets/tailwind.src.css -o assets/tailwind.css --minify",
+    "vendor": "node scripts/vendor-deps.mjs && node scripts/vendor-fonts.mjs",
+    "textures": "node scripts/generate-textures.mjs",
+    "test": "node scripts/run-checks.mjs",
+    "check:pages": "node scripts/check-pages.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -14,6 +21,12 @@
   "dependencies": {
     "nipplejs": "0.10.1",
     "three": "0.160.0",
-    "three-bvh-csg": "0.0.16"
+    "three-bvh-csg": "0.0.16",
+    "three-mesh-bvh": "0.9.16"
+  },
+  "devDependencies": {
+    "@tailwindcss/container-queries": "0.1.1",
+    "@tailwindcss/forms": "0.5.10",
+    "tailwindcss": "3.4.17"
   }
 }

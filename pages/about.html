@@ -2,28 +2,12 @@
 <html class="dark" lang="en">
 <head>
   <meta charset="utf-8">
+    <script src="../shared/error-reporting.js"></script>
+
   <meta content="width=device-width, initial-scale=1" name="viewport">
   <title>About Us - Floorplan 3D</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-  <script id="tailwind-config">
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            "primary": "#13a4ec",
-            "background-light": "#f6f7f8",
-            "background-dark": "#101c22",
-          },
-          fontFamily: {
-            "display": ["Space Grotesk", "sans-serif"]
-          },
-        },
-      },
-    }
-  </script>
+<link rel="stylesheet" href="../assets/tailwind.css">
+    <link rel="stylesheet" href="../assets/fonts/fonts.css">
 </head>
 <body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200">
   <header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm">
@@ -100,13 +84,15 @@
 
   <script type="importmap">
     {
-      "imports": {
-        "three": "https://esm.sh/three@0.160.0/es2022/three.mjs",
-        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
-        "three/nodes": "https://esm.sh/three@0.160.0/examples/jsm/nodes/Nodes.js"
-      }
+        "imports": {
+            "three": "/vendor/three/three.module.js",
+            "three/addons/": "/vendor/three/addons/",
+            "three/nodes": "/vendor/three/addons/nodes/Nodes.js",
+            "three-bvh-csg": "/vendor/three-bvh-csg/index.module.js",
+            "three-mesh-bvh": "/vendor/three-mesh-bvh/index.module.js"
+        }
     }
-  </script>
+    </script>
   <script type="module">
     import { SharedViewer } from '../scene/SharedViewer.js';
 
