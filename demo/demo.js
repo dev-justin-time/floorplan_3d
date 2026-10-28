@@ -353,7 +353,6 @@ function update3DFrom2D() {
   // scene, the 2D canvas and the measurements all reference the same geometry.
   const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
   const graph = graphFromWalls(AppState.walls, view, { snapPixels: 2 });
-  AppState.graph = graph;
   const walls = graph.toCanvasWalls(view);
 
   const appState = {

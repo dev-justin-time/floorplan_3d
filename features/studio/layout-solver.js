@@ -1,5 +1,6 @@
 import { PIXELS_PER_METER, WALL_THICKNESS } from '../../core/world-space.js';
 import { itemDimensions } from '../../core/items.js';
+import { KITCHEN_GAPS } from '../kitchen/catalog.js';
 
 /**
  * Studio feature 46 - kitchen layout solver.
@@ -11,15 +12,17 @@ import { itemDimensions } from '../../core/items.js';
  * wall for the editor to insert.
  */
 
+// The gap minima are the kitchen suite's, not a second copy: one plan cannot
+// pass the kitchen run check and fail this one on the same landing.
 export const NKBA = {
-    aisle: 1.07,          // 42 in clear floor between runs
-    triangleLegMin: 1.2,  // 4 ft
-    triangleLegMax: 2.7,  // 9 ft
+    aisle: KITCHEN_GAPS.aisleMin,                 // 42 in clear floor between runs
+    triangleLegMin: 1.2,                          // 4 ft
+    triangleLegMax: 2.7,                          // 9 ft
     triangleTotalMin: 4.0,
     triangleTotalMax: 8.0,
-    sinkLanding: 0.6,     // 24 in
-    stoveLanding: 0.9,    // 36 in
-    counterDepth: 0.6
+    sinkLanding: KITCHEN_GAPS.sinkLanding,        // 24 in
+    stoveLanding: KITCHEN_GAPS.rangeLanding,      // 15 in (36 in on one side preferred)
+    counterDepth: KITCHEN_GAPS.counterDepth
 };
 
 const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));

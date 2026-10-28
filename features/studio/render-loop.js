@@ -22,6 +22,16 @@ export function createRenderLoop({ render, isActive = () => true, continuous = (
     const tick = (time) => {
         if (!running) return;
         frameId = requestAnimationFrame(tick);
+        // A hidden view draws nothing, so a frame requested while it is hidden
+        // has to stay pending. Clearing the flag here (as this loop used to)
+        // swallowed edits made on the plan *before* the 3D tab was opened, and a
+        // view that never drew its first frame is a blank canvas.
+        if (!isActive()) {
+            // Forget the clock too, so the first visible frame does not jump a
+            // walkthrough or a lab animation forward by the hidden time.
+            lastTime = 0;
+            return;
+        }
         // `continuous` is for things that animate every frame (walkthrough,
         // turntable, "render every frame" mode); everything else waits for a
         // requestRender().
@@ -32,9 +42,7 @@ export function createRenderLoop({ render, isActive = () => true, continuous = (
         dirty = false;
         frames += 1;
 
-        if (isActive()) {
-            render(delta);
-        }
+        render(delta);
 
         fpsAccumulator += delta;
         fpsFrames += 1;

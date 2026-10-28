@@ -245,7 +245,11 @@ check('the page has interior and exterior modes', page.includes('id="exposure-in
 check('the page offers colours and harmonies', page.includes('id="colour-grid"') && page.includes('id="harmony"'));
 check('the page lists every check', page.includes('id="checks"'));
 check('the editor has a covering select', editor.includes('id="wall-covering-select"'));
-check('the editor imports the wall kit', editorJs.includes("from '../features/wall/materials.js'") && editorJs.includes("from '../features/wall/design.js'"));
+const wallBarrel = readFileSync(new URL('../features/wall/index.js', import.meta.url), 'utf8');
+const systems = readFileSync(new URL('../features/systems.js', import.meta.url), 'utf8');
+check('the editor imports the wall kit through its barrel', editorJs.includes("from '../features/wall/index.js'"));
+check('the wall barrel re-exports the studio panel', wallBarrel.includes("export * from './studio-panel.js'"));
+check('the systems module builds the studio from the barrels', systems.includes("from './wall/index.js'") && systems.includes('wall.wallStudioPanel'));
 check('the editor applies and prices coverings', editorJs.includes('function applyWallCovering') && editorJs.includes('function wallCoveringDesign'));
 check('the editor consumes the designer draft', editorJs.includes("localStorage.getItem('wall-editor-draft')"));
 check('the editor exposes the wall handle', editorJs.includes('window.wallKit'));

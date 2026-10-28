@@ -1,0 +1,4 @@
+# Floorplan 3D — static site, everything is public.
+# Add "Sitemap: https://<production-origin>/sitemap.xml" here once the origin is set.
+User-agent: *
+Allow: /

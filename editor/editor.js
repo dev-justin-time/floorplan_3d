@@ -4097,9 +4097,26 @@ function init3D() {
     orthoCamera3D.position.set(0, 1.35, 20);
 
     renderer3D = new THREE.WebGLRenderer({ antialias: true });
+    // Match the display's pixel density (capped at 2) or the 3D view is a 1×
+    // buffer stretched over a 2× panel — soft edges on every HiDPI screen.
+    renderer3D.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer3D.setSize(w, h);
     renderer3D.shadowMap.enabled = true;
     container.appendChild(renderer3D.domElement);
+
+    // A lost GL context (driver reset, GPU process restart, too many contexts)
+    // leaves the canvas black until something renders again. Prevent the default
+    // so three.js can rebuild its resources on restore, then draw a fresh frame.
+    renderer3D.domElement.addEventListener('webglcontextlost', (event) => {
+        event.preventDefault();
+        window.reportClientError?.(new Error('WebGL context lost in the 3D view'), {
+            source: 'editor:3d',
+            kind: 'render'
+        });
+    });
+    renderer3D.domElement.addEventListener('webglcontextrestored', () => {
+        renderLoop?.requestRender();
+    });
     
     controls3D = new OrbitControls(camera3D, renderer3D.domElement);
     controls3D.enableDamping = true;
@@ -4259,6 +4276,24 @@ function init3D() {
     renderLoop.start();
     controls3D.addEventListener('change', () => renderLoop?.requestRender());
     orthoControls3D.addEventListener('change', () => renderLoop?.requestRender());
+
+    // The canvas has to follow its panel, not just the window: collapsing a
+    // sidebar, opening devtools or an animated layout changes the host with no
+    // resize event, and a canvas stuck at a stale (or 0×0) buffer is exactly
+    // what a blank 3D view looks like.
+    const view3dHost = document.getElementById('render-3d-view');
+    if (view3dHost && typeof ResizeObserver === 'function') {
+        let lastSize = { width: 0, height: 0 };
+        const observer = new ResizeObserver(() => {
+            const width = view3dHost.clientWidth;
+            const height = view3dHost.clientHeight;
+            if (!width || !height) return;
+            if (width === lastSize.width && height === lastSize.height) return;
+            lastSize = { width, height };
+            onResize();
+        });
+        observer.observe(view3dHost);
+    }
 }
 
 function initGizmo() {
@@ -4651,6 +4686,7 @@ function updateViewButtons() {
         btn.classList.toggle('bg-primary', active);
         btn.classList.toggle('text-white', active);
         btn.classList.toggle('font-bold', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
 
     const bar = document.getElementById('elevation-bar');
@@ -4664,6 +4700,7 @@ function updateElevationButtons() {
         const isActive = (btn.dataset.side || '') === (AppState.elevationSide || '');
         btn.classList.toggle('bg-primary', isActive);
         btn.classList.toggle('font-bold', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
     const hint = document.getElementById('elevation-hint');
     if (hint) {
@@ -4688,7 +4725,6 @@ function update3D() {
     const stories = engineStories(AppState);
     const activeIndex = Math.min(AppState.currentStoryIndex || 0, stories.length - 1);
     const graph = graphFromWalls(stories[activeIndex]?.walls || [], view, { snapPixels: 2 });
-    AppState.graph = graph;
 
     // Storeys stack by their heights; the engine also reads each one's visible
     // flag (studio features 39-41).
@@ -4754,7 +4790,29 @@ function update3D() {
     // Framing is rebuilt from the same plan, after the walls it replaces.
     refreshFramingOverlay();
     labKit?.setPlan(worldBounds(), activeStoreyElevation());
+    // The plan and the 3D view are canvases, so the only text a screen reader
+    // gets is this summary; it is announced politely as the plan changes.
+    updatePlanA11ySummary();
     renderLoop?.requestRender();
+}
+
+function updatePlanA11ySummary() {
+    const summary = document.getElementById('plan-a11y-summary');
+    if (!summary) return;
+    const walls = AppState.walls?.length || 0;
+    const fixtures = AppState.fixtures?.length || 0;
+    const rooms = AppState.lastConvert?.rooms || 0;
+    const selected = AppState.selectedWallId
+        ? 'A wall is selected.'
+        : AppState.selectedFixture
+            ? 'A fixture is selected.'
+            : 'Nothing is selected.';
+    if (!walls && !fixtures) {
+        summary.textContent = 'Empty floor plan.';
+        return;
+    }
+    summary.textContent = `Floor plan: ${walls} wall${walls === 1 ? '' : 's'}, `
+        + `${rooms} room${rooms === 1 ? '' : 's'}, ${fixtures} fixture${fixtures === 1 ? '' : 's'}. ${selected}`;
 }
 
 /** Mesh count and world bounds of one exterior suite group, for the kits. */
@@ -5416,6 +5474,9 @@ function onResize() {
     
     const container3D = document.getElementById('render-3d-view');
     if (renderer3D && container3D) {
+        // The pixel ratio can change when the window moves between monitors.
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        if (renderer3D.getPixelRatio() !== pixelRatio) renderer3D.setPixelRatio(pixelRatio);
         renderer3D.setSize(container3D.clientWidth, container3D.clientHeight);
         camera3D.aspect = container3D.clientWidth / container3D.clientHeight;
         camera3D.updateProjectionMatrix();
