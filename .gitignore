@@ -1,1 +1,4 @@
 node_modules/
+.freebuff/
+.server.log
+*.log
