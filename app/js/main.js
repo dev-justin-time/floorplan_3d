@@ -3,7 +3,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
-import nipplejs from 'nipplejs';
+// nipplejs ships a UMD bundle, so app.html loads it as a classic script and
+// the joystick manager is read off the global rather than a module import.
+const nipplejs = globalThis.nipplejs;
 import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
 import { FloorPlanProcessor } from '../../engine/floorPlanProcessor.js';
 import { ConversionEngine3D } from '../../engine/3dConversionEngine.js';
