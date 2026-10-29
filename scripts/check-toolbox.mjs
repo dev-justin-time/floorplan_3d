@@ -431,7 +431,13 @@ check('the page uses the compiled stylesheet', page.includes('../assets/tailwind
 check('the page has the nav and work hosts', page.includes('id="toolbox-list"') && page.includes('id="toolbox-work"'));
 check('the page has a live status line', page.includes('id="toolbox-status"') && page.includes('aria-live="polite"'));
 check('the page declares a language and a description', page.includes('lang="en"') && /<meta name="description"/.test(page));
-check('the page loads no remote asset', !/https?:\/\//.test(page), (page.match(/https?:\/\/[^\s"']+/g) || []).join(', '));
+// A canonical and an og:url are absolute by definition: they name the page
+// rather than load anything, so the self-contained rule ignores just those two
+// tags and still catches any remote script, style, font or image.
+const requested = page
+    .replace(/<link\b[^>]*\brel="canonical"[^>]*>/gi, '')
+    .replace(/<meta\b[^>]*\bproperty="og:url"[^>]*>/gi, '');
+check('the page loads no remote asset', !/https?:\/\//.test(requested), (requested.match(/https?:\/\/[^\s"']+/g) || []).join(', '));
 check('the page has no inline handler', !/\son[a-z]+\s*=/.test(page));
 
 const shell = await readFile(path.join(ROOT, 'features/toolbox/shell.js'), 'utf8');
