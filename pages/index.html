@@ -51,10 +51,10 @@
                 <a class="text-sm font-medium hover:text-primary transition-colors" href="Editor.html">Studio</a>
             </div>
             <div class="flex gap-2">
-                <button onclick="window.location.href='Editor.html'" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary/20 text-primary dark:bg-primary/30 dark:text-primary text-sm font-bold tracking-[0.015em] hover:bg-primary/30 dark:hover:bg-primary/40 transition-colors">
+                <button data-go="Editor.html" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary/20 text-primary dark:bg-primary/30 dark:text-primary text-sm font-bold tracking-[0.015em] hover:bg-primary/30 dark:hover:bg-primary/40 transition-colors">
                     <span class="truncate">Log In</span>
                 </button>
-                <button onclick="window.location.href='Editor.html'" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold tracking-[0.015em] hover:opacity-90 transition-opacity">
+                <button data-go="Editor.html" class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold tracking-[0.015em] hover:opacity-90 transition-opacity">
                     <span class="truncate">Sign Up</span>
                 </button>
             </div>
@@ -79,11 +79,11 @@
                                 </h2>
                             </div>
                             <div class="flex flex-wrap gap-3 justify-center @[960px]:justify-start">
-                                <button onclick="document.getElementById('floorplan-upload').click()" class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-primary text-white text-base font-bold tracking-[0.015em] hover:opacity-90 transition-opacity gap-2">
+                                <button data-clicks="#floorplan-upload" class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-primary text-white text-base font-bold tracking-[0.015em] hover:opacity-90 transition-opacity gap-2">
                                     <span class="material-symbols-outlined text-xl">upload_file</span>
                                     <span class="truncate">Try it Now</span>
                                 </button>
-                                <button onclick="window.location.href='demo.html'" class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-gray-200 text-gray-800 dark:bg-gray-800 dark:text-white text-base font-bold tracking-[0.015em] hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">
+                                <button data-go="demo.html" class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-gray-200 text-gray-800 dark:bg-gray-800 dark:text-white text-base font-bold tracking-[0.015em] hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">
                                     <span class="truncate">Explore Demo</span>
                                 </button>
                             </div>
@@ -243,7 +243,7 @@
                             </p>
                         </div>
                         <div class="flex justify-center">
-                            <button onclick="document.getElementById('floorplan-upload').click()" class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-primary text-white text-base font-bold tracking-[0.015em] hover:opacity-90 transition-opacity gap-2">
+                            <button data-clicks="#floorplan-upload" class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-primary text-white text-base font-bold tracking-[0.015em] hover:opacity-90 transition-opacity gap-2">
                                 <span class="material-symbols-outlined text-xl">rocket_launch</span>
                                 <span class="truncate">Launch Editor</span>
                             </button>
@@ -306,6 +306,7 @@
     <script type="module">
         import { SharedViewer } from '../scene/SharedViewer.js';
         import { processFloorPlan } from '../engine/floorPlanProcessor.js';
+        import { writeDraft } from '../core/drafts.js';
 
         document.addEventListener('DOMContentLoaded', () => {
             const uploadInput = document.getElementById('floorplan-upload');
@@ -331,20 +332,18 @@
             // the same walls plus its openings, items and 3D tools.
             editInStudio.addEventListener('click', () => {
                 if (!lastPlan) return;
-                try {
-                    localStorage.setItem('floorplan-editor-draft', JSON.stringify({
-                        source: 'floorplan-upload',
-                        width: lastPlan.width,
-                        height: lastPlan.height,
-                        walls: lastPlan.walls.map((wall) => ({
-                            start: { x: wall.start.x, y: wall.start.y },
-                            end: { x: wall.end.x, y: wall.end.y }
-                        })),
-                        rooms: lastPlan.rooms || [],
-                        createdAt: Date.now()
-                    }));
-                } catch (error) {
-                    console.error('Could not hand the plan to the studio:', error);
+                const handed = writeDraft('floorplan-editor-draft', {
+                    source: 'floorplan-upload',
+                    width: lastPlan.width,
+                    height: lastPlan.height,
+                    walls: lastPlan.walls.map((wall) => ({
+                        start: { x: wall.start.x, y: wall.start.y },
+                        end: { x: wall.end.x, y: wall.end.y }
+                    })),
+                    rooms: lastPlan.rooms || [],
+                    createdAt: Date.now()
+                });
+                if (!handed) {
                     window.showToast("Could not open the studio. The browser storage is full.", "error");
                     return;
                 }

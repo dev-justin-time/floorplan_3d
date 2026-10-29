@@ -495,6 +495,12 @@ function wireToolbar() {
     AppState.backgroundScale = parseFloat(val) || 1;
     draw2D();
   };
+  // The slider's value label used to be mirrored by an `oninput` expression;
+  // with a CSP the input calls this instead (see shared/site.js `data-input`).
+  window.setBgScaleAndLabel = (val, el) => {
+    window.setBgScale(val);
+    if (el?.nextElementSibling) el.nextElementSibling.textContent = `${val}x`;
+  };
 
   // Export handlers
   window.exportBlueprint = exportBlueprint;

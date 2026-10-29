@@ -70,13 +70,13 @@
             
             <!-- View Switcher -->
             <div class="hidden md:flex bg-gray-100 p-1 rounded-lg items-center gap-1">
-                <button onclick="setView('2d')" id="btn-view-2d" class="px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white shadow text-gray-900">
+                <button data-click="setView" data-args='["2d"]' id="btn-view-2d" class="px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white shadow text-gray-900">
                     2D Editor
                 </button>
-                <button onclick="setView('3d')" id="btn-view-3d" class="px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-600 hover:bg-gray-200">
+                <button data-click="setView" data-args='["3d"]' id="btn-view-3d" class="px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-600 hover:bg-gray-200">
                     3D Preview
                 </button>
-                <button onclick="setView('first-person')" id="btn-view-fp" class="px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-600 hover:bg-gray-200 flex items-center gap-1">
+                <button data-click="setView" data-args='["first-person"]' id="btn-view-fp" class="px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-600 hover:bg-gray-200 flex items-center gap-1">
                     <span class="material-symbols-outlined text-sm">directions_walk</span> Walk
                 </button>
             </div>
@@ -94,31 +94,31 @@
                     <div class="space-y-3">
                         <label class="flex items-center justify-between cursor-pointer">
                             <span class="text-sm text-gray-700">Show Dimensions</span>
-                            <input type="checkbox" checked onchange="window.toggleDimensions()" class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" checked data-click="toggleDimensions" class="rounded border-gray-300 text-primary focus:ring-primary">
                         </label>
                         <label class="flex items-center justify-between cursor-pointer">
                             <span class="text-sm text-gray-700">Show 2D Grid</span>
-                            <input type="checkbox" checked onchange="window.toggleGrid2D()" class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" checked data-click="toggleGrid2D" class="rounded border-gray-300 text-primary focus:ring-primary">
                         </label>
                         <label class="flex items-center justify-between cursor-pointer">
                             <span class="text-sm text-gray-700">Show 3D Grid</span>
-                            <input type="checkbox" checked onchange="window.toggleGrid3D()" class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" checked data-click="toggleGrid3D" class="rounded border-gray-300 text-primary focus:ring-primary">
                         </label>
                         <label class="flex items-center justify-between cursor-pointer">
                             <span class="text-sm text-gray-700">Show 3D Axes</span>
-                            <input type="checkbox" checked onchange="window.toggleAxes3D()" class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" checked data-click="toggleAxes3D" class="rounded border-gray-300 text-primary focus:ring-primary">
                         </label>
                         <label class="flex items-center justify-between cursor-pointer">
                             <span class="text-sm text-gray-700">Show Ceiling</span>
-                            <input type="checkbox" id="ceiling-toggle" onchange="window.toggleCeiling()" class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" id="ceiling-toggle" data-click="toggleCeiling" class="rounded border-gray-300 text-primary focus:ring-primary">
                         </label>
                         <label class="flex items-center justify-between cursor-pointer">
                             <span class="text-sm text-gray-700">Show Roof</span>
-                            <input type="checkbox" id="roof-toggle" onchange="window.toggleRoof()" class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <input type="checkbox" id="roof-toggle" data-click="toggleRoof" class="rounded border-gray-300 text-primary focus:ring-primary">
                         </label>
                         <div class="pt-2 border-t border-gray-100">
                             <p class="text-xs text-gray-500 mb-2">Background Scale</p>
-                            <input type="range" id="bg-scale-slider" min="0.5" max="3" step="0.1" value="1" class="w-full accent-primary h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="window.setBgScale(this.value)">
+                            <input type="range" id="bg-scale-slider" min="0.5" max="3" step="0.1" value="1" class="w-full accent-primary h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer" data-input="setBgScale">
                         </div>
                     </div>
                 </div>
@@ -131,17 +131,17 @@
                     Export
                 </button>
                 <div class="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 hidden group-hover:block py-1 z-50">
-                    <button onclick="exportBlueprint()" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
+                    <button data-click="exportBlueprint" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">image</span> 2D Image
                     </button>
-                    <button onclick="window.exportProject()" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
+                    <button data-click="exportProject" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">data_object</span> Project JSON
                     </button>
                     <div class="h-px bg-gray-100 my-1"></div>
-                    <button onclick="window.export3D('obj')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
+                    <button data-click="export3D" data-args='["obj"]' class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">deployed_code</span> 3D Model (.obj)
                     </button>
-                    <button onclick="window.export3D('gltf')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
+                    <button data-click="export3D" data-args='["gltf"]' class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">view_in_ar</span> 3D Model (.gltf)
                     </button>
                 </div>
@@ -153,8 +153,8 @@
     <div class="flex-1 relative overflow-hidden bg-gray-100 dark:bg-gray-900">
         <!-- Mobile View Switcher (Visible only on small screens) -->
         <div class="md:hidden bg-white border-b border-gray-200 p-2 flex justify-center gap-2">
-            <button onclick="setView('2d')" class="flex-1 py-2 text-sm font-medium rounded bg-gray-100 text-gray-900">2D</button>
-            <button onclick="setView('3d')" class="flex-1 py-2 text-sm font-medium rounded text-gray-600">3D</button>
+            <button data-click="setView" data-args='["2d"]' class="flex-1 py-2 text-sm font-medium rounded bg-gray-100 text-gray-900">2D</button>
+            <button data-click="setView" data-args='["3d"]' class="flex-1 py-2 text-sm font-medium rounded text-gray-600">3D</button>
         </div>
 
         <!-- Floating Tools Bar (Visible in 2D) -->
@@ -178,7 +178,7 @@
                 
                 <!-- Structure -->
                 <div class="border-b border-gray-100">
-                    <button class="w-full px-4 py-3 flex items-center justify-between text-sm font-bold text-gray-700 hover:bg-gray-50" onclick="toggleDropdown('structure-menu')">
+                    <button class="w-full px-4 py-3 flex items-center justify-between text-sm font-bold text-gray-700 hover:bg-gray-50" data-click="toggleDropdown" data-args='["structure-menu"]'>
                         <div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary">foundation</span> Structure</div>
                         <span class="material-symbols-outlined text-[16px]">expand_more</span>
                     </button>
@@ -200,7 +200,7 @@
 
                 <!-- Furniture -->
                 <div class="border-b border-gray-100">
-                    <button class="w-full px-4 py-3 flex items-center justify-between text-sm font-bold text-gray-700 hover:bg-gray-50" onclick="toggleDropdown('furniture-menu')">
+                    <button class="w-full px-4 py-3 flex items-center justify-between text-sm font-bold text-gray-700 hover:bg-gray-50" data-click="toggleDropdown" data-args='["furniture-menu"]'>
                         <div class="flex items-center gap-2"><span class="material-symbols-outlined text-purple-500">chair</span> Furniture</div>
                         <span class="material-symbols-outlined text-[16px]">expand_more</span>
                     </button>
@@ -234,7 +234,7 @@
 
                 <!-- Upload -->
                 <div>
-                    <button onclick="document.getElementById('upload-modal').classList.remove('hidden')" class="w-full px-4 py-3 flex items-center gap-2 text-sm font-bold text-gray-700 hover:bg-gray-50 text-left">
+                    <button data-show="#upload-modal" class="w-full px-4 py-3 flex items-center gap-2 text-sm font-bold text-gray-700 hover:bg-gray-50 text-left">
                         <span class="material-symbols-outlined text-orange-500">cloud_upload</span> Upload Plan
                     </button>
                 </div>
@@ -336,7 +336,7 @@
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold text-gray-900">Upload Floorplan</h3>
-                <button onclick="document.getElementById('upload-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                <button data-hide="#upload-modal" class="text-gray-400 hover:text-gray-600">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -353,7 +353,7 @@
             <div class="mt-6">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Scale Adjustment</label>
                 <div class="flex items-center gap-3">
-                    <input type="range" min="0.5" max="3" step="0.1" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary" oninput="window.setBgScale(this.value); this.nextElementSibling.textContent = this.value + 'x'">
+                    <input type="range" min="0.5" max="3" step="0.1" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary" data-input="setBgScaleAndLabel">
                     <span class="text-sm font-mono font-medium w-8 text-right">1x</span>
                 </div>
             </div>

@@ -39,7 +39,7 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400">5 Professional Engineering Calculators</p>
                 </div>
             </div>
-            <button onclick="document.documentElement.classList.toggle('dark')" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+            <button data-click="toggleTheme" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                 <span class="dark:hidden">🌙</span>
                 <span class="hidden dark:inline">☀️</span>
             </button>
@@ -52,19 +52,19 @@
             <!-- Sidebar Navigation -->
             <nav class="lg:w-64 flex-shrink-0">
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-2 space-y-1">
-                    <button onclick="switchTab('span')" id="tab-span" class="calc-tab active w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                    <button data-click="switchTab" data-args='["span"]' id="tab-span" class="calc-tab active w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
                         <span>📏</span> Lumber Span
                     </button>
-                    <button onclick="switchTab('stairs')" id="tab-stairs" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                    <button data-click="switchTab" data-args='["stairs"]' id="tab-stairs" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
                         <span>🪜</span> Stair Builder
                     </button>
-                    <button onclick="switchTab('concrete')" id="tab-concrete" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                    <button data-click="switchTab" data-args='["concrete"]' id="tab-concrete" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
                         <span>🧱</span> Concrete Volume
                     </button>
-                    <button onclick="switchTab('roof')" id="tab-roof" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                    <button data-click="switchTab" data-args='["roof"]' id="tab-roof" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
                         <span>🏠</span> Roof Pitch & Rafter
                     </button>
-                    <button onclick="switchTab('deck')" id="tab-deck" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
+                    <button data-click="switchTab" data-args='["deck"]' id="tab-deck" class="calc-tab w-full text-left px-4 py-3 rounded-lg text-sm font-medium border border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-3">
                         <span>🛠️</span> Deck Footings
                     </button>
                 </div>
@@ -113,7 +113,7 @@
                             <p class="text-xs text-gray-500 mt-1">Typical floor: 40 Live + 10 Dead = 50 psf</p>
                         </div>
                     </div>
-                    <button onclick="calcSpan()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Max Span</button>
+                    <button data-click="calcSpan" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Max Span</button>
                     
                     <div id="span-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                         <h3 class="font-bold text-brand-900 dark:text-brand-100 text-lg mb-2">Results</h3>
@@ -145,7 +145,7 @@
                             <p class="text-xs text-gray-500 mt-1">Standard is 10" to 11"</p>
                         </div>
                     </div>
-                    <button onclick="calcStairs()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Stairs</button>
+                    <button data-click="calcStairs" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Stairs</button>
                     
                     <div id="stair-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -166,8 +166,8 @@
                     <div class="mb-4">
                         <label class="block text-sm font-medium mb-2">Shape</label>
                         <div class="flex gap-2">
-                            <button onclick="setConcreteShape('rect')" id="shape-rect" class="flex-1 py-2 px-4 rounded-lg border border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 font-medium">Rectangular</button>
-                            <button onclick="setConcreteShape('round')" id="shape-round" class="flex-1 py-2 px-4 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Round (Sonotube)</button>
+                            <button data-click="setConcreteShape" data-args='["rect"]' id="shape-rect" class="flex-1 py-2 px-4 rounded-lg border border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 font-medium">Rectangular</button>
+                            <button data-click="setConcreteShape" data-args='["round"]' id="shape-round" class="flex-1 py-2 px-4 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Round (Sonotube)</button>
                         </div>
                     </div>
 
@@ -183,7 +183,7 @@
                         <div><label class="block text-sm font-medium mb-1">Quantity</label><input type="number" id="conc-qty" value="1" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
                     </div>
 
-                    <button onclick="calcConcrete()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Volume</button>
+                    <button data-click="calcConcrete" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Volume</button>
                     
                     <div id="concrete-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-center">
                         <span class="text-gray-500 dark:text-gray-400 block text-sm">Total Concrete Needed</span>
@@ -208,7 +208,7 @@
                             <input type="number" id="roof-rise" value="6" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2">
                         </div>
                     </div>
-                    <button onclick="calcRoof()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Rafter</button>
+                    <button data-click="calcRoof" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Rafter</button>
                     
                     <div id="roof-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                         <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
@@ -242,7 +242,7 @@
                             </select>
                         </div>
                     </div>
-                    <button onclick="calcDeck()" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Footing</button>
+                    <button data-click="calcDeck" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 rounded-lg transition">Calculate Footing</button>
                     
                     <div id="deck-result" class="hidden mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                         <div class="grid grid-cols-2 gap-4 text-sm">
@@ -258,6 +258,9 @@
     </main>
 
     <script>
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
         // Tab Switching Logic
         function switchTab(tabName) {
             document.querySelectorAll('.calc-content').forEach(el => el.classList.add('hidden'));

@@ -226,6 +226,97 @@ async function main() {
             }
         }
 
+        // --- Deployment config ----------------------------------------------
+        // `_headers` is read by the host, not by any page, so nothing else in
+        // the gate would notice it being deleted or drifting.
+        const headersFile = await readFile(path.join(ROOT, '_headers'), 'utf8').catch(() => '');
+        // Only enforced lines count: a header someone commented out no longer
+        // protects anything, so a substring match would hide the regression.
+        const enforced = headersFile.split('\n').filter((line) => !line.trimStart().startsWith('#'));
+        const security = [
+            'X-Content-Type-Options: nosniff',
+            'Referrer-Policy: strict-origin-when-cross-origin',
+            'X-Frame-Options: SAMEORIGIN',
+            'Permissions-Policy: geolocation=(), microphone=(), camera=()'
+        ];
+        const missing = security.filter((header) => !enforced.some((line) => line.trim() === header));
+        if (!headersFile || missing.length) {
+            failures += 1;
+            console.log(`FAIL _headers: ${headersFile ? `missing ${missing.join(', ')}` : 'file is gone'}`);
+        } else {
+            console.log('ok   _headers declares the four security headers');
+        }
+
+        const cacheRules = [
+            ['/*.html', 'no-cache'],
+            ['/vendor/*', 'immutable'],
+            ['/textures/*', 'immutable']
+        ];
+        const cacheProblems = cacheRules.filter(([scope, directive]) => {
+            const rule = headersFile.split(/\n(?=\S)/).find((block) => block.startsWith(scope));
+            return !rule || !rule.includes(directive);
+        });
+        if (cacheProblems.length) {
+            failures += 1;
+            console.log(`FAIL _headers: no ${cacheProblems.map(([scope, d]) => `${d} rule for ${scope}`).join(', ')}`);
+        } else {
+            console.log('ok   _headers caches hashed assets but revalidates HTML');
+        }
+
+        // --- Inline code (issue 10.4) ----------------------------------------
+        // A host that serves `Content-Security-Policy: script-src 'self'`
+        // refuses both inline handler attributes and inline <script> blocks.
+        // Handlers are now zero everywhere: every one is a `data-*` action run
+        // from shared/site.js. Inline blocks are the remaining half, so their
+        // count is a ratchet that may only fall.
+        const INLINE_SCRIPT_BUDGET = 32;
+        const handlerCounts = new Map();
+        const scriptCounts = new Map();
+        let handlerTotal = 0;
+        let scriptTotal = 0;
+        for (const page of pages) {
+            const html = await readFile(page, 'utf8');
+            const markup = html
+                .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+                .replace(/<!--[\s\S]*?-->/g, '');
+            const handlers = [...markup.matchAll(/\son[a-z]+\s*=\s*["']/gi)].length;
+            // A `<script src>` is a file the host can hash; only block content
+            // needs 'unsafe-inline'.
+            const blocks = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+                .filter(([, attrs, body]) => !/\bsrc\s*=/i.test(attrs) && body.trim()).length;
+            const relative = path.relative(ROOT, page).split(path.sep).join('/');
+            if (handlers) handlerCounts.set(relative, handlers);
+            if (blocks) scriptCounts.set(relative, blocks);
+            handlerTotal += handlers;
+            scriptTotal += blocks;
+        }
+        if (handlerTotal) {
+            failures += 1;
+            console.log(`FAIL ${handlerTotal} inline handler(s) came back: ${[...handlerCounts].map(([page, n]) => `${n} ${page}`).join(', ')}`);
+        } else {
+            console.log('ok   no page carries an inline event handler');
+        }
+        if (scriptTotal > INLINE_SCRIPT_BUDGET) {
+            failures += 1;
+            console.log(`FAIL ${scriptTotal} inline <script> blocks, budget ${INLINE_SCRIPT_BUDGET}: ${[...scriptCounts].map(([page, n]) => `${n} ${page}`).join(', ')}`);
+        } else {
+            console.log(`ok   inline <script> blocks ${scriptTotal}/${INLINE_SCRIPT_BUDGET} (lower the budget when a block is externalised)`);
+        }
+
+        // Guard the other direction: enabling CSP while inline code remains
+        // would break every page, so it must stay commented until issue 10.4.
+        const cspEnabled = headersFile.split('\n')
+            .some((line) => /^\s*Content-Security-Policy:/.test(line));
+        if (cspEnabled && (handlerTotal || scriptTotal)) {
+            failures += 1;
+            console.log(`FAIL _headers: CSP is enabled while ${handlerTotal} inline handler(s) and ${scriptTotal} inline <script> block(s) remain (issue 10.4)`);
+        } else if (cspEnabled) {
+            failures += 1;
+            console.log('FAIL _headers: CSP is enabled but no check exercises it yet (serve it in the browser check first)');
+        } else {
+            console.log(`ok   CSP stays disabled until the ${scriptTotal} inline <script> block(s) are externalised`);
+        }
+
         // --- Runtime --------------------------------------------------------
         const target = await (await fetch(
             `http://127.0.0.1:${DEBUG_PORT}/json/new?${encodeURIComponent('about:blank')}`,
@@ -270,6 +361,35 @@ async function main() {
             for (const entry of report.consoleErrors.slice(0, 3)) console.log(`       console:   ${entry}`);
             for (const entry of report.badResponses.slice(0, 5)) console.log(`       http:      ${entry}`);
             for (const entry of report.failedRequests.slice(0, 3)) console.log(`       request:   ${entry}`);
+
+            // --- Delegated actions ------------------------------------------
+            // A converted page has no inline handler left, and its header CTA
+            // must really navigate: `shared/site.js` runs `data-go` from a
+            // document listener, so a broken dispatcher would leave a dead
+            // button that only a click could reveal.
+            if (route === '/pages/about.html') {
+                const inline = await cdp.evaluate(
+                    "document.querySelectorAll('[onclick],[oninput],[onchange],[onsubmit]').length"
+                );
+                if (inline === 0) {
+                    console.log('ok   about.html has no inline handler in the DOM');
+                } else {
+                    failures += 1;
+                    console.log(`FAIL about.html still has ${inline} inline handler attribute(s)`);
+                }
+                await cdp.evaluate(`document.querySelector('[data-go="Editor.html"]').click()`);
+                for (let i = 0; i < 40; i += 1) {
+                    if ((await cdp.evaluate('location.pathname')) !== route) break;
+                    await sleep(150);
+                }
+                const landed = await cdp.evaluate('location.pathname');
+                if (landed === '/pages/Editor.html') {
+                    console.log('ok   data-go click on about.html opens the editor');
+                } else {
+                    failures += 1;
+                    console.log(`FAIL data-go click on about.html landed on ${landed}`);
+                }
+            }
         }
 
         const clean = results.filter((entry) => entry.count === 0).length;

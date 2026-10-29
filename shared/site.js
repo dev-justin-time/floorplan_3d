@@ -123,6 +123,152 @@ function currentPage() {
     return window.location.pathname.split('/').pop() || 'index.html';
 }
 
+/*
+ * Delegated actions (issue 10.4).
+ *
+ * A host that serves `Content-Security-Policy: script-src 'self'` refuses
+ * inline `onclick="..."`, and a static host has no way to nonce it. Pages
+ * therefore declare what a control does as an attribute, and this module runs
+ * it from a single listener:
+ *
+ *   data-go="Editor.html"            navigate to a page
+ *   data-clicks="#floorplan-upload"  forward the click to another element
+ *   data-click="undo"                window.undo(), with `this` = the element
+ *   data-input="setWallHeight"       window.setWallHeight(value, element)
+ *   data-change="toggleFraming"      window.toggleFraming(checked, element)
+ *
+ * `data-args='["3d"]'` passes arguments; for `data-input`/`data-change` the
+ * value follows them, so `data-input="setRoofOption" data-args='["pitch"]'`
+ * calls `setRoofOption('pitch', value)`. An action name that is not a function
+ * is reported through `window.reportClientError` instead of failing silently,
+ * so a control that lost its binding lands in the support log rather than just
+ * doing nothing.
+ *
+ * These directives replace the statements that inline attributes used to carry,
+ * once `unsafe-inline` is gone:
+ *
+ *   data-show="#upload-modal"        remove the `hidden` class from a target
+ *   data-hide="#upload-modal"        add it
+ *   data-disclosure="#abilities-list" data-icon="#abilities-list-icon"
+ *                                   toggle `hidden`, flip the chevron icon
+ *   data-confirm="Clear project?"    ask before running the action
+ *
+ * A dotted action name walks from `window` and keeps its owner as `this`, so
+ * `data-click="planOcr.runCurrent"` works.
+ */
+
+let actionsInstalled = false;
+
+/** The function behind an action name, with the object it belongs to. */
+function resolveAction(name) {
+    const parts = String(name).split('.');
+    let owner = window;
+    for (const part of parts.slice(0, -1)) owner = owner?.[part];
+    const fn = owner?.[parts[parts.length - 1]];
+    return typeof fn === 'function' ? { fn, owner } : null;
+}
+
+function callAction(element, name, args = []) {
+    const resolved = resolveAction(name);
+    if (!resolved) {
+        if (typeof window.reportClientError === 'function') {
+            window.reportClientError(`No handler for action "${name}"`, { kind: 'action', fatal: false });
+        }
+        return;
+    }
+    resolved.fn.apply(resolved.owner === window ? element : resolved.owner, args);
+}
+
+function setHidden(selector, hidden) {
+    const target = document.querySelector(selector);
+    if (!target) return false;
+    target.classList.toggle('hidden', hidden);
+    return target.classList.contains('hidden');
+}
+
+function declaredArgs(element) {
+    if (!element.dataset.args) return [];
+    try {
+        const parsed = JSON.parse(element.dataset.args);
+        return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+        return [];
+    }
+}
+
+function closestAction(target, attribute) {
+    return target instanceof Element ? target.closest(`[${attribute}]`) : null;
+}
+
+function installActions() {
+    if (actionsInstalled) return;
+    actionsInstalled = true;
+
+    document.addEventListener('click', (event) => {
+        const go = closestAction(event.target, 'data-go');
+        if (go) {
+            event.preventDefault();
+            window.location.assign(go.dataset.go);
+            return;
+        }
+        const forward = closestAction(event.target, 'data-clicks');
+        if (forward) {
+            event.preventDefault();
+            const target = document.querySelector(forward.dataset.clicks);
+            if (target) target.click();
+            return;
+        }
+        const show = closestAction(event.target, 'data-show');
+        if (show) {
+            event.preventDefault();
+            setHidden(show.dataset.show, false);
+            return;
+        }
+        const hide = closestAction(event.target, 'data-hide');
+        if (hide) {
+            event.preventDefault();
+            setHidden(hide.dataset.hide, true);
+            return;
+        }
+        const disclosure = closestAction(event.target, 'data-disclosure');
+        if (disclosure) {
+            event.preventDefault();
+            const target = document.querySelector(disclosure.dataset.disclosure);
+            if (target) {
+                const hidden = setHidden(disclosure.dataset.disclosure, !target.classList.contains('hidden'));
+                if (disclosure.dataset.icon) {
+                    const icon = document.querySelector(disclosure.dataset.icon);
+                    if (icon) icon.textContent = hidden ? 'chevron_right' : 'expand_more';
+                }
+            }
+            return;
+        }
+        const action = closestAction(event.target, 'data-click');
+        if (action) {
+            event.preventDefault();
+            if (action.dataset.confirm && !window.confirm(action.dataset.confirm)) return;
+            callAction(action, action.dataset.click, declaredArgs(action));
+        }
+    });
+
+    document.addEventListener('input', (event) => {
+        const action = closestAction(event.target, 'data-input');
+        if (action) {
+            callAction(action, action.dataset.input, [...declaredArgs(action), action.value, action]);
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        const action = closestAction(event.target, 'data-change');
+        if (!action) return;
+        const checked = action.type === 'checkbox' || action.type === 'radio';
+        callAction(action, action.dataset.change,
+            [...declaredArgs(action), checked ? action.checked : action.value, action]);
+    });
+}
+
+installActions();
+
 function buildMenu() {
     const wrap = document.createElement('details');
     wrap.className = 'site-menu-wrap';

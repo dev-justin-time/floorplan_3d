@@ -318,6 +318,7 @@
     import { SHEATHING, UNDERLAYMENT, COVERINGS, GUTTER_SYSTEMS } from '../features/roof/materials.js';
     import { ROOF_GLOSSARY, ROOF_FORMULAS, glossaryByCategory, searchGlossary } from '../features/roof/glossary.js';
     import { createRoofViewer, drawRoofElevation } from '../features/roof/preview.js';
+    import { clearDraft, writeDraft } from '../core/drafts.js';
 
     const $ = (id) => document.getElementById(id);
     const DRAFT_KEY = 'roof-suite-draft';
@@ -627,7 +628,7 @@
             savedAt: new Date().toISOString()
         };
         localStorage.setItem(DRAFT_KEY, JSON.stringify(state));
-        localStorage.setItem('roof-editor-draft', JSON.stringify(draft));
+        if (!writeDraft('roof-editor-draft', draft)) throw new Error('editor draft not saved');
         $('status').textContent = 'Roof sent to the editor — open Editor.html and switch Roof on.';
         window.location.href = 'Editor.html';
     });
@@ -635,7 +636,7 @@
     $('reset').addEventListener('click', () => {
         state = { ...ROOF_DEFAULTS };
         localStorage.removeItem(DRAFT_KEY);
-        localStorage.removeItem('roof-editor-draft');
+        clearDraft('roof-editor-draft');
         window.location.reload();
     });
 

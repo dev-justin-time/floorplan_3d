@@ -84,8 +84,8 @@
         </div>
 
         <div class="flex items-center gap-1 pl-3 border-l border-gray-200">
-            <button onclick="undo()" class="tool-btn" title="Ctrl+Z">Undo</button>
-            <button onclick="redo()" class="tool-btn" title="Ctrl+Shift+Z">Redo</button>
+            <button data-click="undo" class="tool-btn" title="Ctrl+Z">Undo</button>
+            <button data-click="redo" class="tool-btn" title="Ctrl+Shift+Z">Redo</button>
         </div>
 
         <div class="flex items-center gap-2 pl-3 border-l border-gray-200">
@@ -98,18 +98,18 @@
 
         <div class="flex items-center gap-2 pl-3 border-l border-gray-200">
             <select id="story-select" class="text-[11px] border border-gray-200 rounded-md py-1 pl-2 pr-6"></select>
-            <button onclick="addStory()" class="tool-btn" title="Add a level above this one">+ Level</button>
+            <button data-click="addStory" class="tool-btn" title="Add a level above this one">+ Level</button>
         </div>
 
         <div class="flex items-center gap-2 pl-3 border-l border-gray-200 text-[11px] text-gray-600">
-            <label class="flex items-center gap-1"><input id="roof-toggle" type="checkbox" class="rounded border-gray-300 text-primary" onchange="toggleRoof()"> Roof</label>
-            <label class="flex items-center gap-1"><input id="ceiling-toggle" type="checkbox" class="rounded border-gray-300 text-primary" onchange="toggleCeiling()"> Ceiling</label>
+            <label class="flex items-center gap-1"><input id="roof-toggle" type="checkbox" class="rounded border-gray-300 text-primary" data-click="toggleRoof"> Roof</label>
+            <label class="flex items-center gap-1"><input id="ceiling-toggle" type="checkbox" class="rounded border-gray-300 text-primary" data-click="toggleCeiling"> Ceiling</label>
         </div>
 
         <div class="ml-auto flex items-center gap-1">
-            <button onclick="exportProject()" class="tool-btn">Save JSON</button>
-            <button onclick="export3D('gltf')" class="tool-btn">glTF</button>
-            <button onclick="export3D('obj')" class="tool-btn">OBJ</button>
+            <button data-click="exportProject" class="tool-btn">Save JSON</button>
+            <button data-click="export3D" data-args='["gltf"]' class="tool-btn">glTF</button>
+            <button data-click="export3D" data-args='["obj"]' class="tool-btn">OBJ</button>
         </div>
     </header>
 
@@ -174,10 +174,10 @@
                 </div>
             </div>
             <div class="pt-2 border-t border-gray-100 space-y-1">
-                <button onclick="toggleDimensions()" class="tool-btn w-full text-left">Toggle dimensions</button>
-                <button onclick="toggleGrid2D()" class="tool-btn w-full text-left">Toggle 2D grid</button>
-                <button onclick="toggleGrid3D()" class="tool-btn w-full text-left">Toggle 3D grid</button>
-                <button onclick="toggleAxes3D()" class="tool-btn w-full text-left">Toggle axes</button>
+                <button data-click="toggleDimensions" class="tool-btn w-full text-left">Toggle dimensions</button>
+                <button data-click="toggleGrid2D" class="tool-btn w-full text-left">Toggle 2D grid</button>
+                <button data-click="toggleGrid3D" class="tool-btn w-full text-left">Toggle 3D grid</button>
+                <button data-click="toggleAxes3D" class="tool-btn w-full text-left">Toggle axes</button>
             </div>
         </aside>
 
@@ -240,7 +240,7 @@
                     <input id="file-upload" type="file" accept="image/*,application/json" class="mt-1 block w-full text-[10px]">
                 </label>
                 <label class="block text-[11px] text-gray-600">Background scale
-                    <input id="bg-scale-input" type="range" min="0.2" max="3" step="0.1" value="1" class="w-full" oninput="setBgScale(this.value)">
+                    <input id="bg-scale-input" type="range" min="0.2" max="3" step="0.1" value="1" class="w-full" data-input="setBgScale">
                 </label>
                 <label class="block text-[11px] text-gray-600">Scan a floor plan
                     <input id="kitchen-photo-upload" type="file" accept="image/*" class="mt-1 block w-full text-[10px]">
