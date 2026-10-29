@@ -7,7 +7,7 @@ targeted browser probes for the error reporting, the failed-save notice and the 
 lighting rule.
 
 > **Verdict: the six release blockers are closed; this build is ready to deploy.** Every
-> gate below is green: **1,757 assertions pass / 0 fail**, 29/29 pages load with no console
+> gate below is green: **1,708 assertions pass / 0 fail**, 29/29 pages load with no console
 > error and no missing asset, and the site makes **zero third-party runtime requests**.
 > The accessibility, metadata, clearance and support-matrix items from §3 are now closed too;
 > what remains there is payload size and the CSP, neither a release blocker.
@@ -18,7 +18,7 @@ lighting rule.
 
 | Gate | Measured 2026-10-28 | Status |
 | --- | --- | --- |
-| Scripts with assertions (17 `check-*` + `browser-check`) | **1,757 pass / 0 fail** | pass |
+| Scripts with assertions (17 `check-*` + `browser-check`) | **1,708 pass / 0 fail** | pass |
 | Page sweep (29 routes) | **29/29 clean** — no console errors, no failed local asset | pass |
 | Local links and module specifiers | every local `href`/`src`/`url()` and every module specifier resolves | pass |
 | Runtime dependencies | none external: three.js, CSG, pathfinding helper, joystick, Tailwind, fonts and hero images are all local | pass |
@@ -109,7 +109,7 @@ sweep (`check-pages`) + the legacy page sweep (`browser-pages`) + 1 repricing sc
 
 - All 29 routes load; every internal link, asset and module specifier resolves; no console
   error on any route.
-- 1,757 assertions pass across the ten design suites, the editor, the upload pipeline, the
+- 1,708 assertions pass across the ten design suites, the editor, the upload pipeline, the
   DXF/geo importers and the BIM quantities, the toolbox conversions, image tools and model UV
   checks, the shared plan modules,
   the 29-route sweep and two browser sweeps. `browser-check` (206/206) drives stairs,
@@ -207,14 +207,14 @@ read `AppState.graph` assignments (`editor/editor.js`, `demo/demo.js`) are remov
 | `check-ocr.js` | 56 / 56 |
 | `check-lighting.js` | **123 / 123** |
 | `check-imports.mjs` | **98 / 98** |
-| `check-toolbox.mjs` | **246 / 246** |
-| `check-toolbox-browser.mjs` | **72 / 72** |
+| `check-toolbox.mjs` | **212 / 212** |
+| `check-toolbox-browser.mjs` | **57 / 57** |
 | `browser-check.mjs` | 206 / 206 |
 | `check-pages.mjs` | 29 / 29 pages clean, `_headers` rules present |
 | `browser-pages.mjs` | 4 legacy pages, 0 console errors |
 | `check-price-suites.mjs` | every quoted row in 8 suites repriced at its quoted price |
 
-`npm test` → **21 checks passed, 0 failed, 0 skipped; 1,757 assertions passed.**
+`npm test` → **21 checks passed, 0 failed, 0 skipped; 1,708 assertions passed.**
 
 Targeted probes (run, then removed):
 
@@ -262,7 +262,7 @@ Targeted probes (run, then removed):
   memory, seamless texture, channel packer, normal-map flipper — with the other ten listed as
   planned, not stubbed. Clean-room: written from the published specs, nothing copied from the
   reference site. The page joins `shared/site.js`'s Tools menu and the route sweep;
-  `scripts/check-toolbox.mjs` (246 assertions) pins every constant — including the `G = 255 −
+  `scripts/check-toolbox.mjs` (212 assertions) pins every constant — including the `G = 255 −
   G` involution, the ORM channel order and the exact edge equality — and imports each panel in
   Node, so a registry entry without a panel fails the gate. Verified in headless Chrome: each
   tool mounts from the nav and from a deep link, white reports luminance 1, 2.54 in reads
@@ -491,7 +491,7 @@ build step, so this half belongs with 10.3 rather than on its own.
 **Cost.** The handlers took two hours of mechanical work rather than a day; the blocks are the
 rest.
 
-**Verified.** `npm test`: 21 checks, 1,757 assertions, including `browser-check`'s 206
+**Verified.** `npm test`: 21 checks, 1,708 assertions, including `browser-check`'s 206
 expressions that drive the editor toolbar, and `check-pages` asserting zero inline handlers on
 all 29 pages plus a real `data-go` click from `about.html` to the editor. The gate counts
 both kinds of inline code: handlers must stay at 0, blocks are a ratchet that may only fall.
