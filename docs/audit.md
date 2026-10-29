@@ -1,13 +1,13 @@
 # Production-release audit — Shaker 3D floor plan
 
-Date: 2026-10-28 (final pass) · Scope: the whole tracked tree (163 JS modules plus 17
-scripts, 27 pages plus the root redirect, 25 docs) and the 28 routes they serve. Method:
-`npm test` was run end to end — all 17 scripts, the 28-route sweep, both page sweeps — plus
+Date: 2026-10-28 (final pass) · Scope: the whole tracked tree (183 JS modules plus 19
+scripts, 28 pages plus the root redirect, 17 docs) and the 29 routes they serve. Method:
+`npm test` was run end to end — all 19 scripts, the 29-route sweep, both page sweeps — plus
 targeted browser probes for the error reporting, the failed-save notice and the corrected
 lighting rule.
 
 > **Verdict: the six release blockers are closed; this build is ready to deploy.** Every
-> gate below is green: **1,267 assertions pass / 0 fail**, 28/28 pages load with no console
+> gate below is green: **1,533 assertions pass / 0 fail**, 29/29 pages load with no console
 > error and no missing asset, and the site makes **zero third-party runtime requests**.
 > The accessibility, metadata, clearance and support-matrix items from §3 are now closed too;
 > what remains there is payload size and the CSP, neither a release blocker.
@@ -18,34 +18,34 @@ lighting rule.
 
 | Gate | Measured 2026-10-28 | Status |
 | --- | --- | --- |
-| Scripts with assertions (13 `check-*` + `browser-check`) | **1,267 pass / 0 fail** | pass |
-| Page sweep (28 routes) | **28/28 clean** — no console errors, no failed local asset | pass |
+| Scripts with assertions (15 `check-*` + `browser-check`) | **1,533 pass / 0 fail** | pass |
+| Page sweep (29 routes) | **29/29 clean** — no console errors, no failed local asset | pass |
 | Local links and module specifiers | every local `href`/`src`/`url()` and every module specifier resolves | pass |
 | Runtime dependencies | none external: three.js, CSG, pathfinding helper, joystick, Tailwind, fonts and hero images are all local | pass |
-| Error reporting | `shared/error-reporting.js` on 27 pages; save failures surface in the editor | pass |
+| Error reporting | `shared/error-reporting.js` on 28 pages; save failures surface in the editor | pass |
 | Licence | `LICENSE` (proprietary, all rights reserved) + `"license": "UNLICENSED"` | pass |
-| Automated gate | `npm test` runs all 17 scripts; `.github/workflows/checks.yml` runs it on every push | pass |
+| Automated gate | `npm test` runs all 19 scripts; `.github/workflows/checks.yml` runs it on every push | pass |
 | Data durability | debounced autosave, flush on `beforeunload` + `pagehide`, visible failure notice with Export | pass (local-only by design) |
 | Accessibility | `lang` on every page; `aria-pressed` on the view and elevation toggles; labels on icon-only controls; a `aria-live` text summary of the plan behind the canvases | pass (§3.1 closed, 111 inline `onclick` remain) |
 | Responsive/mobile | support matrix stated on `features.html`; editor is desktop-first by design | pass (§3.5 closed) |
 
-Counts re-derived: every tracked module is reachable from a page — the five system barrels
-(`features/{bid,deck,electrical,framing,wall}/index.js`) are now imported by
-`features/systems.js`, which builds the studio's Systems panel; 28 routes = 27 pages plus the
-root redirect; 17 scripts = 13 assertion harnesses + the link/console sweep (`check-pages`)
-+ 2 page sweeps (one of them, `browser-check`, carries its own 206 assertions) + 1 repricing
-script.
+Counts re-derived: every tracked module is reachable from a page — the six system barrels
+(`features/{bid,bim,deck,electrical,framing,wall}/index.js`) are now imported by
+`features/systems.js`, which builds the studio's Systems panel, and `features/import/{dxf,geo}.js`
+are imported by the editor's upload modal; 29 routes = 28 pages plus the root redirect;
+19 scripts = 15 assertion harnesses + the link/console sweep (`check-pages`) + 2 page sweeps
+(one of them, `browser-check`, carries its own 206 assertions) + 1 repricing script.
 
 ## 2. Blockers — all closed
 
 | # | Blocker (2026-10-28 audit) | Fix | Evidence |
 | --- | --- | --- | --- |
-| B1 | 12 finish textures referenced, none on disk; 4 404s on 3 routes; silent flat-colour fallback | `scripts/generate-textures.mjs` writes 12 seamless 512² PNGs to `textures/`; `core/metadata.js` and the finishes presets point at them | `check-pages` 28/28 clean; `check-studio` 86/86 with the new URLs |
+| B1 | 12 finish textures referenced, none on disk; 4 404s on 3 routes; silent flat-colour fallback | `scripts/generate-textures.mjs` writes 12 seamless 512² PNGs to `textures/`; `core/metadata.js` and the finishes presets point at them | `check-pages` 29/29 clean; `check-studio` 86/86 with the new URLs |
 | B2 | Title 24 dimming tested per fitting (9 × 14 W = no warning); stale `CODE_SCOPE` assertion | rule now sums the **controlled load per switch** (`features/lighting/engine.js`), exemption applied to the load; assertion updated to the California codes | `check-lighting` **123/123**; probe: nine 14 W on one plain switch → “Controlled loads: 126 W” warning |
-| B3 | every page loaded three.js from esm.sh, Tailwind from the Play CDN, fonts and hero images from Google; npm deps unused | `scripts/vendor-deps.mjs` copies the 255-file addon closure + three/CSG/bvh/nipplejs; Tailwind compiled to `assets/tailwind.css`; `scripts/vendor-fonts.mjs` self-hosts 11 font files; hero images downloaded into `assets/images/` | 0 external URLs left in `pages/*.html`; 0 remote module imports; 28/28 pages clean |
-| B4 | no error reporting; failed `localStorage` write only logged to console | `shared/error-reporting.js` (classic script, 27 pages) captures errors, rejections and resource failures into a sessionStorage ring buffer with an optional `error-endpoint` meta; the editor shows a “Project not saved / Export” notice and reports it | probe: uncaught throw → logged + notice; forced `QuotaExceededError` → save notice + `save: Could not save the project to local storage` |
+| B3 | every page loaded three.js from esm.sh, Tailwind from the Play CDN, fonts and hero images from Google; npm deps unused | `scripts/vendor-deps.mjs` copies the 255-file addon closure + three/CSG/bvh/nipplejs; Tailwind compiled to `assets/tailwind.css`; `scripts/vendor-fonts.mjs` self-hosts 11 font files; hero images downloaded into `assets/images/` | 0 external URLs left in `pages/*.html`; 0 remote module imports; 29/29 pages clean |
+| B4 | no error reporting; failed `localStorage` write only logged to console | `shared/error-reporting.js` (classic script, 28 pages) captures errors, rejections and resource failures into a sessionStorage ring buffer with an optional `error-endpoint` meta; the editor shows a “Project not saved / Export” notice and reports it | probe: uncaught throw → logged + notice; forced `QuotaExceededError` → save notice + `save: Could not save the project to local storage` |
 | B5 | no licence | `LICENSE` with a proprietary all-rights-reserved notice plus a design-aid disclaimer; `package.json` `"license": "UNLICENSED"` | files committed |
-| B6 | nothing enforced the checks; two failures survived two commits | `scripts/run-checks.mjs` runs all 17 scripts, starts the server the sweeps need, skips browser checks when no Chrome is installed, and exits non-zero on any failure; `npm test`; CI runs build/vendor/texture drift checks, then the suite | `npm test`: **17 checks passed, 0 failed, 0 skipped** |
+| B6 | nothing enforced the checks; two failures survived two commits | `scripts/run-checks.mjs` runs all 19 scripts, starts the server the sweeps need, skips browser checks when no Chrome is installed, and exits non-zero on any failure; `npm test`; CI runs build/vendor/texture drift checks, then the suite | `npm test`: **19 checks passed, 0 failed, 0 skipped** |
 
 ### Notes on the fixes
 
@@ -68,13 +68,14 @@ script.
 1. **Accessibility — closed.** Every page carries `lang`; the 2D/3D/Elevation switch and the
    five elevation buttons now report `aria-pressed` as the state changes
    (`updateViewButtons`/`updateElevationButtons`); the icon-only wall stepper has
-   `aria-label`; the plan canvas is `tabindex="0"` with `aria-describedby`, the 3D host is
-   `role="img"`, and both point at a `aria-live="polite"` summary that
-   `updatePlanA11ySummary()` rewrites on every rebuild (“Floor plan: 4 walls, 1 room, 3
-   fixtures. Nothing is selected.”). The save-failure and error notices use `role="alert"`.
+   `aria-label`; the plan canvas is `tabindex="0"` with `aria-describedby`, the 3D host is a
+   labelled `role="group"` (not `img`, so the WebGL failure alert inside it stays readable),
+   and both point at a `aria-live="polite"` summary that `updatePlanA11ySummary()` rewrites on
+   every rebuild (“Floor plan: 4 walls, 1 room, 3 fixtures. Nothing is selected.”). The
+   save-failure, error and 3D-failure notices use `role="alert"`.
    Still open: the canvases have no non-text visual equivalent for a blind user, and 111
    inline `onclick` handlers remain (see 6).
-2. **SEO/social metadata — closed except the sitemap.** Every one of the 27 pages now has a
+2. **SEO/social metadata — closed except the sitemap.** Every one of the 28 pages now has a
    unique `<meta name="description">` plus Open Graph and Twitter-card tags (title,
    description, image, site name), and `robots.txt` allows crawling. `sitemap.xml` is not
    included because a sitemap needs absolute URLs and the production origin is not declared
@@ -102,11 +103,12 @@ script.
 
 ## 4. What is production-quality
 
-- All 28 routes load; every internal link, asset and module specifier resolves; no console
+- All 29 routes load; every internal link, asset and module specifier resolves; no console
   error on any route.
-- 1,267 assertions pass across the ten design suites, the editor, the upload pipeline, the
-  shared plan modules, the 28-route sweep and two browser sweeps. `browser-check`
-  (206/206) drives stairs, landscape, roof and wall through the real editor.
+- 1,533 assertions pass across the ten design suites, the editor, the upload pipeline, the
+  DXF/geo importers and the BIM quantities, the toolbox conversions, the shared plan modules,
+  the 29-route sweep and two browser sweeps. `browser-check` (206/206) drives stairs,
+  landscape, roof and wall through the real editor.
 - The site is self-contained: no runtime request leaves the origin, so CDN outages,
   corporate proxies and supply-chain tampering cannot take it down mid-session.
 - Projects are versioned (`migrateProject`/`stampProject`), export/import as JSON, and the
@@ -142,10 +144,10 @@ drag commit.
 **Drafts are unversioned localStorage contracts.** Nine `*-editor-draft` keys, each
 consumed once by an `apply*EditorDraft()`; a malformed draft is dropped silently.
 
-**Dead code and leftovers — closed.** The five system barrels are no longer dead re-exports:
-`features/systems.js` imports `features/{bid,deck,electrical,framing,wall}/index.js` and is
-the only module the editor uses to build the studio's Systems panel, so each barrel (and its
-new `studio-panel.js`) is the single construction point for its system. The two written-never-
+**Dead code and leftovers — closed.** The system barrels are no longer dead re-exports:
+`features/systems.js` imports `features/{bid,bim,deck,electrical,framing,wall}/index.js` and
+is the only module the editor uses to build the studio's Systems panel, so each barrel is the
+single construction point for its system. The two written-never-
 read `AppState.graph` assignments (`editor/editor.js`, `demo/demo.js`) are removed.
 
 ## 6. Deployment checklist
@@ -174,7 +176,7 @@ read `AppState.graph` assignments (`editor/editor.js`, `demo/demo.js`) are remov
 | `check-kitchen.js` | 27 / 27 |
 | `check-kitchen-page.mjs` | 29 / 29 |
 | `check-scene-upload.mjs` | 32 / 32 |
-| `check-editor-wiring.mjs` | 14 / 14 |
+| `check-editor-wiring.mjs` | **44 / 44** |
 | `check-studio.js` | 86 / 86 |
 | `check-framing.mjs` | 49 / 49 |
 | `check-new-suites.mjs` | 53 / 53 |
@@ -184,12 +186,14 @@ read `AppState.graph` assignments (`editor/editor.js`, `demo/demo.js`) are remov
 | `check-stairs.js` | 185 / 185 |
 | `check-ocr.js` | 56 / 56 |
 | `check-lighting.js` | **123 / 123** |
+| `check-imports.mjs` | **98 / 98** |
+| `check-toolbox.mjs` | **138 / 138** |
 | `browser-check.mjs` | 206 / 206 |
-| `check-pages.mjs` | 28 / 28 pages clean |
+| `check-pages.mjs` | 29 / 29 pages clean |
 | `browser-pages.mjs` | 4 legacy pages, 0 console errors |
 | `check-price-suites.mjs` | every quoted row in 8 suites repriced at its quoted price |
 
-`npm test` → **17 checks passed, 0 failed, 0 skipped; 1,267 assertions passed.**
+`npm test` → **19 checks passed, 0 failed, 0 skipped; 1,533 assertions passed.**
 
 Targeted probes (run, then removed):
 
@@ -208,9 +212,34 @@ Targeted probes (run, then removed):
 - **Studio systems panel:** the five tabs render and the bid panel builds from the barrels
   (“No suites · $1650”, empty state) with no console error; the 3D view composites 1,895
   distinct colours after a four-wall plan, so the studio render is live.
+- **HiDPI canvases (device scale 2):** the 3D panel’s backing store is 2272×1414 for a
+  1136×707 box and the plan canvas the same, a wall dragged from 25 % to 75 % of the box still
+  lands at 270→840 plan pixels (grid-snapped, unchanged), and a 2D click on its midpoint still
+  selects it and opens the inspector.
+- **3D failure states:** launched with `--disable-webgl --disable-webgl2 --disable-3d-apis`,
+  the editor shows “The 3D view needs WebGL” inside the panel (`role="alert"`, no canvas, no
+  retry) while a wall can still be drawn and selected on the plan. With a scene object whose
+  `onBeforeRender` throws, the panel shows “The 3D view stopped drawing” plus the error text
+  and a retry button; fixing the scene and pressing retry removes the panel and advances the
+  render loop’s frame count.
 
 ## 8. Changes this session
 
+- **3D toolbox (phase 0 + 1).** `pages/toolbox.html` is one route for the browser utilities
+  planned in `toolplan.md`, with `features/toolbox/` as its kit: `units.js` (IEC 61966-2-1
+  sRGB ↔ linear with an exact-inverse knee, hex/`rgb()` parsing, the six-quantity unit table
+  and the scale-mismatch hints), `texture.js` (texel density and the BC/ETC2/EAC/ASTC block
+  budgets with mip chains and POT reduction), `index.js` (the registry the nav, the router and
+  the harness all read), `shell.js` (the `?tool=` route, nav, late-panel guard and the
+  `window.toolboxKit` handle) and one panel per tool. Four tools ship — colour space, units,
+  texel density, texture memory — with the other thirteen listed as planned, not stubbed.
+  Clean-room: written from the published specs, nothing copied from the reference site. The
+  page joins `shared/site.js`'s Tools menu and the route sweep; `scripts/check-toolbox.mjs`
+  (138 assertions) pins every constant and imports each panel in Node, so a registry entry
+  without a panel fails the gate. Verified in headless Chrome: each tool mounts from the nav
+  and from a deep link, white reports luminance 1, 2.54 in reads 64.516 mm, 1024 px over
+  2.7 m reads 379.2593 px/m, 2048² RGBA8 with mips reads 21.333 MiB, and the page raises no
+  console error (only the app-wide favicon 404 every route has).
 - **Textures shipped.** `scripts/generate-textures.mjs` + 12 PNGs in `textures/`; metadata
   and preset expectations moved from `.jpg` to `.png`.
 - **Lighting rule corrected** to compare controlled load per switch; the stale `CODE_SCOPE`
@@ -221,7 +250,7 @@ Targeted probes (run, then removed):
 - **Tailwind compiled.** `tailwind.config.cjs`, `assets/tailwind.src.css`,
   `assets/tailwind.css` (59 KB); the Play CDN and the inline `tailwind.config` blocks were
   removed from 26 pages, including the calculator's `brand` palette and Inter face.
-- **Error reporting added.** `shared/error-reporting.js` on all 27 pages; the editor reports
+- **Error reporting added.** `shared/error-reporting.js` on all 28 pages; the editor reports
   and displays failed saves; the per-save `console.log` was removed from
   `core/storage.js`; autosave flushes on `pagehide` as well as `beforeunload`.
 - **Licence added.** Proprietary `LICENSE` + `"license": "UNLICENSED"`.
@@ -231,16 +260,63 @@ Targeted probes (run, then removed):
   `.freebuff/` and `node_modules/`.
 - **Harness timing.** `browser-check` holds WASD for 4 s so the software renderer can tick;
   the assertion threshold is unchanged.
-- **The five system barrels are the construction point.** `features/systems.js` imports them
-  and builds the studio's Systems panel (one `studio-panel.js` per system); the editor now
-  imports every cross-suite helper from `features/{bid,deck,electrical,framing,wall}/index.js`
-  instead of deep module paths, and `check-wall.js` asserts the barrel wiring.
+- **The system barrels are the construction point.** `features/systems.js` imports them
+  (`features/{bid,bim,deck,electrical,framing,wall}/index.js`) and builds the studio's Systems
+  panel (one `studio-panel.js` per system, plus the BIM panel in `features/bim/takeoff.js`);
+  the editor imports every cross-suite helper from a barrel instead of deep module paths, and
+  `check-wall.js` asserts the barrel wiring.
 - **Accessibility wiring.** `aria-pressed` on the view-mode and elevation buttons (updated in
   `updateViewButtons`/`updateElevationButtons`), `aria-label` on the wall stepper, a focusable
-  plan canvas with a `aria-live` summary rewritten by `updatePlanA11ySummary()`, and
-  `role="img"` on the 3D host.
-- **Metadata.** A unique description, Open Graph and Twitter-card tags on all 27 pages;
+  plan canvas with a `aria-live` summary rewritten by `updatePlanA11ySummary()`, and a
+  labelled `role="group"` 3D host.
+- **Render assertions in the gate.** `check-editor-wiring` grew from 14 to 25 assertions so a
+  blank 3D view fails the suite: the 3D canvas must fill its panel and both canvases must size
+  their backing store to `min(devicePixelRatio, 2)` (checked at 1× and again under
+  `Emulation.setDeviceMetricsOverride` at 2×), the loop must have drawn frames and must draw
+  more after a resize, the fallback must be absent while WebGL works, the composited panel
+  must not be one flat colour, and it must visibly change when the plan is cleared. Mutating
+  the page to hide the 3D canvas makes the repaint and 2× sizing assertions fail, so the new
+  checks are not vacuous.
+- **Visible 3D failure state.** `show3DFallback()` renders a `role="alert"` panel inside
+  `#render-3d-view` when the renderer cannot be created (“The 3D view needs WebGL”, no retry)
+  or when a frame throws (“The 3D view stopped drawing”, with the error text and a “Try the 3D
+  view again” button that rebuilds the scene). `init3D` returns cleanly after a start failure,
+  so the plan, inspectors and suites keep working, and the frame guard stops the loop from
+  spraying an error every animation frame.
+- **Metadata.** A unique description, Open Graph and Twitter-card tags on all 28 pages;
   `robots.txt` at the root. No `sitemap.xml`: the production origin is unknown.
+- **Clean-room import and BIM modules.** IngeTrazo is GPL-3.0-or-later and this tree is
+  proprietary, so nothing was ported from it. `features/import/dxf.js` reads an ASCII DXF
+  header (`$INSUNITS`/`$MEASUREMENT`, with a `unitScale` override) and flattens
+  LINE/LWPOLYLINE/POLYLINE/ARC/CIRCLE/ELLIPSE into metre segments, dropping slivers and
+  reversed duplicates, then centres the drawing in the plan (y flipped, fitted to the view).
+  `features/import/geo.js` parses KML, KMZ (stored or deflated entries; a ZIP reader, not a
+  dependency) and GeoJSON into local metres with a cos-latitude projection and fits the site
+  inside a rectangle with north up. `features/bim/takeoff.js` maps plan types to IFC classes,
+  computes wall length/net area/volume and fixture footprints, deducts the doors and windows
+  bound to each wall, reports unattached or oversized openings, and writes the QTO CSV.
+- **Drawing import wired into the editor.** The upload modal has a “Load Drawing” tile
+  (`#upload-dxf-btn`) that takes `.dxf`, `.kml`, `.kmz` and `.geojson` through the same
+  hidden input as the image and JSON imports, replaces the traced walls, clears the
+  reference image and re-centres the plan. A DXF keeps its header units (guesses and skipped
+  INSERTs are logged); a site boundary is projected to metres, kept at **real size**
+  (`fitFeaturesToSite(..., { fit: false })`) and centred with north up, and the session warns
+  when it is larger than the view instead of shrinking a surveyed boundary.
+- **BIM in the studio.** `features/bim/index.js` is the sixth system barrel and `BIM` is a
+  sixth Systems tab. Its panel is built from the plan on screen (`systemsContext().bim`), so
+  the quantity rows, the checks and the `Download IFC CSV` action all come from one
+  `bimTakeoffSnapshot` and cannot disagree.
+- **Import/BIM gate.** `check-imports.mjs` (98 assertions, now in `npm test`) pins the unit
+  table, entity flattening, duplicate/sliver cleaning, placement, GeoJSON/KML/KMZ parsing and
+  projection, the IFC class map, the quantity maths and the CSV quoting. Mutating the
+  millimetre scale to 1 fails 8 unit/arc/placement assertions, so the checks are not vacuous.
+  `check-editor-wiring` grew from 25 to 44 assertions: the drawing tile sets the file picker
+  to `.dxf,.kml,.kmz,.geojson`, a 4 m × 3 m DXF becomes four walls at 120/90 px and sits
+  inside the plan, a 20 m GeoJSON boundary becomes a square of four walls at real size
+  centred in the plan, the BIM tab classifies the walls as `IfcWall`, the panel headline
+  matches the takeoff, and the intercepted CSV download is named `ifc-takeoff.csv`, has the
+  IFC header, one row per wall and an area sum equal to the panel total. Keeping only two of
+  the imported walls makes five of those assertions fail.
 - **One clearance policy.** `features/studio/layout-solver.js` reads its landing, aisle and
   counter-depth minima from `KITCHEN_GAPS`, so the plan check and the kitchen run check cannot
   disagree again.
@@ -252,10 +328,12 @@ Targeted probes (run, then removed):
   frame that draws nothing, a `ResizeObserver` resizes the drawing buffer when the panel
   changes size without a window resize (a stale or 0×0 buffer is what a blank 3D view looks
   like), and a lost context is reported and repainted on `webglcontextrestored`.
-- **Plan canvas is still 1×.** `blueprint-canvas` keeps a CSS-pixel backing store because its
-  coordinates *are* the plan's coordinate space (`PIXELS_PER_METER` snapping, fixture
-  positions, hit testing); making it DPR-aware means threading a scale factor through that
-  model, so the 3D view was fixed first.
+- **Plan canvas is DPR-aware too.** `blueprint-canvas` sizes its backing store from
+  `planView` (the CSS box) times `devicePixelRatio` (capped at 2), and `draw2D()` scales the
+  context once so drawing stays in the logical plan pixels that `PIXELS_PER_METER`, fixture
+  positions, hit testing and the snap thresholds are measured in. Plan maths now reads
+  `planViewSize()` instead of `canvas.width`, so the device ratio cannot leak into a
+  coordinate, a wall length or a snap distance.
 
 ## 9. Historical notes
 
@@ -290,7 +368,7 @@ focus the plan, but cannot inspect geometry: wall lengths, openings, fixture pos
 
 ### 10.2 Sitemap, canonical and `og:url`
 
-**What it is.** All 27 pages carry a unique description plus Open Graph/Twitter tags, and
+**What it is.** All 28 pages carry a unique description plus Open Graph/Twitter tags, and
 `robots.txt` allows crawling. `sitemap.xml`, `<link rel="canonical">` and `og:url` are absent:
 a sitemap needs absolute URLs and no origin is declared in this repository.
 

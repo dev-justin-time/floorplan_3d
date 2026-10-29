@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ItemFactory } from '../core/items.js';
@@ -167,6 +167,277 @@ try {
     check('the wall midpoint projects into the 3D view', pickFlow.inView === true, JSON.stringify(pickFlow));
     check('a 3D wall click selects the wall', pickFlow.selected === pickFlow.expected, `${pickFlow.selected} vs ${pickFlow.expected}`);
     check('the 3D pick opens the wall inspector', pickFlow.inspector === true);
+
+    // DXF import: the CAD tile loads a drawing through the same hidden input as
+    // the image and JSON imports, and the linework becomes plan walls.
+    const dxfLines = [
+        [0, 0, 4000, 0], [4000, 0, 4000, 3000],
+        [4000, 3000, 0, 3000], [0, 3000, 0, 0]
+    ];
+    const dxfPath = path.join(profile, 'plan.dxf');
+    await writeFile(dxfPath, [
+        '0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '4', '0', 'ENDSEC',
+        '0', 'SECTION', '2', 'ENTITIES',
+        ...dxfLines.flatMap(([x1, y1, x2, y2]) => ['0', 'LINE', '8', 'WALLS',
+            '10', String(x1), '20', String(y1), '11', String(x2), '21', String(y2)]),
+        '0', 'ENDSEC', '0', 'EOF'
+    ].join('\n'), 'utf8');
+
+    const dxfTile = await cdp.evaluate(`(() => {
+        window.setViewMode('2d');
+        document.getElementById('upload-modal').classList.remove('hidden');
+        document.getElementById('upload-dxf-btn').click();
+        return {
+            accept: document.getElementById('hidden-file-input').accept,
+            modalHidden: document.getElementById('upload-modal').classList.contains('hidden')
+        };
+    })()`);
+    check('the drawing tile targets DXF and geo files', dxfTile.accept === '.dxf,.kml,.kmz,.geojson', JSON.stringify(dxfTile));
+
+    const documentRoot = await cdp.send('DOM.getDocument');
+    const fileInput = await cdp.send('DOM.querySelector', { nodeId: documentRoot.root.nodeId, selector: '#hidden-file-input' });
+    await cdp.send('DOM.setFileInputFiles', { files: [dxfPath], nodeId: fileInput.nodeId });
+    await sleep(1200);
+    const dxfFlow = await cdp.evaluate(`(() => {
+        const walls = window.featureKit.walls();
+        const plan = document.getElementById('blueprint-canvas').getBoundingClientRect();
+        return {
+            walls: walls.length,
+            lengths: walls.map((wall) => Math.round(Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y))),
+            inside: walls.every((wall) => wall.start.x >= 0 && wall.start.x <= plan.width && wall.start.y >= 0 && wall.start.y <= plan.height),
+            modalHidden: document.getElementById('upload-modal').classList.contains('hidden'),
+            background: window.planOcr.debug().image
+        };
+    })()`);
+    check('a DXF becomes plan walls', dxfFlow.walls === 4, `${dxfFlow.walls} walls`);
+    check('the DXF walls keep their real size (4 m x 3 m at 30 px/m)',
+        JSON.stringify(dxfFlow.lengths) === JSON.stringify([120, 90, 120, 90]),
+        JSON.stringify(dxfFlow.lengths));
+    check('the imported drawing sits inside the plan', dxfFlow.inside === true, JSON.stringify(dxfFlow));
+    check('the import closes the modal and drops the old image', dxfFlow.modalHidden === true && dxfFlow.background === false, JSON.stringify(dxfFlow));
+
+    // The same tile takes a surveyed site boundary. GeoJSON is lon/lat, so the
+    // walls have to be projected, scaled and centred, not read as pixels.
+    const geoPath = path.join(profile, 'site.geojson');
+    const lonSize = 20 / (111320 * Math.cos((12 * Math.PI) / 180));
+    const latSize = 20 / 110540;
+    const ring = [[-77, -12], [-77 + lonSize, -12], [-77 + lonSize, -12 + latSize], [-77, -12 + latSize], [-77, -12]];
+    await writeFile(geoPath, JSON.stringify({
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', properties: { name: 'Site' }, geometry: { type: 'Polygon', coordinates: [ring] } }]
+    }), 'utf8');
+    await cdp.send('DOM.setFileInputFiles', { files: [geoPath], nodeId: fileInput.nodeId });
+    await sleep(1200);
+    const geoFlow = await cdp.evaluate(`(() => {
+        const walls = window.featureKit.walls();
+        const plan = document.getElementById('blueprint-canvas').getBoundingClientRect();
+        const lengths = walls.map((wall) => Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y));
+        const xs = walls.flatMap((wall) => [wall.start.x, wall.end.x]);
+        const ys = walls.flatMap((wall) => [wall.start.y, wall.end.y]);
+        return {
+            walls: walls.length,
+            lengths,
+            widthM: Math.max(...lengths) / 30,
+            centre: { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 },
+            plan: { width: plan.width, height: plan.height }
+        };
+    })()`);
+    check('a GeoJSON site boundary becomes plan walls', geoFlow.walls === 4, `${geoFlow.walls} walls`);
+    check('the site keeps its real size (about 20 m)', geoFlow.widthM > 18 && geoFlow.widthM < 22, `${geoFlow.widthM.toFixed(2)} m`);
+    check('the site is square on the plan',
+        Math.max(...geoFlow.lengths) - Math.min(...geoFlow.lengths) < geoFlow.lengths[0] * 0.02,
+        JSON.stringify(geoFlow.lengths.map((length) => Math.round(length))));
+    check('the site is centred in the plan',
+        Math.abs(geoFlow.centre.x - geoFlow.plan.width / 2) < 2 && Math.abs(geoFlow.centre.y - geoFlow.plan.height / 2) < 2,
+        JSON.stringify(geoFlow.centre) + ' in ' + JSON.stringify(geoFlow.plan));
+
+    // BIM: the panel classifies the plan on screen and its CSV carries exactly
+    // the quantities the panel shows.
+    const bimFlow = await cdp.evaluate(`(async () => {
+        const tab = document.querySelector('[data-system="bim"]');
+        tab?.click();
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        const model = window.systemsKit.model('bim');
+        const snapshot = window.systemsKit.bim();
+
+        const captured = {};
+        const realClick = HTMLAnchorElement.prototype.click;
+        const realCreate = URL.createObjectURL;
+        HTMLAnchorElement.prototype.click = function () {
+            if (this.download) captured.name = this.download;
+            else realClick.call(this);
+        };
+        URL.createObjectURL = (blob) => { captured.blob = blob; return 'blob:test'; };
+        try {
+            window.systemsKit.action('bim-csv');
+        } finally {
+            HTMLAnchorElement.prototype.click = realClick;
+            URL.createObjectURL = realCreate;
+        }
+        captured.text = captured.blob ? await captured.blob.text() : '';
+
+        window.setViewMode('3d');
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        return {
+            tabs: [...document.querySelectorAll('#systems-tabs [data-system]')].map((button) => button.dataset.system),
+            active: window.systemsKit.active(),
+            body: document.getElementById('systems-body').textContent,
+            model,
+            rows: snapshot.takeoff.rows,
+            totals: snapshot.takeoff.totals,
+            download: { name: captured.name, text: captured.text }
+        };
+    })()`);
+    check('the studio has a BIM tab', bimFlow.tabs.includes('bim'), JSON.stringify(bimFlow.tabs));
+    check('the BIM tab is selected', bimFlow.active === 'bim');
+    check('the BIM panel classifies the drawing', /IfcWall/.test(bimFlow.body), bimFlow.body.slice(0, 120));
+    check('the takeoff follows the imported walls', bimFlow.rows.length === 4 && bimFlow.totals.walls === 4, JSON.stringify(bimFlow.totals));
+    check('the BIM panel is ready on a clean plan', bimFlow.model.ok === true, JSON.stringify(bimFlow.model.checks));
+    check('the panel headline matches the takeoff', /^4 walls · .* m² · .* m³$/.test(bimFlow.model.headline), bimFlow.model.headline);
+    check('the CSV downloads as ifc-takeoff.csv', bimFlow.download.name === 'ifc-takeoff.csv', JSON.stringify(bimFlow.download.name));
+    const csvLines = bimFlow.download.text.trim().split('\n');
+    check('the CSV has the IFC header', csvLines[0] === 'IfcClass,Name,Count,LengthM,AreaM2,VolumeM3', csvLines[0]);
+    check('the CSV has one row per element', csvLines.length === 5, `${csvLines.length} lines`);
+    const csvArea = csvLines.slice(1).reduce((sum, line) => sum + Number(line.split(',')[4] || 0), 0);
+    check('the CSV area matches the panel total', Math.abs(csvArea - bimFlow.totals.netAreaM2) < 0.02, `${csvArea} vs ${bimFlow.totals.netAreaM2}`);
+
+    // A blank 3D view used to pass every assertion above, because a wall can be
+    // in the scene while the canvas never drew a frame. These checks cover the
+    // drawing itself: the buffers are sized for the display, the loop has run,
+    // and the composited panel actually contains pixels.
+    const viewFlow = await cdp.evaluate(`(() => {
+        const host = document.getElementById('render-3d-view');
+        const canvas = host.querySelector('canvas');
+        const plan = document.getElementById('blueprint-canvas');
+        const hostRect = host.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        const planRect = plan.getBoundingClientRect();
+        return {
+            host: { width: hostRect.width, height: hostRect.height },
+            canvas: { cssWidth: canvasRect.width, cssHeight: canvasRect.height, width: canvas.width, height: canvas.height },
+            plan: { cssWidth: planRect.width, cssHeight: planRect.height, width: plan.width, height: plan.height },
+            dpr: window.devicePixelRatio,
+            loop: window.studioKit?.render?.() || null,
+            fallback: Boolean(document.getElementById('render-3d-fallback'))
+        };
+    })()`);
+    const pixelRatio = Math.min(viewFlow.dpr || 1, 2);
+    check('the 3D canvas fills its panel',
+        Math.abs(viewFlow.canvas.cssWidth - viewFlow.host.width) < 2 && Math.abs(viewFlow.canvas.cssHeight - viewFlow.host.height) < 2,
+        JSON.stringify({ canvas: viewFlow.canvas, host: viewFlow.host }));
+    check('the 3D backing store matches the pixel ratio',
+        viewFlow.canvas.width === Math.round(viewFlow.canvas.cssWidth * pixelRatio)
+        && viewFlow.canvas.height === Math.round(viewFlow.canvas.cssHeight * pixelRatio),
+        JSON.stringify({ canvas: viewFlow.canvas, pixelRatio }));
+    check('the plan backing store matches the pixel ratio',
+        viewFlow.plan.width === Math.round(viewFlow.plan.cssWidth * pixelRatio)
+        && viewFlow.plan.height === Math.round(viewFlow.plan.cssHeight * pixelRatio),
+        JSON.stringify({ plan: viewFlow.plan, pixelRatio }));
+    check('the render loop has drawn a frame', (viewFlow.loop?.frames || 0) > 0, JSON.stringify(viewFlow.loop));
+    check('no 3D fallback while WebGL works', viewFlow.fallback === false);
+
+    // The composited panel, not the drawing buffer: WebGL clears its buffer after
+    // compositing, so only a screenshot shows what the user sees. Two things are
+    // asserted: the panel is not one flat colour, and it repaints when the plan
+    // changes. A view that never drew (0×0 buffer, stopped loop, black context)
+    // is both flat and frozen, so it fails here.
+    await sleep(300);
+    const capture3D = async () => {
+        const rect = await cdp.evaluate(`(() => {
+            const r = document.getElementById('render-3d-view').getBoundingClientRect();
+            return { x: r.x, y: r.y, width: r.width, height: r.height };
+        })()`);
+        const shot = await cdp.send('Page.captureScreenshot', {
+            format: 'png',
+            clip: { x: rect.x, y: rect.y, width: rect.width, height: rect.height, scale: 1 }
+        });
+        return shot.data;
+    };
+    const analyse = async (before, after = null) => cdp.evaluate(`(async () => {
+        const load = async (base64) => {
+            const image = new Image();
+            image.src = 'data:image/png;base64,' + base64;
+            await image.decode();
+            const canvas = document.createElement('canvas');
+            canvas.width = 160;
+            canvas.height = 120;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0, 160, 120);
+            return ctx.getImageData(0, 0, 160, 120).data;
+        };
+        const first = await load('${before}');
+        const colours = new Set();
+        let luma = 0;
+        for (let i = 0; i < first.length; i += 4) {
+            colours.add((first[i] << 16) | (first[i + 1] << 8) | first[i + 2]);
+            luma += (first[i] + first[i + 1] + first[i + 2]) / 3;
+        }
+        const result = { colours: colours.size, luma: Math.round(luma / (first.length / 4)), changed: null };
+        if (${JSON.stringify(after)}) {
+            const second = await load('${after || ''}');
+            let differing = 0;
+            for (let i = 0; i < first.length; i += 4) {
+                if (first[i] !== second[i] || first[i + 1] !== second[i + 1] || first[i + 2] !== second[i + 2]) differing += 1;
+            }
+            result.changed = differing / (first.length / 4);
+        }
+        return result;
+    })()`);
+
+    const beforeShot = await capture3D();
+    const beforeStats = await analyse(beforeShot);
+    check('the 3D view is not a flat colour', beforeStats.colours > 1, JSON.stringify(beforeStats));
+
+    const clearFlow = await cdp.evaluate(`(async () => {
+        const frames = window.studioKit?.render?.()?.frames ?? 0;
+        window.clearProject();
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        return { framesBefore: frames, framesAfter: window.studioKit?.render?.()?.frames ?? 0 };
+    })()`);
+    const afterShot = await capture3D();
+    const afterStats = await analyse(beforeShot, afterShot);
+    check('the 3D view repaints when the plan changes',
+        afterStats.changed !== null && afterStats.changed > 0.01,
+        `changed ${((afterStats.changed || 0) * 100).toFixed(1)}% of the panel`);
+    check('clearing the plan advances the render loop',
+        clearFlow.framesAfter > clearFlow.framesBefore,
+        `${clearFlow.framesBefore} -> ${clearFlow.framesAfter}`);
+
+    // Same buffers on a 2× display: the canvas has to re-measure and repaint when
+    // the window moves between screens or the panel changes size.
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 800, deviceScaleFactor: 2, mobile: false });
+    await sleep(400);
+    await cdp.evaluate(`window.dispatchEvent(new Event('resize'))`);
+    await sleep(700);
+    const hiDpi = await cdp.evaluate(`(() => {
+        const host = document.getElementById('render-3d-view');
+        const canvas = host.querySelector('canvas');
+        const plan = document.getElementById('blueprint-canvas');
+        const canvasRect = canvas.getBoundingClientRect();
+        const planRect = plan.getBoundingClientRect();
+        return {
+            dpr: window.devicePixelRatio,
+            threeD: { cssWidth: canvasRect.width, cssHeight: canvasRect.height, width: canvas.width, height: canvas.height },
+            plan: { cssWidth: planRect.width, cssHeight: planRect.height, width: plan.width, height: plan.height },
+            loop: window.studioKit?.render?.() || null
+        };
+    })()`);
+    const hiRatio = Math.min(hiDpi.dpr || 1, 2);
+    check('the 3D canvas follows a 2x device',
+        hiRatio === 2
+        && hiDpi.threeD.width === Math.round(hiDpi.threeD.cssWidth * hiRatio)
+        && hiDpi.threeD.height === Math.round(hiDpi.threeD.cssHeight * hiRatio),
+        JSON.stringify({ dpr: hiDpi.dpr, threeD: hiDpi.threeD }));
+    check('the plan canvas follows a 2x device',
+        hiRatio === 2
+        && hiDpi.plan.width === Math.round(hiDpi.plan.cssWidth * hiRatio)
+        && hiDpi.plan.height === Math.round(hiDpi.plan.cssHeight * hiRatio),
+        JSON.stringify({ dpr: hiDpi.dpr, plan: hiDpi.plan }));
+    check('the render loop keeps drawing after a resize',
+        (hiDpi.loop?.frames || 0) > (viewFlow.loop?.frames || 0),
+        `${viewFlow.loop?.frames} -> ${hiDpi.loop?.frames}`);
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await sleep(300);
 
     const errors = cdp.errors();
     check('no runtime errors', errors.length === 0, errors.slice(0, 2).join(' | '));

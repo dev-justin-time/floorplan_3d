@@ -15,6 +15,7 @@
  * by id (kind: 'action').
  */
 import * as bid from './bid/index.js';
+import * as bim from './bim/index.js';
 import * as deck from './deck/index.js';
 import * as electrical from './electrical/index.js';
 import * as framing from './framing/index.js';
@@ -29,6 +30,14 @@ export const STUDIO_SYSTEMS = [
         snapshot: (storage) => bid.buildBidSnapshot(storage),
         csv: (built) => bid.bidCsv(built),
         proposal: (built) => bid.proposalText(built)
+    },
+    {
+        id: 'bim',
+        label: 'BIM',
+        suite: 'editor.html',
+        panel: (context = {}) => bim.bimStudioPanel(context),
+        snapshot: (context) => bim.bimTakeoffSnapshot(context),
+        csv: (takeoff) => bim.bimTakeoffCsv(takeoff.rows)
     },
     {
         id: 'deck',

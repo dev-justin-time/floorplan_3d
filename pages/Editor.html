@@ -876,7 +876,8 @@
                 
                 <!-- 3D View -->
                 <div id="view-3d" class="absolute inset-0 z-0 opacity-0 pointer-events-none">
-                    <div id="render-3d-view" class="w-full h-full bg-gray-100 dark:bg-gray-800" role="img" aria-label="3D view of the floor plan" aria-describedby="plan-a11y-summary"></div>
+                    <!-- role=group, not img: the panel can contain the WebGL failure alert, which must stay readable. -->
+                    <div id="render-3d-view" class="relative w-full h-full bg-gray-100 dark:bg-gray-800" role="group" aria-label="3D view of the floor plan" aria-describedby="plan-a11y-summary"></div>
                     <!-- Height readout shown while dragging in elevation (features/elevation-annotations.js) -->
                     <div id="height-readout" class="hidden absolute top-4 right-4 z-20 bg-gray-900/85 backdrop-blur text-white px-3 py-1.5 rounded-lg text-[11px] font-mono shadow-lg pointer-events-none"></div>
                     <div id="elevation-hint" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur text-white px-4 py-2 rounded-full text-xs font-medium pointer-events-none shadow-lg">
@@ -915,7 +916,7 @@
                 </button>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <!-- Image Upload -->
                 <div id="upload-image-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-primary dark:hover:border-primary rounded-xl p-6 text-center cursor-pointer transition-colors group">
                     <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-primary rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
@@ -932,6 +933,15 @@
                     </div>
                     <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Load Project</h4>
                     <p class="text-xs text-gray-500">Restore a previously saved .json file</p>
+                </div>
+
+                <!-- Drawing import: CAD linework or a surveyed site boundary -->
+                <div id="upload-dxf-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-sky-500 dark:hover:border-sky-500 rounded-xl p-6 text-center cursor-pointer transition-colors group" title="Turn CAD linework (DXF) or a site boundary (KML, KMZ, GeoJSON) into plan walls; the file is read locally">
+                    <div class="w-12 h-12 bg-sky-50 dark:bg-sky-900/20 text-sky-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-2xl">architecture</span>
+                    </div>
+                    <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Load Drawing</h4>
+                    <p class="text-xs text-gray-500">DXF linework, or a KML/KMZ/GeoJSON site boundary</p>
                 </div>
 
                 <!-- OCR Upload -->

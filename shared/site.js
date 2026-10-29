@@ -37,6 +37,7 @@ const GROUPS = [
         title: 'Tools',
         links: [
             ['calc.html', 'Calculators'],
+            ['toolbox.html', '3D toolbox'],
             ['price-book.html', 'Price book'],
             ['bid-builder.html', 'Bid builder'],
             ['project-dashboard.html', 'Project dashboard']

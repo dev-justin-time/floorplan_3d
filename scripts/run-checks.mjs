@@ -34,6 +34,8 @@ const CHECKS = [
     'check-stairs.js',
     'check-ocr.js',
     'check-lighting.js',
+    'check-imports.mjs',
+    'check-toolbox.mjs',
     'check-price-suites.mjs',
     'check-pages.mjs',
     'browser-check.mjs',

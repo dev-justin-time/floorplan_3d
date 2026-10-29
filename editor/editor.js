@@ -5,6 +5,8 @@ import { Wall, ItemFactory, itemDimensions } from '../core/items.js';
 import { StateManager } from '../core/state-manager.js';
 import { StorageManager } from '../core/storage.js';
 import { FloorPlanProcessor } from '../engine/floorPlanProcessor.js';
+import { dxfToPlan } from '../features/import/dxf.js';
+import { fitFeaturesToSite, parseGeoFile, projectFeatures } from '../features/import/geo.js';
 import { KITCHEN_LINES } from '../features/kitchen/catalog.js';
 import { graphFromWalls } from '../core/floorplan-graph.js';
 import { measurePlan } from '../core/measurements.js';
@@ -324,6 +326,29 @@ const AppState = {
 
 // Systems
 let blueprintCanvas, blueprintCtx;
+
+// The plan canvas has two sizes. The CSS box it fills is the pixel space every
+// plan coordinate, fixture position and snap threshold is measured in; the
+// backing store is that box times the device pixel ratio, so lines and text are
+// sharp on a HiDPI display. `canvas.width` is the backing store — plan maths
+// must go through planView(), never through the attribute.
+let planView = { width: 0, height: 0 };
+
+const planPixelRatio = () => Math.min(window.devicePixelRatio || 1, 2);
+
+/** Logical (CSS-pixel) size of the plan, measured from its parent if unknown. */
+function planViewSize() {
+    if (!planView.width || !planView.height) {
+        const parent = blueprintCanvas?.parentElement;
+        planView = {
+            width: Math.max(parent?.clientWidth || 0, 1),
+            height: Math.max(parent?.clientHeight || 0, 1)
+        };
+    }
+    // A copy: callers pass the view into modules that must not be able to move
+    // the plan's coordinate space.
+    return { width: planView.width, height: planView.height };
+}
 let scene3D, camera3D, renderer3D, controls3D;
 let orthoCamera3D, orthoControls3D; // side elevation views
 let elevationBounds = null, elevationDrag = null;
@@ -359,6 +384,14 @@ const planWalkClock = new THREE.Clock();
 let collaboration = null;
 // Lab kit: post FX, spring selection, instanced props and the product model.
 let labKit = null;
+
+// The 3D panel is the one view that can fail outright: no WebGL at all, or a
+// frame that throws (bad geometry, a shader the driver rejects). Either way the
+// user should see why, and the 2D plan must keep working around it.
+//   null        - drawing normally
+//   'start'     - the renderer could not be created (no retry)
+//   'frame'     - a frame threw (retry allowed)
+let render3DFailed = null;
 
 const ACTIVE_PROJECT_KEY = 'floorplan3d_active_project';
 
@@ -593,6 +626,10 @@ function init() {
     // Selection handle: 3D wall picking and the 2D/3D highlight share one path.
     window.selectWallById = (id) => selectWallById(id);
     window.editorKit = {
+        // Read-only handles for the harnesses and for support: the 3D scene and
+        // its renderer are otherwise module-private.
+        scene: () => scene3D,
+        renderer: () => renderer3D,
         selectedWall: () => AppState.selectedWallId,
         selectWall: (id) => selectWallById(id),
         selectAt: (event) => selectAtPointer(event || {}),
@@ -602,7 +639,7 @@ function init() {
         wallScreenPoint: (id) => {
             const wall = AppState.walls.find((entry) => entry.id === id);
             if (!wall || !renderer3D) return null;
-            const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+            const view = planViewSize();
             const mid = { x: (wall.start.x + wall.end.x) / 2, y: (wall.start.y + wall.end.y) / 2 };
             const elevation = activeStoreyElevation() + wallHeightOf(wall) / 2;
             const world = canvasToWorld(mid, view, elevation);
@@ -800,7 +837,7 @@ function init() {
     window.toggleFraming = toggleFraming;
     refreshFramingPanel();
 
-    // Systems handle: the five cross-suite panels, their current models and the
+    // Systems handle: the cross-suite panels, their current models and the
     // same actions the panel buttons call.
     window.systemsKit = {
         systems: () => STUDIO_SYSTEMS.map(({ id, label, suite }) => ({ id, label, suite })),
@@ -809,7 +846,8 @@ function init() {
         refresh: () => { refreshSystemsPanel(); return activeSystemId; },
         model: (id = activeSystemId) => systemById(id)?.panel(systemsContext()[id] || {}) || null,
         action: (id) => handleSystemAction(id),
-        bid: () => systemById('bid').snapshot()
+        bid: () => systemById('bid').snapshot(),
+        bim: () => systemById('bim').snapshot(systemsContext().bim)
     };
     window.selectSystemPanel = selectSystemPanel;
     // Deferred: the bid panel harvests every saved suite, and boot should not
@@ -1149,7 +1187,7 @@ function onPointerMove(e) {
                 fixture,
                 members: AppState.groupDrag || [],
                 getObject: findItemObject,
-                view: { width: blueprintCanvas.width, height: blueprintCanvas.height }
+                view: planViewSize()
             });
         } else {
             scheduleDragUpdate();
@@ -1503,7 +1541,7 @@ function syncSelectionPanels() {
     }
 
     if (wall) {
-        const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+        const view = planViewSize();
         setPanelText('sel-wall-len', `${wallLengthMetres(wall, view).toFixed(2)} m ${wallHeightOf(wall).toFixed(1)} m high`);
         const heightInput = document.getElementById('sel-wall-height');
         if (heightInput && document.activeElement !== heightInput) {
@@ -1897,7 +1935,8 @@ function escapeHtml(text) {
 }
 
 function planCenter() {
-    return { x: (blueprintCanvas?.width || 0) / 2, y: (blueprintCanvas?.height || 0) / 2 };
+    const view = planViewSize();
+    return { x: view.width / 2, y: view.height / 2 };
 }
 
 function setStorey(index) {
@@ -1924,7 +1963,7 @@ function setStorey(index) {
 
 function addNewStorey(options = {}) {
     ensureStoreyModel();
-    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const view = planViewSize();
     const source = { walls: AppState.walls || [], fixtures: AppState.fixtures || [] };
     // Second floor and above: only the exterior wall footprint and the windows
     // come up from the storey below, not the interior partitions.
@@ -2600,8 +2639,8 @@ function applyFloorplanEditorDraft() {
     // onResize() sizes the canvas from its parent and runs after the drafts,
     // so measure the same box now to keep the plan framed on first paint.
     const view = {
-        width: blueprintCanvas?.parentElement?.clientWidth || blueprintCanvas?.width || 1200,
-        height: blueprintCanvas?.parentElement?.clientHeight || blueprintCanvas?.height || 800
+        width: blueprintCanvas?.parentElement?.clientWidth || 1200,
+        height: blueprintCanvas?.parentElement?.clientHeight || 800
     };
     const centre = { x: view.width / 2, y: view.height / 2 };
 
@@ -2694,8 +2733,7 @@ function applyLightingEditorDraft() {
         if (wall.start) points.push(wall.start);
         if (wall.end) points.push(wall.end);
     });
-    const canvasWidth = blueprintCanvas?.width || 1;
-    const canvasHeight = blueprintCanvas?.height || 1;
+    const { width: canvasWidth, height: canvasHeight } = planViewSize();
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
@@ -2899,7 +2937,7 @@ function importFramingDraftPlan(draft) {
     const suiteStoreys = (draft.config?.storeys || []).filter((storey) => (storey.walls || []).length);
     if (!suiteStoreys.length) return false;
 
-    const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+    const view = planViewSize();
     const stories = suiteStoreys.map((storey, index) => {
         const wallHeight = ((Number(storey.studLengthIn) || 92.5) + 4.5) * INCH;
         const walls = [];
@@ -3120,9 +3158,10 @@ function planBackgroundRect() {
     if (!img) return null;
     const width = img.width * (AppState.backgroundScale || 1);
     const height = img.height * (AppState.backgroundScale || 1);
+    const view = planViewSize();
     return {
-        x: blueprintCanvas.width / 2 - width / 2,
-        y: blueprintCanvas.height / 2 - height / 2,
+        x: view.width / 2 - width / 2,
+        y: view.height / 2 - height / 2,
         width,
         height
     };
@@ -3476,7 +3515,7 @@ function renderKitchenCheck() {
         return AppState.layoutReport;
     }
 
-    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const view = planViewSize();
     const report = analyzeLayout({ fixtures: AppState.fixtures, view });
     AppState.layoutReport = report;
 
@@ -3626,7 +3665,7 @@ async function startAR() {
         onPlace: (point) => {
             const fixture = AppState.selectedFixture;
             if (!fixture) return;
-            const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+            const view = planViewSize();
             fixture.x = point.x * PIXELS_PER_METER + view.width / 2;
             fixture.y = point.z * PIXELS_PER_METER + view.height / 2;
             saveAndSync();
@@ -3753,7 +3792,7 @@ function currentSnapGuide() {
 
 /** Recompute room labels and the area/volume readout from the current plan. */
 function refreshPlanDerived() {
-    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const view = planViewSize();
     AppState.roomLabels = roomLabelsFromWalls(AppState.walls, view, { wallHeight: WALL_HEIGHT });
     AppState.metrics = roomMetrics({ walls: AppState.walls, view, wallHeight: WALL_HEIGHT });
     setPanelText('plan-metrics', formatMetrics(AppState.metrics));
@@ -3832,9 +3871,19 @@ function refreshElevationAnnotations() {
 function draw2D(cursorPos = null) {
     const ctx = blueprintCtx;
     if (!ctx) return;
-    const w = blueprintCanvas.width;
-    const h = blueprintCanvas.height;
-    
+    const view = planViewSize();
+    const w = view.width;
+    const h = view.height;
+    // One device pixel per device pixel: the context is scaled once here so all
+    // of the plan drawing below stays in logical pixels.
+    const dpr = planPixelRatio();
+    const backingWidth = Math.round(w * dpr);
+    const backingHeight = Math.round(h * dpr);
+    if (blueprintCanvas.width !== backingWidth || blueprintCanvas.height !== backingHeight) {
+        blueprintCanvas.width = backingWidth;
+        blueprintCanvas.height = backingHeight;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     
     ctx.save();
@@ -4081,6 +4130,48 @@ function drawFixture(ctx, f) {
 // 3D Logic
 // ------------------------------------------------------------------
 
+/** 
+ * The visible explanation that replaces an empty 3D panel. It lives inside
+ * `#render-3d-view`, so it covers nothing but the 3D view, and it is announced
+ * as an alert because it appears in response to a failure.
+ */
+function show3DFallback(title, detail, { retry = null } = {}) {
+    const host = document.getElementById('render-3d-view');
+    if (!host) return;
+    let panel = document.getElementById('render-3d-fallback');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'render-3d-fallback';
+        panel.className = 'absolute inset-0 z-10 flex items-center justify-center p-6 bg-gray-100 dark:bg-gray-800';
+        host.appendChild(panel);
+    }
+    panel.setAttribute('role', 'alert');
+    panel.innerHTML = `
+        <div class="max-w-sm text-center">
+            <span class="material-symbols-outlined text-3xl text-amber-500">warning</span>
+            <p class="mt-1 text-sm font-bold text-gray-800 dark:text-gray-100">${escapeHtml(title)}</p>
+            <p class="mt-1 text-[11px] leading-snug text-gray-500 dark:text-gray-400">${escapeHtml(detail)}</p>
+            <p class="mt-2 text-[11px] leading-snug text-gray-500 dark:text-gray-400">The 2D plan and every other panel keep working.</p>
+            ${retry ? '<button type="button" id="render-3d-retry" class="mt-3 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-bold text-white hover:opacity-90">Try the 3D view again</button>' : ''}
+        </div>`;
+    panel.querySelector('#render-3d-retry')?.addEventListener('click', () => {
+        hide3DFallback();
+        retry();
+    });
+}
+
+function hide3DFallback() {
+    document.getElementById('render-3d-fallback')?.remove();
+}
+
+/** Clear a failed frame and rebuild the 3D scene from the current plan. */
+function retry3DView() {
+    render3DFailed = null;
+    hide3DFallback();
+    update3D();
+    renderLoop?.requestRender();
+}
+
 function init3D() {
     const container = document.getElementById('render-3d-view');
     const w = container.clientWidth;
@@ -4096,7 +4187,21 @@ function init3D() {
     orthoCamera3D = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 200);
     orthoCamera3D.position.set(0, 1.35, 20);
 
-    renderer3D = new THREE.WebGLRenderer({ antialias: true });
+    try {
+        renderer3D = new THREE.WebGLRenderer({ antialias: true });
+    } catch (error) {
+        // No WebGL2/WebGL1 context: three cannot build a renderer. Report it,
+        // say so in the panel, and leave the rest of the editor running — the
+        // plan, the inspectors and every suite still work.
+        renderer3D = null;
+        render3DFailed = 'start';
+        window.reportClientError?.(error, { source: 'editor:3d:start', kind: 'render' });
+        show3DFallback(
+            'The 3D view needs WebGL',
+            'This browser could not create a WebGL context. Turn on hardware acceleration, update the graphics driver, or open the editor in another browser.'
+        );
+        return;
+    }
     // Match the display's pixel density (capped at 2) or the 3D view is a 1×
     // buffer stretched over a 2× panel — soft edges on every HiDPI screen.
     renderer3D.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -4160,7 +4265,7 @@ function init3D() {
         camera: camera3D,
         domElement: renderer3D.domElement,
         getWalls: () => AppState.walls,
-        getView: () => ({ width: blueprintCanvas.width, height: blueprintCanvas.height })
+        getView: () => (planViewSize())
     });
 
     // First-person plan walk (legacy app.html Walk button): eye-level camera on
@@ -4169,7 +4274,7 @@ function init3D() {
         camera: camera3D,
         domElement: renderer3D.domElement,
         getWalls: () => AppState.walls,
-        getView: () => ({ width: blueprintCanvas.width, height: blueprintCanvas.height }),
+        getView: () => (planViewSize()),
         getElevation: () => activeStoreyElevation(),
         onChange: (walking) => {
             AppState.walking = Boolean(walking);
@@ -4193,7 +4298,7 @@ function init3D() {
         domElement: renderer3D.domElement,
         getCamera: activeCamera,
         getSide: () => AppState.elevationSide,
-        getView: () => ({ width: blueprintCanvas.width, height: blueprintCanvas.height }),
+        getView: () => (planViewSize()),
         getFixtures: () => AppState.fixtures,
         getObject: findItemObject,
         onDraggingChange: (active) => {
@@ -4254,19 +4359,32 @@ function init3D() {
     // what keeps a drag at display rate without a CSG rebuild per pointer move.
     renderLoop = createRenderLoop({
         render: (delta) => {
-            const controls = AppState.elevationSide ? orthoControls3D : controls3D;
-            if (controls) controls.update();
-            if (planWalk?.active) planWalk.update(planWalkClock.getDelta());
-            if (walkthrough) walkthrough.update(walkthroughClock.getDelta());
-            if (stairWalker?.active) stairWalker.update(stairWalkerClock.getDelta());
-            if (AppState.viewMode !== '3d') return;
-            const camera = activeCamera();
-            labKit?.update(delta, {
-                camera,
-                selection: findItemObject(AppState.selectedFixture?.id),
-                products: productItemObjects()
-            });
-            if (!labKit?.render(camera)) renderer3D.render(scene3D, camera);
+            if (render3DFailed) return;
+            try {
+                const controls = AppState.elevationSide ? orthoControls3D : controls3D;
+                if (controls) controls.update();
+                if (planWalk?.active) planWalk.update(planWalkClock.getDelta());
+                if (walkthrough) walkthrough.update(walkthroughClock.getDelta());
+                if (stairWalker?.active) stairWalker.update(stairWalkerClock.getDelta());
+                if (AppState.viewMode !== '3d') return;
+                const camera = activeCamera();
+                labKit?.update(delta, {
+                    camera,
+                    selection: findItemObject(AppState.selectedFixture?.id),
+                    products: productItemObjects()
+                });
+                if (!labKit?.render(camera)) renderer3D.render(scene3D, camera);
+            } catch (error) {
+                // Stop the loop (no per-frame error spray), explain the panel and
+                // offer a rebuild. The plan stays usable throughout.
+                render3DFailed = 'frame';
+                window.reportClientError?.(error, { source: 'editor:3d:frame', kind: 'render' });
+                show3DFallback(
+                    'The 3D view stopped drawing',
+                    String(error?.message || error || 'A frame failed to render.').slice(0, 200),
+                    { retry: retry3DView }
+                );
+            }
         },
         continuous: () => abilitiesState().dirtyRender === false
             || Boolean(abilitiesState().walkthrough || abilitiesState().turntable || AppState.walking)
@@ -4413,10 +4531,7 @@ function pickWallIdAtPointer(event) {
     // Keep the plan cursor on the picked point: the next comment, paste or
     // keyboard action then lands where the user just clicked in 3D.
     if (hit.point && blueprintCanvas) {
-        AppState.cursor = worldToCanvas(hit.point, {
-            width: blueprintCanvas.width,
-            height: blueprintCanvas.height
-        });
+        AppState.cursor = worldToCanvas(hit.point, planViewSize());
     }
     return hit.object.userData.id;
 }
@@ -4475,7 +4590,7 @@ function activeCamera() {
 
 /** World-space (metres) footprint of the plan, used to frame the elevations. */
 function worldBounds() {
-    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const view = planViewSize();
     const points = [];
     (AppState.walls || []).forEach((wall) => {
         if (wall.start) points.push(wall.start);
@@ -4504,7 +4619,7 @@ function elevationWalls() {
 
 /** World-space bounds of one wall, so the camera frames just that run. */
 function elevationWallBounds(wall) {
-    const view = { width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 };
+    const view = planViewSize();
     const a = {
         x: (wall.start.x - view.width / 2) / PIXELS_PER_METER,
         z: (wall.start.y - view.height / 2) / PIXELS_PER_METER
@@ -4721,7 +4836,7 @@ function update3D() {
     ensureStoreyModel();
     syncActiveStorey(AppState);
 
-    const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+    const view = planViewSize();
     const stories = engineStories(AppState);
     const activeIndex = Math.min(AppState.currentStoryIndex || 0, stories.length - 1);
     const graph = graphFromWalls(stories[activeIndex]?.walls || [], view, { snapPixels: 2 });
@@ -4752,10 +4867,10 @@ function update3D() {
         selectedFixture: AppState.selectedFixture
     };
     
-    // Pass canvas dimensions to center the model correctly
+    // Pass the plan's logical dimensions to center the model correctly
     // conversionEngine calculates: (x - width/2) / SCALE
-    // So by passing blueprintCanvas.width, we align logical center to 3D origin
-    AppState.lastConvert = conversionEngine.convert(engineState, blueprintCanvas.width, blueprintCanvas.height);
+    // So by passing the logical view, we align the plan centre with the 3D origin
+    AppState.lastConvert = conversionEngine.convert(engineState, view.width, view.height);
 
     // Frame the first non-empty plan, then leave the camera to the user.
     if (!AppState.hasFramed3D && graph.edges.length > 0 && camera3D && controls3D) {
@@ -4864,7 +4979,7 @@ function refreshSuiteScene() {
     const stories = engineStories(AppState);
     const activeIndex = Math.min(AppState.currentStoryIndex || 0, stories.length - 1);
     const walls = stories[activeIndex]?.walls || AppState.walls || [];
-    const view = { width: blueprintCanvas.width, height: blueprintCanvas.height };
+    const view = planViewSize();
 
     try {
         const deckDesign = AppState.deckDraft?.config ? computeDeckDesign(AppState.deckDraft.config) : null;
@@ -4913,7 +5028,7 @@ function refreshFramingOverlay() {
             if (stories.length) {
                 framingResult = computeEditorFraming({
                     stories,
-                    view: { width: blueprintCanvas.width, height: blueprintCanvas.height },
+                    view: planViewSize(),
                     fixturesByStorey: stories.map((story) => story.fixtures || []),
                     draft: AppState.framingDraft
                 });
@@ -4977,10 +5092,10 @@ function toggleFraming(force) {
 }
 
 // ------------------------------------------------------------------
-// Systems panel: bid, deck, electrical, framing, wall
+// Systems panel: bid, BIM, deck, electrical, framing, wall
 // ------------------------------------------------------------------
 
-// The five cross-suite systems are rendered from features/systems.js, which
+// The cross-suite systems are rendered from features/systems.js, which
 // imports each system's barrel. Only the open tab is rebuilt on a refresh: the
 // bid panel harvests every saved suite, so it is the one panel with real work
 // in it and it should not run on every pointer-up.
@@ -5001,6 +5116,11 @@ function electricalEditorDesign() {
 function systemsContext() {
     return {
         bid: {},
+        bim: {
+            walls: AppState.walls,
+            fixtures: AppState.fixtures,
+            storeyHeight: storeyConstruction(AppState.stories?.[AppState.currentStoryIndex]).wallHeight
+        },
         deck: { design: deckEditorDesign(), draft: AppState.deckDraft || null },
         electrical: { design: electricalEditorDesign(), draft: AppState.electricalDraft || null },
         framing: {
@@ -5161,6 +5281,18 @@ function handleSystemAction(actionId) {
         copyTextToClipboard(bid.proposal(built.bid));
         return true;
     }
+    if (actionId === 'bim-refresh') {
+        refreshSystemsPanel();
+        return true;
+    }
+    if (actionId === 'bim-csv') {
+        // The CSV is written from the same snapshot the panel shows, so the
+        // quantity table and the export cannot disagree.
+        const bimSystem = systemById('bim');
+        const { takeoff } = bimSystem.snapshot(systemsContext().bim);
+        if (takeoff.rows.length) downloadTextFile('ifc-takeoff.csv', bimSystem.csv(takeoff), 'text/csv');
+        return true;
+    }
     return false;
 }
 
@@ -5298,6 +5430,64 @@ function setupEventListeners() {
     // File Upload handling moved to wireUploadModal
 }
 
+/**
+ * Turn a CAD or site file into plan walls.
+ *
+ * A DXF already has metres and plan orientation (features/import/dxf.js); a
+ * KML/KMZ/GeoJSON export is lon/lat, so it is projected onto local metres and
+ * fitted inside the view with north up (features/import/geo.js). Either way the
+ * result replaces the traced walls, centred in the plan.
+ */
+async function drawingWallsFromFile(file) {
+    const name = String(file.name || '').toLowerCase();
+    const warnings = [];
+    let walls = [];
+
+    if (name.endsWith('.dxf')) {
+        const plan = dxfToPlan(await file.text(), { view: planViewSize() });
+        warnings.push(...plan.warnings);
+        walls = plan.walls.map((wall) => new Wall(wall.start.x, wall.start.y, wall.end.x, wall.end.y));
+        return { walls, warnings };
+    }
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const text = new TextDecoder('utf-8').decode(bytes);
+    const features = await parseGeoFile({ name, text, bytes });
+    if (!features.length) {
+        return { walls, warnings: ['No points, lines or polygons were found in that file.'] };
+    }
+
+    const view = planViewSize();
+    // Real metres, never scaled: a surveyed boundary is a measurement, so the
+    // view zooms out to the site rather than the site shrinking to the view.
+    const fitted = fitFeaturesToSite(projectFeatures(features).features, {
+        width: view.width / SCALE,
+        depth: view.height / SCALE,
+        fit: false
+    });
+    for (const entry of fitted.features) {
+        for (const ring of entry.rings) {
+            if (ring.length < 2) continue; // a lone point has no wall to draw
+            const segmentCount = entry.kind === 'polygon' ? ring.length : ring.length - 1;
+            for (let index = 0; index < segmentCount; index += 1) {
+                const a = ring[index];
+                const b = ring[(index + 1) % ring.length];
+                // Polygon rings repeat their first point; the closing segment
+                // already covers it.
+                if (Math.hypot(b.x - a.x, b.z - a.z) < 1e-6) continue;
+                walls.push(new Wall(a.x * SCALE, a.z * SCALE, b.x * SCALE, b.z * SCALE));
+            }
+        }
+    }
+    if (fitted.scale < 1) warnings.push(`The site was scaled to ${Math.round(fitted.scale * 100)}% to fit the plan.`);
+    const extentX = fitted.bounds.width * SCALE;
+    const extentY = fitted.bounds.height * SCALE;
+    if (extentX > view.width || extentY > view.height) {
+        warnings.push('The site is larger than the view; zoom out to see the whole boundary.');
+    }
+    return { walls, warnings };
+}
+
 function wireUploadModal() {
     const modal = document.getElementById('upload-modal');
     const fileInput = document.getElementById('hidden-file-input');
@@ -5305,10 +5495,11 @@ function wireUploadModal() {
     const btnJson = document.getElementById('upload-json-btn');
     const btnAi = document.getElementById('upload-ai-btn');
     const btnOcr = document.getElementById('upload-ocr-btn');
+    const btnDxf = document.getElementById('upload-dxf-btn');
     
     if (!modal || !fileInput) return;
 
-    let uploadMode = 'image'; // image | json | ai | ocr
+    let uploadMode = 'image'; // image | json | ai | ocr | drawing
 
     const triggerUpload = (mode, accept) => {
         uploadMode = mode;
@@ -5320,6 +5511,7 @@ function wireUploadModal() {
     btnJson?.addEventListener('click', () => triggerUpload('json', '.json'));
     btnAi?.addEventListener('click', () => triggerUpload('ai', 'image/*'));
     btnOcr?.addEventListener('click', () => triggerUpload('ocr', 'image/*'));
+    btnDxf?.addEventListener('click', () => triggerUpload('drawing', '.dxf,.kml,.kmz,.geojson'));
 
     fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
@@ -5335,6 +5527,27 @@ function wireUploadModal() {
             } catch(err) { 
                 console.error(err);
                 alert('Failed to load project file'); 
+            }
+        } else if (uploadMode === 'drawing') {
+            try {
+                const drawing = await drawingWallsFromFile(file);
+                if (!drawing.walls.length) {
+                    alert(drawing.warnings.join('\n') || 'That file has no linework to import.');
+                } else {
+                    AppState.planText = null;
+                    AppState.backgroundImage = null;
+                    AppState.backgroundScale = 1;
+                    AppState.offset = { x: 0, y: 0 };
+                    AppState.walls = drawing.walls;
+                    refreshPlanTextPanel();
+                    saveAndSync();
+                    // Unit guesses, skipped blocks and site scaling stay visible
+                    // instead of being silently rounded away.
+                    if (drawing.warnings.length) console.info(drawing.warnings.join('\n'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('That drawing could not be read. Use an ASCII DXF, KML, KMZ or GeoJSON file.');
             }
         } else if (uploadMode === 'image') {
             const reader = new FileReader();
@@ -5395,8 +5608,9 @@ function wireUploadModal() {
                         // walls get the same frame (see planBackgroundRect()).
                         const offsetX = (result.width * scanScale) / 2;
                         const offsetY = (result.height * scanScale) / 2;
-                        const frameX = blueprintCanvas.width / 2;
-                        const frameY = blueprintCanvas.height / 2;
+                        const frame = planViewSize();
+                        const frameX = frame.width / 2;
+                        const frameY = frame.height / 2;
 
                         AppState.walls = [];
                         result.walls.forEach(contour => {
@@ -5466,9 +5680,12 @@ function setActiveToolBtn(toolName) {
 
 function onResize() {
     const parent = blueprintCanvas.parentElement;
-    blueprintCanvas.width = parent.clientWidth;
-    blueprintCanvas.height = parent.clientHeight;
-    // Room labels are stored in canvas pixels, so they move with the viewport.
+    planView = {
+        width: Math.max(parent.clientWidth, 1),
+        height: Math.max(parent.clientHeight, 1)
+    };
+    // Room labels are stored in plan pixels, so they move with the viewport.
+    // draw2D() sizes the backing store from planView() and the pixel ratio.
     refreshPlanDerived();
     draw2D();
     
@@ -5758,7 +5975,7 @@ function stairPanelApi() {
         stairPanel = createStairPanel({
             getState: () => AppState,
             getStoreyHeight: activeStoreyHeight,
-            getView: () => ({ width: blueprintCanvas?.width || 1, height: blueprintCanvas?.height || 1 }),
+            getView: () => (planViewSize()),
             getCamera: () => camera3D,
             getRenderer: () => renderer3D,
             getControls: () => controls3D,
