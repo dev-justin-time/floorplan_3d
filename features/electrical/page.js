@@ -11,6 +11,7 @@ import {
     electricalTakeoffCsv,
     panelScheduleCsv
 } from './engine.js';
+import { writeDraft } from '../../core/drafts.js';
 import { applyPriceBookToDesign } from '../pricing/book.js';
 import { circuitAt, createElectricalPlan, drawElectricalPlan } from './plan.js';
 import {
@@ -471,7 +472,7 @@ function sendToEditor() {
         savedAt: new Date().toISOString()
     };
     try {
-        localStorage.setItem(EDITOR_KEY, JSON.stringify(draft));
+        if (!writeDraft(EDITOR_KEY, draft)) throw new Error('editor draft not saved');
         localStorage.setItem(DRAFT_KEY, JSON.stringify(config));
         setStatus('Electrical draft sent to the editor. Opening it now…');
         window.setTimeout(() => { window.location.href = 'Editor.html'; }, 350);

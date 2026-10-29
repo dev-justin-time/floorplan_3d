@@ -231,7 +231,8 @@ async function main() {
         check('edit-in-studio targets the landing page\'s editor',
             editorUrl === `${ORIGIN}/pages/Editor.html`, editorUrl || 'no request');
 
-        const draft = await cdp.evaluate("JSON.parse(localStorage.getItem('floorplan-editor-draft') || 'null')");
+        // Versioned payload: `{ version, savedAt, data }` (core/drafts.js).
+        const draft = await cdp.evaluate("(JSON.parse(localStorage.getItem('floorplan-editor-draft') || 'null')?.data ?? null)");
         check('studio draft carries the uploaded walls',
             Boolean(draft && draft.walls?.length === stats.walls),
             `${draft?.walls?.length ?? 0} walls`);

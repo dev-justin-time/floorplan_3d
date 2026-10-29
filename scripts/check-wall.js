@@ -251,7 +251,7 @@ check('the editor imports the wall kit through its barrel', editorJs.includes("f
 check('the wall barrel re-exports the studio panel', wallBarrel.includes("export * from './studio-panel.js'"));
 check('the systems module builds the studio from the barrels', systems.includes("from './wall/index.js'") && systems.includes('wall.wallStudioPanel'));
 check('the editor applies and prices coverings', editorJs.includes('function applyWallCovering') && editorJs.includes('function wallCoveringDesign'));
-check('the editor consumes the designer draft', editorJs.includes("localStorage.getItem('wall-editor-draft')"));
+check('the editor consumes the versioned designer draft', editorJs.includes("readDraft('wall-editor-draft')"));
 check('the editor exposes the wall handle', editorJs.includes('window.wallKit'));
 
 console.log(`\n${pass} passed, ${fail} failed`);

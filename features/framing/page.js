@@ -24,6 +24,7 @@ import {
     framingTakeoffCsv,
     wallLengthM
 } from './engine.js';
+import { writeDraft } from '../../core/drafts.js';
 import { applyPriceBookToDesign } from '../pricing/book.js';
 import {
     drawFramingPlan,
@@ -1155,7 +1156,7 @@ function wireHeader() {
             sentAt: new Date().toISOString()
         };
         try {
-            localStorage.setItem(EDITOR_KEY, JSON.stringify(draft));
+            if (!writeDraft(EDITOR_KEY, draft)) throw new Error('editor draft not saved');
             localStorage.setItem(DRAFT_KEY, JSON.stringify(config));
             setStatus('Framing draft sent. Opening the editor…');
             window.setTimeout(() => { window.location.href = 'Editor.html'; }, 350);

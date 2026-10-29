@@ -1,5 +1,6 @@
 import { KITCHEN_DEFAULTS, KITCHEN_GAPS, KITCHEN_LINES, KITCHEN_MODULES, moduleById } from './catalog.js';
 import { formatGap, gapRows, layoutKitchenRun, runSummary } from './engine.js';
+import { writeDraft } from '../../core/drafts.js';
 import { KITCHEN_CODE_SCOPE, KITCHEN_RULES, ruleStatus, rulesByCategory } from './rules.js';
 
 /**
@@ -421,7 +422,7 @@ function sendToEditor() {
         savedAt: new Date().toISOString()
     };
     try {
-        localStorage.setItem(EDITOR_KEY, JSON.stringify(draft));
+        if (!writeDraft(EDITOR_KEY, draft)) throw new Error('editor draft not saved');
         localStorage.setItem(DRAFT_KEY, JSON.stringify(config));
         setStatus('Run sent to the studio. Opening the editor…');
         window.setTimeout(() => { window.location.href = 'Editor.html'; }, 350);

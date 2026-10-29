@@ -26,6 +26,7 @@ const CHECKS = [
     'check-scene-upload.mjs',
     'check-editor-wiring.mjs',
     'check-studio.js',
+    'check-drafts.mjs',
     'check-framing.mjs',
     'check-new-suites.mjs',
     'check-plumbing.js',

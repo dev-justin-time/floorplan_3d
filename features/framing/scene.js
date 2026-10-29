@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { INCH, canvasToPlan } from '../../core/world-space.js';
+import { readDraft } from '../../core/drafts.js';
 import { openingsForWall } from '../advanced/openings.js';
 import { computeFramingDesign } from './engine.js';
 import { FRAMING_DEFAULTS, studDepthM } from './catalog.js';
@@ -21,12 +22,9 @@ import { FRAMING_DEFAULTS, studDepthM } from './catalog.js';
 export const FRAMING_DRAFT_KEY = 'framing-editor-draft';
 
 export function readFramingDraft() {
-    try {
-        const draft = JSON.parse(localStorage.getItem(FRAMING_DRAFT_KEY) || 'null');
-        return draft && typeof draft === 'object' ? draft : null;
-    } catch {
-        return null;
-    }
+    // The key stays for the bid builder, so the read does not consume it.
+    const draft = readDraft(FRAMING_DRAFT_KEY, { consume: false })?.data;
+    return draft && typeof draft === 'object' ? draft : null;
 }
 
 const FRAMING_FIELDS = [

@@ -52,7 +52,10 @@ progress        total × stage %  (deposit / rough-in / final)
 ## 5. How the harvest works
 
 The builder does not store a second copy of any price. It reads each designer's
-saved draft from browser storage and re-runs that suite's own engine:
+saved draft from browser storage and re-runs that suite's own engine. The
+`*-editor-draft` keys are versioned by `core/drafts.js` (`{ version, savedAt, data }`,
+old unversioned payloads still accepted) and the harvest unwraps them through that
+module with `consume: false`, so reading a draft here never steals it from the studio:
 
 | Suite | Draft key | Rebuilt with |
 |---|---|---|

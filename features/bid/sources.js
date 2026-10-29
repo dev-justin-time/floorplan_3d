@@ -1,3 +1,4 @@
+import { readDraft as readStoredDraft } from '../../core/drafts.js';
 import { computeDeckDesign } from '../deck/engine.js';
 import { computeElectricalDesign } from '../electrical/engine.js';
 import { computeFramingDesign } from '../framing/engine.js';
@@ -37,16 +38,18 @@ const round = (value, digits = 2) => {
     return Math.round((Number(value) || 0) * factor) / factor;
 };
 
+/**
+ * First readable draft among `keys`, unwrapped.
+ *
+ * The `*-editor-draft` keys are versioned by `core/drafts.js` (issue 10.11), so
+ * the payload sits under `data`; the `*-suite-draft` keys are still bare JSON.
+ * `consume: false` keeps the key for the studio, which reads it on its next load.
+ */
 const readDraft = (storage, keys) => {
     for (const key of keys) {
-        try {
-            const raw = storage.getItem(key);
-            if (!raw) continue;
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === 'object') return { key, value: parsed };
-        } catch {
-            // A corrupt draft is skipped; the next key may still be good.
-        }
+        const stored = readStoredDraft(key, { storage, consume: false });
+        const value = stored?.data;
+        if (value && typeof value === 'object') return { key, value };
     }
     return null;
 };

@@ -14,6 +14,7 @@ import { PIXELS_PER_METER, WALL_HEIGHT, INCH, canvasToWorld, planToCanvas, wallL
 import { fitCameraToGraph } from '../scene/scene-camera.js';
 import { fixtureAt, beginDrag, dragTo } from '../scene/scene-drag.js';
 import { snapToWalls } from '../core/wall-snap.js';
+import { readDraft } from '../core/drafts.js';
 import { createItemGizmo, planFromObject, pickItemId } from '../scene/scene-gizmo.js';
 import { createElevationDrag, frameElevation, applyElevationVisibility, ELEVATION_SIDES, elevationAxes } from '../scene/scene-elevation.js';
 import { createSceneAbilities, apply3DAbilities } from '../scene/scene-abilities.js';
@@ -2543,14 +2544,8 @@ function applyWallCovering(coveringId) {
  * gaps the suite dimensioned survive as real spacing in the plan.
  */
 function applyKitchenEditorDraft() {
-    let draft = null;
-    try {
-        const raw = localStorage.getItem('kitchen-editor-draft');
-        if (raw) localStorage.removeItem('kitchen-editor-draft');
-        draft = JSON.parse(raw || 'null');
-    } catch (error) {
-        return false;
-    }
+    const draft = readDraft('kitchen-editor-draft')?.data ?? null;
+    if (!draft) return false;
 
     const modules = (Array.isArray(draft?.modules) ? draft.modules : [])
         .filter((module) => module && Number.isFinite(Number(module.x)) && Number(module.width) > 0);
@@ -2621,14 +2616,8 @@ function applyKitchenEditorDraft() {
  * the edits made in the studio.
  */
 function applyFloorplanEditorDraft() {
-    let draft = null;
-    try {
-        const raw = localStorage.getItem('floorplan-editor-draft');
-        if (raw) localStorage.removeItem('floorplan-editor-draft');
-        draft = JSON.parse(raw || 'null');
-    } catch (error) {
-        return false;
-    }
+    const draft = readDraft('floorplan-editor-draft')?.data ?? null;
+    if (!draft) return false;
 
     const sourceWalls = (Array.isArray(draft?.walls) ? draft.walls : [])
         .filter((wall) => wall?.start && wall?.end);
@@ -2718,13 +2707,8 @@ function applyFloorplanEditorDraft() {
 }
 
 function applyLightingEditorDraft() {
-    let draft = null;
-    try {
-        draft = JSON.parse(localStorage.getItem('lighting-editor-draft') || 'null');
-        if (draft) localStorage.removeItem('lighting-editor-draft');
-    } catch (error) {
-        return false;
-    }
+    const draft = readDraft('lighting-editor-draft')?.data ?? null;
+    if (!draft) return false;
     const roomPlan = draft?.plan;
     if (!roomPlan || !Array.isArray(roomPlan.devices) || !roomPlan.devices.length) return false;
 
@@ -2820,13 +2804,8 @@ function applyLightingEditorDraft() {
  * selected, with the suite's dimensions and barrier/water settings intact.
  */
 function applyLandscapeEditorDraft() {
-    let draft = null;
-    try {
-        draft = JSON.parse(localStorage.getItem('landscape-editor-draft') || 'null');
-        if (draft) localStorage.removeItem('landscape-editor-draft');
-    } catch (error) {
-        return false;
-    }
+    const draft = readDraft('landscape-editor-draft')?.data ?? null;
+    if (!draft) return false;
     const feature = draft?.feature;
     if (!feature || !WATER_FEATURE_TYPES.includes(feature.type)) return false;
 
@@ -2852,13 +2831,7 @@ function applyLandscapeEditorDraft() {
 
 /** A covering designed in wall-designer.html wins over the autosave. */
 function applyWallEditorDraft() {
-    let draft = null;
-    try {
-        draft = JSON.parse(localStorage.getItem('wall-editor-draft') || 'null');
-        if (draft) localStorage.removeItem('wall-editor-draft');
-    } catch (error) {
-        return false;
-    }
+    const draft = readDraft('wall-editor-draft')?.data ?? null;
     if (!draft || !WALL_COVERINGS.some((entry) => entry.id === draft.covering)) return false;
     const covering = coveringById(draft.covering);
     const patch = finishPatchFor(covering.id, draft.colour);
@@ -2900,13 +2873,9 @@ function roofPlanSize() {
 
 function applyElectricalEditorDraft() {
     // The electrical designer hands over its dwelling config and circuit list so
-    // the editor can show the same service, panel schedule and takeoff.
-    let draft = null;
-    try {
-        draft = JSON.parse(localStorage.getItem('electrical-editor-draft') || 'null');
-    } catch (error) {
-        return false;
-    }
+    // the editor can show the same service, panel schedule and takeoff. The key
+    // is left in place because the bid builder reads it after the editor opens.
+    const draft = readDraft('electrical-editor-draft', { consume: false })?.data ?? null;
     if (!draft || typeof draft !== 'object' || !draft.config) return false;
     AppState.electricalDraft = draft;
     return true;
@@ -2997,25 +2966,14 @@ function applyDeckEditorDraft() {
     // The deck designer hands its framing config over so the editor can price
     // and schedule the same deck. The key is left in place: the bid builder and
     // the deck kit both read it after the editor opens.
-    let draft = null;
-    try {
-        draft = JSON.parse(localStorage.getItem('deck-editor-draft') || 'null');
-    } catch (error) {
-        return false;
-    }
+    const draft = readDraft('deck-editor-draft', { consume: false })?.data ?? null;
     if (!draft || typeof draft !== 'object' || !draft.config) return false;
     AppState.deckDraft = draft;
     return true;
 }
 
 function applyRoofEditorDraft() {
-    let draft = null;
-    try {
-        draft = JSON.parse(localStorage.getItem('roof-editor-draft') || 'null');
-        if (draft) localStorage.removeItem('roof-editor-draft');
-    } catch (error) {
-        return false;
-    }
+    const draft = readDraft('roof-editor-draft')?.data ?? null;
     if (!draft || typeof draft !== 'object') return false;
     AppState.roofConfig = {
         ...AppState.roofConfig,

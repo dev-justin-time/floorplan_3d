@@ -233,7 +233,8 @@ async function main() {
         check('send to editor opens the studio', aborted);
 
         const draftJson = await suite.evaluate("localStorage.getItem('kitchen-editor-draft')");
-        const draft = JSON.parse(draftJson || 'null');
+        // Versioned payload: `{ version, savedAt, data }` (core/drafts.js).
+        const draft = JSON.parse(draftJson || 'null')?.data ?? null;
         check('the kitchen draft carries the run', Boolean(draft && draft.modules?.length === 6), `${draft?.modules?.length ?? 0} modules`);
 
         // --- Editor -------------------------------------------------------

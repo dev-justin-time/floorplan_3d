@@ -31,6 +31,7 @@ import {
     snapToWall
 } from './plan.js';
 import { designLighting, designCsv, glossaryByCategory } from './engine.js';
+import { writeDraft } from '../../core/drafts.js';
 import { applyPriceBookToDesign } from '../pricing/book.js';
 import {
     RULES,
@@ -1338,7 +1339,7 @@ function wireSidebar() {
             sentAt: new Date().toISOString()
         };
         try {
-            localStorage.setItem(EDITOR_KEY, JSON.stringify(draft));
+            if (!writeDraft(EDITOR_KEY, draft)) throw new Error('editor draft not saved');
             localStorage.setItem(DRAFT_KEY, JSON.stringify(plan));
             setStatus('Lighting draft sent to the editor. Opening it now…');
             window.setTimeout(() => { window.location.href = 'Editor.html'; }, 350);

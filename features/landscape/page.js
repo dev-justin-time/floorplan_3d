@@ -13,6 +13,7 @@ import {
     landscapeScheduleCsv,
     landscapeTakeoffCsv
 } from './engine.js';
+import { writeDraft } from '../../core/drafts.js';
 import { applyPriceBookToDesign } from '../pricing/book.js';
 import {
     normalizeLandscapePlan,
@@ -644,7 +645,7 @@ function sendToEditor() {
         summary: `${design.typeLabel} · ${design.gallons.toFixed(0)} gal · ${design.metrics.flowGpm.toFixed(0)} gpm`
     };
     try {
-        localStorage.setItem(EDITOR_KEY, JSON.stringify(draft));
+        if (!writeDraft(EDITOR_KEY, draft)) throw new Error('editor draft not saved');
         localStorage.setItem(DRAFT_KEY, JSON.stringify(plan));
         setStatus('Landscape draft sent to the editor. Opening it now…');
         window.setTimeout(() => { window.location.href = 'Editor.html'; }, 350);
