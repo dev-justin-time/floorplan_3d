@@ -7,13 +7,16 @@
  *
  * Clean-room: these are our own implementations of the utilities from
  * RenderHub's 3D toolbox page (colour space, UOM, texel density, texture
- * memory). Only the capability is shared; the copy, the UI and the maths come
- * from the public specs named in each module. The full roadmap for the tools
- * that are not built yet is in `toolplan.md`.
+ * memory, seamless tiling, channel packing, normal-map conventions). Only the
+ * capability is shared; the copy, the UI and the maths come from the public
+ * specs named in each module. The full roadmap for the tools that are not built
+ * yet is in `toolplan.md`.
  */
 
 export * from './units.js';
 export * from './texture.js';
+export * from './image.js';
+export * from './pbr.js';
 
 /** Phases from `toolplan.md`; the page shows only the groups that have tools. */
 export const TOOLBOX_GROUPS = [
@@ -51,6 +54,27 @@ export const TOOLBOX = [
         group: 'a',
         panel: 'memory.js',
         summary: 'GPU cost of a texture in every shipped format, with the mip chain and the saving from the previous power of two.'
+    },
+    {
+        id: 'seamless-texture',
+        label: 'Seamless texture',
+        group: 'b',
+        panel: 'seamless.js',
+        summary: 'A photo becomes a tile: the opposite edges are made identical by construction, with an optional half-offset and a lighting flatten, then checked and exported as PNG.'
+    },
+    {
+        id: 'channel-packer',
+        label: 'PBR channel packer',
+        group: 'b',
+        panel: 'pack.js',
+        summary: 'Pack ambient occlusion, roughness and metalness into one glTF ORM sheet (or an Unreal or Unity mask), with a JSON sidecar that records the mapping.'
+    },
+    {
+        id: 'normal-flip',
+        label: 'Normal map flipper',
+        group: 'b',
+        panel: 'normal-flip.js',
+        summary: 'Flip the green channel to move a normal map between OpenGL and DirectX conventions; R, B and A are untouched and flipping twice restores the file.'
     }
 ];
 

@@ -36,6 +36,7 @@ const CHECKS = [
     'check-lighting.js',
     'check-imports.mjs',
     'check-toolbox.mjs',
+    'check-toolbox-browser.mjs',
     'check-price-suites.mjs',
     'check-pages.mjs',
     'browser-check.mjs',

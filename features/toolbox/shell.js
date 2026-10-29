@@ -113,7 +113,8 @@ export function mountShell() {
         groups: TOOLBOX_GROUPS,
         active: first,
         tools: () => TOOLBOX.map((tool) => tool.id),
-        select: selectTool
+        select: selectTool,
+        setStatus
     };
 
     window.addEventListener('popstate', () => {

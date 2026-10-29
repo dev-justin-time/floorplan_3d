@@ -14,6 +14,10 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
     BYTES_PER_MIB,
+    CHANNEL_ORDER,
+    CHANNEL_PRESETS,
+    NORMAL_CONVENTIONS,
+    PACK_SLOTS,
     PLATFORM_MATERIALS,
     SCALE_HINTS,
     TEXEL_SURFACES,
@@ -22,18 +26,33 @@ import {
     TOOLBOX,
     TOOLBOX_GROUPS,
     UNIT_GROUPS,
+    channelPreset,
+    checkImage,
+    cloneImage,
     colorReport,
     convertUnit,
+    createImage,
+    edgeSeamDelta,
     explainScale,
     findUnit,
+    flattenLighting,
+    flipNormalGreen,
+    flipNormalGreenAll,
+    flippedName,
     formatNumber,
+    imageFromData,
     linearToSrgb,
     linearToSrgbColor,
+    makeSeamless,
+    mixImages,
     nextPowerOfTwo,
+    packChannels,
+    packSidecar,
     parseHexColor,
     potReduction,
     previousPowerOfTwo,
     relativeLuminance,
+    resizeImage,
     rgbToHex,
     scaleMismatch,
     sceneTextureMemory,
@@ -43,8 +62,10 @@ import {
     textureLevelBytes,
     textureMemory,
     texturePixelsForDensity,
+    tileImage,
     toolById,
-    toolsInGroup
+    toolsInGroup,
+    wrapShift
 } from '../features/toolbox/index.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -231,15 +252,165 @@ check('every format has a label and a cost', TEXTURE_FORMATS.every((format) => f
 check('the format table covers the BC, ETC2/EAC and ASTC families', ['bc1', 'bc7', 'etc2rgba', 'eacr11', 'astc12x12'].every((id) => TEXTURE_FORMATS.some((format) => format.id === id)));
 check('textureFormat resolves an object unchanged', textureFormat({ id: 'custom' }).id === 'custom');
 
+// --- image kernels --------------------------------------------------------
+
+console.log('\nImage kernels');
+
+const solid = (value, width = 2, height = 2) => createImage(width, height, [value, value, value, 255]);
+const rampImage = (width = 4, height = 2, vertical = false) => {
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            const span = (vertical ? height : width) - 1;
+            const value = span > 0 ? Math.round((255 * (vertical ? y : x)) / span) : 0;
+            const offset = (y * width + x) * 4;
+            data[offset] = value;
+            data[offset + 1] = value;
+            data[offset + 2] = value;
+            data[offset + 3] = 255;
+        }
+    }
+    return { width, height, data };
+};
+const spread = (image, inset = 0) => {
+    let min = 255;
+    let max = 0;
+    for (let y = inset; y < image.height - inset; y += 1) {
+        for (let x = inset; x < image.width - inset; x += 1) {
+            const value = image.data[(y * image.width + x) * 4];
+            min = Math.min(min, value);
+            max = Math.max(max, value);
+        }
+    }
+    return max - min;
+};
+
+check('createImage allocates four bytes per pixel', createImage(4, 4).data.length === 64);
+check('createImage fills every pixel', createImage(2, 2, [10, 20, 30, 255]).data[7] === 255 && createImage(2, 2, [10, 20, 30, 255]).data[6] === 30);
+check('createImage refuses a zero or fractional size', throws(() => createImage(0, 4)) && throws(() => createImage(4, 1.5)));
+check('imageFromData converts an array and checks the length', imageFromData([1, 2, 3, 4], 1, 1).data[3] === 4 && throws(() => imageFromData([1, 2, 3], 1, 1)));
+check('checkImage names a short buffer', throws(() => checkImage({ width: 2, height: 2, data: new Uint8ClampedArray(3) })));
+
+const quad = imageFromData([0, 0, 0, 255, 100, 100, 100, 255, 200, 200, 200, 255, 255, 255, 255, 255], 2, 2);
+const cloned = cloneImage(quad);
+cloned.data[0] = 9;
+check('cloneImage does not alias its source', quad.data[0] === 0 && cloned.data[0] === 9);
+check('a box resize averages the covered area', resizeImage(quad, 1, 1).data[0] === 139, String(resizeImage(quad, 1, 1).data[0]));
+check('a box resize to the same size copies the corners', resizeImage(quad, 2, 2).data[15] === 255);
+const enlarged = resizeImage(quad, 4, 4, { mode: 'nearest' });
+check('a nearest resize keeps source pixels', enlarged.data[0] === 0 && enlarged.data[12] === 100, String(enlarged.data[12]));
+check('an unknown resize mode throws', throws(() => resizeImage(quad, 2, 2, { mode: 'lanczos' })));
+
+const tiled = tileImage(quad, 2, 2);
+check('tiling doubles both sides', tiled.width === 4 && tiled.height === 4);
+check('tiling repeats the source', tiled.data[8] === 0 && tiled.data[28] === 255, `${tiled.data[8]}/${tiled.data[28]}`);
+check('tileImage refuses a zero count', throws(() => tileImage(quad, 0, 2)));
+check('wrapShift moves pixels modulo the size', wrapShift(quad, 1, 1).data[0] === 255 && wrapShift(quad, 1, 1).data[8] === 100, `${wrapShift(quad, 1, 1).data[0]}/${wrapShift(quad, 1, 1).data[8]}`);
+
+const ramp = rampImage(4, 2);
+const rampSeam = edgeSeamDelta(ramp);
+check('a horizontal ramp has a full-scale left/right seam', rampSeam.leftRight === 255 && rampSeam.topBottom === 0, `${rampSeam.leftRight}/${rampSeam.topBottom}`);
+check('edgeSeamDelta normalises the worst edge', rampSeam.max === 255 && rampSeam.normalised === 1);
+
+const repaired = makeSeamless(ramp, { blend: 0.25, offset: false });
+check('the seam pass makes both edges identical', edgeSeamDelta(repaired).max === 0, String(edgeSeamDelta(repaired).max));
+check('the seam pass keeps the source size', repaired.width === 4 && repaired.height === 2);
+check('both edge columns hold the averaged pair', repaired.data[0] === 128 && repaired.data[3 * 4] === 128, `${repaired.data[0]}/${repaired.data[3 * 4]}`);
+check('the seam band leaves the interior alone', repaired.data[1 * 4] === 85, String(repaired.data[1 * 4]));
+
+const offsetTile = makeSeamless(ramp, { blend: 0.25 });
+check('offsetting by half is tileable too', edgeSeamDelta(offsetTile).max === 0);
+check('offsetting moves the border into the interior', offsetTile.data[1 * 4] === 255, String(offsetTile.data[1 * 4]));
+check('a vertical ramp is repaired', edgeSeamDelta(makeSeamless(rampImage(2, 4, true), { blend: 0.25 })).max === 0);
+check('a zero blend throws', throws(() => makeSeamless(ramp, { blend: 0 })));
+check('a blend above half throws', throws(() => makeSeamless(ramp, { blend: 0.6 })));
+check('a flatten amount outside 0–1 throws', throws(() => makeSeamless(ramp, { flatten: 1.5 })));
+
+const lit = rampImage(8, 8);
+const flat = flattenLighting(lit, { radius: 2 });
+check('flattening removes the gradient across the interior', spread(flat, 2) < spread(lit, 2) / 4, `${spread(flat, 2)} vs ${spread(lit, 2)}`);
+check('flattening a flat image changes nothing', (() => {
+    const even = flattenLighting(solid(90, 8, 8), { radius: 2 });
+    return even.data[0] === 90 && even.data[1] === 90 && even.data[3] === 255;
+})(), 'a flat image must pass through');
+check('flattenLighting rejects a zero radius', throws(() => flattenLighting(lit, { radius: 0 })));
+check('a flattened tile is still tileable', edgeSeamDelta(makeSeamless(lit, { blend: 0.2, flatten: 1 })).max === 0);
+check('mixImages blends between two buffers', mixImages(solid(0), solid(200), 0.5).data[0] === 100 && mixImages(solid(0), solid(200), 0).data[0] === 0);
+check('mixImages refuses mismatched sizes', throws(() => mixImages(solid(0, 2, 2), solid(200, 4, 4), 0.5)));
+
+// --- channel packing and normal maps --------------------------------------
+
+console.log('\nPBR maps');
+
+check('the presets cover glTF, Unreal and Unity', ['gltf-orm', 'unreal', 'unity-mask'].every((id) => CHANNEL_PRESETS.some((preset) => preset.id === id)));
+check(
+    'the glTF preset is R=AO, G=roughness, B=metalness, A=none',
+    JSON.stringify(channelPreset('gltf-orm').channels) === '{"r":"ao","g":"roughness","b":"metalness","a":null}',
+    JSON.stringify(channelPreset('gltf-orm').channels)
+);
+check('the Unity mask puts metalness in red and smoothness in alpha', channelPreset('unity-mask').channels.r === 'metalness' && channelPreset('unity-mask').channels.a === 'smoothness');
+check('an unknown preset throws', throws(() => channelPreset('cryengine')));
+check('every pack slot has a unique id and a byte default', new Set(PACK_SLOTS.map((slot) => slot.id)).size === PACK_SLOTS.length && PACK_SLOTS.every((slot) => Number.isInteger(slot.default) && slot.default >= 0 && slot.default <= 255));
+check('occlusion defaults to 255 and metalness to 0', PACK_SLOTS.find((slot) => slot.id === 'ao').default === 255 && PACK_SLOTS.find((slot) => slot.id === 'metalness').default === 0);
+
+const aoMap = solid(30);
+const roughnessMap = solid(120);
+const metalnessMap = solid(200);
+const orm = packChannels(
+    { r: aoMap, g: roughnessMap, b: metalnessMap },
+    { channels: { r: 'ao', g: 'roughness', b: 'metalness', a: null } }
+);
+check('ORM packs AO, roughness and metalness in order', Array.from(orm.image.data.slice(0, 4)).join(',') === '30,120,200,255', Array.from(orm.image.data.slice(0, 4)).join(','));
+check('a channel with no source takes its slot default', orm.defaulted.length === 1 && orm.defaulted[0].channel === 'a' && orm.defaulted[0].value === 255);
+check('every pixel of a flat source is packed', orm.image.data[4] === 30 && orm.image.data[5] === 120 && orm.image.data[7] === 255);
+
+const redMask = createImage(1, 1, [255, 0, 0, 255]);
+check('a colour mask is read as luminance', packChannels({ g: redMask }, { channels: { r: null, g: 'roughness', b: null, a: null } }).image.data[1] === 54);
+check('missing maps fall back to their own defaults', (() => {
+    const packed = packChannels({ r: solid(0) }, { channels: { r: 'ao', g: 'roughness', b: 'metalness', a: null } });
+    return packed.image.data[1] === 255 && packed.image.data[2] === 0;
+})(), 'expected roughness 255 and metalness 0');
+
+const stretched = packChannels({ r: solid(100, 2, 2) }, { channels: { r: 'ao' }, width: 4, height: 4 });
+check('a smaller source is box-resampled to the pack size', stretched.width === 4 && stretched.resized.length === 1 && stretched.resized[0].from.width === 2);
+check('a resampled flat map keeps its value', stretched.image.data[0] === 100 && stretched.image.data[60] === 100);
+
+const swapped = packChannels({ r: metalnessMap, g: aoMap }, { channels: { r: 'metalness', g: 'ao' } });
+check('a custom mapping decides which source feeds each channel', swapped.image.data[0] === 200 && swapped.image.data[1] === 30);
+check('packing with no source throws', throws(() => packChannels({}, { channels: { r: 'ao' } })));
+check('an unknown channel source throws', throws(() => packChannels({ r: solid(0) }, { channels: { r: 'gloss' } })));
+check('an empty mapping throws', throws(() => packChannels({ r: solid(0) }, { channels: { r: null, g: null, b: null, a: null } })));
+
+const sidecar = packSidecar(orm, { preset: 'gltf-orm', files: { r: 'ao.png', g: 'rough.png', b: 'metal.png' } });
+check('the sidecar records the preset and size', sidecar.preset === 'gltf-orm' && sidecar.size.width === 2 && sidecar.tool === 'channel-packer');
+check('the sidecar names the file behind each channel', sidecar.channels.g.slot === 'roughness' && sidecar.channels.g.file === 'rough.png');
+check('the sidecar records a defaulted channel', sidecar.channels.a.slot === null && sidecar.channels.a.value === 255 && sidecar.channels.a.file === null);
+check('the sidecar carries every channel', CHANNEL_ORDER.every((channel) => channel in sidecar.channels));
+check('a sidecar without a pack throws', throws(() => packSidecar(null)));
+
+const normal = imageFromData([120, 200, 250, 255, 10, 5, 0, 40], 2, 1);
+const flippedNormal = flipNormalGreen(normal);
+check('the green channel is inverted', flippedNormal.data[1] === 55 && flippedNormal.data[5] === 250);
+check('red, blue and alpha are copied through', flippedNormal.data[0] === 120 && flippedNormal.data[2] === 250 && flippedNormal.data[3] === 255);
+check('flipping twice restores every byte', flipNormalGreen(flippedNormal).data.every((value, index) => value === normal.data[index]));
+check('a batch flip returns one map per input', flipNormalGreenAll([normal, normal]).length === 2);
+check('flipping a short buffer throws', throws(() => flipNormalGreen({ width: 2, height: 2, data: new Uint8ClampedArray(4) })));
+check('the convention table names both targets', NORMAL_CONVENTIONS.map((entry) => entry.id).join(',') === 'opengl,directx');
+check('a plain name gains the target suffix', flippedName('rock_n.png', 'directx') === 'rock_n_dx.png');
+check('a DirectX name flips back to OpenGL', flippedName('rock_n_dx.png', 'opengl') === 'rock_n_gl.png');
+check('an existing suffix is replaced, not doubled', flippedName('rock_n_gl.png', 'directx') === 'rock_n_dx.png');
+check('a name without an extension gets .png', flippedName('rock_n') === 'rock_n_dx.png');
+
 // --- registry and page wiring --------------------------------------------
 
 console.log('\nRegistry and page wiring');
 
-check('four tools ship in phase 1', TOOLBOX.length === 4, String(TOOLBOX.length));
-check('tool ids are unique and slug-shaped', new Set(TOOLBOX.map((tool) => tool.id)).size === 4 && TOOLBOX.every((tool) => /^[a-z0-9-]+$/.test(tool.id)));
+check('seven tools ship across phases 1 and 2', TOOLBOX.length === 7, String(TOOLBOX.length));
+check('tool ids are unique and slug-shaped', new Set(TOOLBOX.map((tool) => tool.id)).size === TOOLBOX.length && TOOLBOX.every((tool) => /^[a-z0-9-]+$/.test(tool.id)));
 check('every tool has a label, a summary and a panel', TOOLBOX.every((tool) => tool.label && tool.summary && tool.panel));
 check('every tool belongs to a declared group', TOOLBOX.every((tool) => TOOLBOX_GROUPS.some((group) => group.id === tool.group)));
-check('toolsInGroup returns the group in registry order', toolsInGroup('a').map((tool) => tool.id).join(',') === TOOLBOX.map((tool) => tool.id).join(','));
+check('toolsInGroup returns one group in registry order', toolsInGroup('a').map((tool) => tool.id).join(',') === 'color-space,units,texel-density,texture-memory');
+check('the single-image group ships three tools', toolsInGroup('b').map((tool) => tool.id).join(',') === 'seamless-texture,channel-packer,normal-flip');
 check('toolById finds a tool and refuses a stranger', toolById('units').id === 'units' && toolById('nope') === null);
 check('the planned counts exceed what ships', TOOLBOX_GROUPS.reduce((sum, group) => sum + group.planned, 0) > TOOLBOX.length);
 
@@ -270,6 +441,11 @@ check('the shell drops a panel that mounts late', /mountToken/.test(shell));
 
 const runner = await readFile(path.join(ROOT, 'scripts/run-checks.mjs'), 'utf8');
 check('the gate runs this harness', runner.includes("'check-toolbox.mjs'"));
+check('the gate runs the toolbox browser harness', runner.includes("'check-toolbox-browser.mjs'"));
+
+const browserHarness = await readFile(path.join(ROOT, 'scripts/check-toolbox-browser.mjs'), 'utf8').catch(() => '');
+check('the browser harness drives every registry tool', browserHarness.includes('window.toolboxKit.select') && (browserHarness.match(/id: '[a-z-]+', label:/g) || []).length >= 7);
+check('the browser harness reads the downloaded bytes', /createObjectURL\s*=/.test(browserHarness) && /__pngHead/.test(browserHarness));
 
 console.log(`\n${pass} passed, ${failures.length} failed`);
 if (failures.length) process.exitCode = 1;

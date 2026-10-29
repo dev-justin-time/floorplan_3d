@@ -4,9 +4,10 @@ Plan for building the 17 browser utilities listed on RenderHub's
 [3D Toolbox](https://www.renderhub.com/3d-toolbox/) as part of this project, in the same
 static, vendored, gate-checked style as the rest of the tree.
 
-Status: **phase 0 and phase 1 are built** — the shell, the four conversion tools,
-`pages/toolbox.html` and `scripts/check-toolbox.mjs`. Groups B–D are still plans. Counts and
-paths below refer to the tree as it stands after that work (`npm test` → 19 checks, 1,533
+Status: **phases 0–1 and tools 5–7 are built** — the shell, the four conversion tools, the
+seamless generator, the channel packer, the normal-map flipper, `pages/toolbox.html` and
+`scripts/check-toolbox.mjs`. The rest of Group B and Groups C–D are still plans. Counts and
+paths below refer to the tree as it stands after that work (`npm test` → 20 checks, 1,664
 assertions, 29 routes).
 
 ## 1. What we are building (and what we are not)
@@ -52,10 +53,12 @@ features/toolbox/page.js           bootstrap: mounts the shell (built)
 features/toolbox/index.js          barrel: TOOLBOX registry + kit (built)
 features/toolbox/shell.js          routing (?tool=slug), file drop, download, worker host (built)
 features/toolbox/units.js          UOM + colour-space conversions (pure, built)
-features/toolbox/image.js          decode/tile/resize/channel kernels (pure over ImageData)
-features/toolbox/png.js            PNG encode/decode via canvas; zip for sprite sheets
+features/toolbox/image.js          resize/tile/wrap/seam/flatten kernels (pure, built)
+features/toolbox/pbr.js            channel pack + normal flip (pure, built); albedo/F0,
+                                   normal combine and map synthesis still planned
+features/toolbox/io.js             canvas decode/encode, downloads, drop zones (browser, built)
+features/toolbox/png.js            zip for sprite sheets and batches; PNG goes through canvas
 features/toolbox/model.js          GLB/OBJ/STL/PLY loading, mesh stats, UV/texel sampling
-features/toolbox/pbr.js            albedo/F0, channel pack, normal combine/flip, map synthesis
 features/toolbox/texture.js        memory tables, texel density (pure, built)
 features/toolbox/splat.js          Gaussian splat spike (phase 3, behind a flag)
 features/toolbox/panels/*.js       one panel per tool: form + preview + actions
@@ -247,7 +250,7 @@ loads a 10k-splat fixture, orbit works, no context loss, frame budget stated.
 | --- | --- | --- | --- | --- |
 | 0 | Shell, registry, kit, `check-toolbox.mjs` skeleton, page in the sweep | — | 3 d | built |
 | 1 | Pure conversions (Group A) | 1, 2, 4, 3 (arithmetic part) | 5 d | built |
-| 2 | Single-image tools (Group B) | 5, 6, 7, 9, 10, 8 | 12 d | next |
+| 2 | Single-image tools (Group B) | 5, 6, 7, 9, 10, 8 | 12 d | 5, 6, 7 built; 8, 9, 10 next |
 | 3 | Image sets + environment (Group C) | 11, 12, 13 | 14 d |
 | 4 | Model pipeline (Group D) | 14, 15 | 9 d |
 | 5 | LOD + splat spike | 16, 17 | 6 d + spike outcome |
@@ -258,15 +261,23 @@ Dependencies that matter: 6 and 16 need `png.js`/`model.js`; 3's per-model part 
 ## 6. Gate and docs
 
 - `check-toolbox.mjs` is registered in `scripts/run-checks.mjs` (`CHECKS`, after
-  `check-imports`). It pins the pure maths and imports each panel in Node, so a registry entry
-  without a panel fails the gate. The CDP harness (`check-toolbox-browser.mjs`) arrives with
-  phase 2, the first tool that needs a canvas; until then the page is covered by the route
+  `check-imports`). It pins the pure maths — including the image kernels and the channel/flip
+  tables — and imports each panel in Node, so a registry entry without a panel fails the gate.
+- `scripts/check-toolbox-browser.mjs` is the CDP harness, registered right after the Node one
+  and already part of `npm test` (57 assertions, skipped only when no Chrome is installed). It
+  mounts all seven panels through the same `select()` the navigation uses and asserts each
+  panel's controls and empty state; for the image tools it loads a synthetic buffer through
+  `window.toolboxKit.panel`, checks the readouts and the painted 2×2 preview, then stubs
+  `URL.createObjectURL`/the anchor click (the pattern `check-editor-wiring.mjs` uses for the
+  BIM CSV) and parses the captured bytes: PNG signature and IHDR for every image, the map
+  sidecar for the packer, and the file names the panels choose.
+- Both are registered in `scripts/run-checks.mjs`; the page is also covered by the route
   sweep, which fails on any console error or 404.
 - `pages/toolbox.html` is picked up by `check-pages.mjs` automatically (it walks every
   `.html` in the tree); the route count moved 28 → 29 and the docs' figures are current.
-- Every panel gets an `id`-addressed handle on `window.toolboxKit` (mirroring `editorKit`,
-  `systemsKit`, `planOcr`) so the browser harness drives the real DOM rather than calling
-  internals.
+- The image panels expose an id-addressed handle (`window.toolboxKit.panel`: `load()` plus
+  `state()`) so the browser harness drives the real page without inventing a second API; the
+  phase-1 panels are asserted through their DOM ids instead.
 - Mutation-test each new assertion group once, as with the imports gate: a changed constant
   (mm scale, mip factor, glTF channel order) must fail the suite.
 - `docs/audit.md` §1/§4/§7 counts and a §8 entry are updated. `features.html` does not list
