@@ -263,6 +263,90 @@ async function main() {
             console.log('ok   _headers caches hashed assets but revalidates HTML');
         }
 
+        // --- Sitemap, canonical and og:url (issue 10.2) ----------------------
+        // The origin is declared once, in scripts/site-origin.mjs, and the head
+        // tags, sitemap.xml and robots.txt are generated from it. Asserting the
+        // committed output here catches a stale origin, a page added without
+        // regenerating, and a hand-edited URL, without the gate holding a
+        // second copy of any address.
+        const { LANDING_PAGE, SITEMAP_URL, pageUrl } = await import(
+            new URL('./site-origin.mjs', import.meta.url).href
+        );
+        const tagProblems = [];
+        const routes = [];
+        for (const page of pages) {
+            const relative = path.relative(ROOT, page).split(path.sep).join('/');
+            const html = await readFile(page, 'utf8');
+            const canonicals = [...html.matchAll(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi)]
+                .map(([tag]) => (tag.match(/href=["']([^"']*)["']/i) || [])[1] ?? '');
+            const ogUrls = [...html.matchAll(/<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/gi)]
+                .map(([tag]) => (tag.match(/content=["']([^"']*)["']/i) || [])[1] ?? '');
+
+            // The root index.html only redirects and has no Open Graph metadata
+            // of its own: it names where the redirect lands and stays out of the
+            // sitemap. Every real page must name itself, exactly once.
+            if (relative === 'index.html') {
+                const want = pageUrl(LANDING_PAGE);
+                if (canonicals.length !== 1 || canonicals[0] !== want) {
+                    tagProblems.push(`${relative}: canonical ${canonicals.join(', ') || 'missing'}, want ${want}`);
+                }
+                continue;
+            }
+            routes.push(relative);
+            const want = pageUrl(relative);
+            if (canonicals.length !== 1 || canonicals[0] !== want) {
+                tagProblems.push(`${relative}: canonical ${canonicals.join(', ') || 'missing'}, want ${want}`);
+            }
+            if (ogUrls.length !== 1 || ogUrls[0] !== want) {
+                tagProblems.push(`${relative}: og:url ${ogUrls.join(', ') || 'missing'}, want ${want}`);
+            }
+        }
+        if (tagProblems.length) {
+            failures += 1;
+            console.log(`FAIL ${tagProblems.length} canonical/og:url problem(s):`);
+            tagProblems.slice(0, 5).forEach((entry) => console.log(`       ${entry}`));
+            if (tagProblems.length > 5) console.log(`       ... and ${tagProblems.length - 5} more`);
+        } else {
+            console.log(`ok   ${routes.length} pages carry their own absolute canonical and og:url`);
+        }
+
+        const sitemap = await readFile(path.join(ROOT, 'sitemap.xml'), 'utf8').catch(() => '');
+        const sitemapProblems = [];
+        if (!sitemap) {
+            sitemapProblems.push('sitemap.xml is gone');
+        } else {
+            const listed = [...sitemap.matchAll(/<loc>([^<]*)<\/loc>/g)].map(([, loc]) => loc.trim());
+            const expected = new Set(routes.map((route) => pageUrl(route)));
+            const seen = new Set();
+            for (const loc of listed) {
+                if (seen.has(loc)) sitemapProblems.push(`listed twice: ${loc}`);
+                else if (!expected.has(loc)) sitemapProblems.push(`not a page: ${loc}`);
+                seen.add(loc);
+            }
+            for (const loc of expected) {
+                if (!seen.has(loc)) sitemapProblems.push(`missing: ${loc}`);
+            }
+        }
+        if (sitemapProblems.length) {
+            failures += 1;
+            console.log(`FAIL sitemap.xml: ${sitemapProblems.length} problem(s)`);
+            sitemapProblems.slice(0, 5).forEach((entry) => console.log(`       ${entry}`));
+        } else {
+            console.log(`ok   sitemap.xml lists all ${routes.length} pages once, with no extras`);
+        }
+
+        const robots = await readFile(path.join(ROOT, 'robots.txt'), 'utf8').catch(() => '');
+        const advertised = robots.split('\n').filter((line) => /^\s*sitemap\s*:/i.test(line));
+        const advertisedUrl = advertised.length === 1
+            ? advertised[0].replace(/^\s*sitemap\s*:\s*/i, '').trim()
+            : '';
+        if (advertisedUrl !== SITEMAP_URL) {
+            failures += 1;
+            console.log(`FAIL robots.txt: want one line "Sitemap: ${SITEMAP_URL}", got ${advertised.length ? advertised.map((line) => line.trim()).join(' | ') : 'none'}`);
+        } else {
+            console.log('ok   robots.txt advertises the sitemap at the declared origin');
+        }
+
         // --- Inline code (issue 10.4) ----------------------------------------
         // A host that serves `Content-Security-Policy: script-src 'self'`
         // refuses both inline handler attributes and inline <script> blocks.

@@ -33,6 +33,11 @@ jobs:
           node scripts/generate-textures.mjs
           git diff --exit-code -- textures
 
+      - name: Verify the sitemap, canonical and og:url match the declared origin
+        run: |
+          node scripts/generate-sitemap.mjs
+          git diff --exit-code -- sitemap.xml robots.txt index.html pages
+
       - name: Install Chrome for the browser checks
         id: chrome
         uses: browser-actions/setup-chrome@v1

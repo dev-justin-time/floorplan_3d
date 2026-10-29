@@ -12,6 +12,7 @@
     "build:css": "tailwindcss -c tailwind.config.cjs -i assets/tailwind.src.css -o assets/tailwind.css --minify",
     "vendor": "node scripts/vendor-deps.mjs && node scripts/vendor-fonts.mjs",
     "textures": "node scripts/generate-textures.mjs",
+    "sitemap": "node scripts/generate-sitemap.mjs",
     "test": "node scripts/run-checks.mjs",
     "check:pages": "node scripts/check-pages.mjs"
   },
