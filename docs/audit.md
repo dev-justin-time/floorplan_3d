@@ -130,3 +130,33 @@ Editor logic intentionally untouched — the guard is correct.
 - `https://errors.example.com/collect` is still a placeholder beacon
   (ERR_CONNECTION_REFUSED in headless logs); needs the §10.13 retention
   decision recorded in the production audit.
+
+## 10. Editor viewport/buttons/live-sync/dark pass (2026-10-30)
+
+- Wall click-drag was blocked on load: `#upload-modal` in `pages/Editor.html`
+  missed the `hidden` class, so the popup overlay sat over the plan canvas and
+  swallowed every pointer gesture. Now hidden until Import is pressed.
+- `setStatus()` was called (invalid placement, presets) but never defined — a
+  `ReferenceError` that broke the pointer-up path. Now a transient
+  `#plan-status` toast in `editor/editor.js`.
+- `showWelcomeToast` used an inline `onclick` (dead under CSP); now wired with
+  `addEventListener`. `window.toggleCategory` is also defined in the module as
+  a fallback if the classic page script is blocked.
+- New: **Start New** (`data-click="startNewProject"` → blank plan, wall tool,
+  2D) and **Master Scene** (`showMasterScene`: all storeys visible, every
+  visual overlay on, 3D view; interaction-hijacking and hiding modes excluded).
+- Live scene links: the Editor re-applies suite drafts on cross-tab `storage`
+  events (deck/electrical/framing/kitchen/lighting/roof/wall) and refreshes
+  the Systems panel; the electrical Layers tab repaints on the same events, so
+  stacked layers follow other tabs without a reload.
+- Dark mode for every page: `shared/site.js` defaults to dark (persisted as
+  `fp-theme`), adds a ☀️/🌙 toggle to the Pages menu, and injects the new
+  `shared/dark-mode.css` remap on pages without native `dark:` support.
+  Plan canvases stay on a light sheet, like the Editor 2D view.
+- Verification: `.demo-work/probe-editor-fix.mjs` **14/14** (modal hidden,
+  canvas sized, click-drag draws a wall, zero dead `data-click/input/change`
+  actions, 3D canvas live after view switch, master/start-new, zero uncaught
+  errors, suite dark default + theme sheet); `check-editor-wiring` **44/44**.
+- Untouched, as requested by the other side's in-flight work: `pages/calc.html`
+  (their fix), deleted-asset entries in `git status`, and the placeholder error
+  beacon above.

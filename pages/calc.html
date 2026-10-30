@@ -24,7 +24,7 @@
         .calc-tab.active { background-color: #0ea5e9; color: white; border-color: #0ea5e9; }
         .dark .calc-tab.active { background-color: #0284c7; border-color: #0284c7; }
         input, select { transition: all 0.2s; }
-        input:focus, select:focus { outline: none; ring: 2px; border-color: #0ea5e9; }
+        input:focus, select:focus { outline: none; box-shadow: 0 0 0 2px #0ea5e9; border-color: #0ea5e9; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col">
@@ -179,7 +179,7 @@
                         <div><label class="block text-sm font-medium mb-1">Depth (inches)</label><input type="number" id="conc-d" value="4" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
                     </div>
 
-                    <div id="concrete-round-inputs" class="hidden grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div id="concrete-round-inputs" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div><label class="block text-sm font-medium mb-1">Diameter (inches)</label><input type="number" id="conc-dia" value="12" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
                         <div><label class="block text-sm font-medium mb-1">Depth (feet)</label><input type="number" id="conc-depth" value="4" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>
                         <div><label class="block text-sm font-medium mb-1">Quantity</label><input type="number" id="conc-qty" value="1" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2"></div>

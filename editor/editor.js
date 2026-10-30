@@ -662,7 +662,6 @@ function init() {
     };
     // Selection handle: 3D wall picking and the 2D/3D highlight share one path.
     window.selectWallById = (id) => selectWallById(id);
-    window.editorKit.perf = () => perfCache;
     window.editorKit = {
         // Read-only handles for the harnesses and for support: the 3D scene and
         // its renderer are otherwise module-private.
@@ -687,7 +686,10 @@ function init() {
                 clientX: rect.left + ((screen.x + 1) / 2) * rect.width,
                 clientY: rect.top + ((1 - screen.y) / 2) * rect.height
             };
-        }
+        },
+        // Perf HUD reading (labs dashboard, docs/audit.md §7); null until the
+        // 3D view has produced a sample.
+        perf: () => perfCache
     };
     window.setItemSize = (key, value) => {
         const fixture = AppState.selectedFixture;
@@ -968,6 +970,93 @@ function init() {
         draw2D();
     };
     window.clearProject = clearProject;
+    // Category collapse for the palette (also provided by the classic page
+    // script; this copy keeps the headers working if that script is blocked).
+    window.toggleCategory = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const icon = document.getElementById(`${id}-icon`);
+        if (el.classList.contains('hidden')) {
+            el.classList.remove('hidden');
+            el.classList.add('grid');
+            if (icon) icon.innerHTML = 'expand_more';
+        } else {
+            el.classList.add('hidden');
+            el.classList.remove('grid');
+            if (icon) icon.innerHTML = 'chevron_right';
+        }
+    };
+    // Start New: a blank single-storey plan on the wall tool, in 2D.
+    window.startNewProject = () => {
+        clearProject();
+        setTool('wall');
+        setActiveToolBtn('wall');
+        setViewMode('2d');
+        setStatus('New project started. Click and drag on the plan to draw walls.');
+    };
+    // Master scene: every storey visible, every visual overlay on, 3D view.
+    // Interaction-hijacking modes (comments, ruler, walkthrough, turntable)
+    // and hiding ones (hideWalls3D, sectionBox, wireframe, fog) stay off so
+    // the master view is always a complete, readable model.
+    window.showMasterScene = () => {
+        const skip = new Set(['hideWalls3D', 'comments', 'ruler', 'walkthrough', 'turntable', 'sectionBox', 'wireframe3D', 'fog3D']);
+        if (abilities?.list) {
+            abilities.list.forEach((ability) => {
+                if (ability.kind === 'toggle' && !skip.has(ability.id)) {
+                    abilities.state[ability.key || ability.id] = true;
+                }
+            });
+        }
+        (AppState.stories || []).forEach((story) => { story.visible = true; });
+        refreshStoreyPanel();
+        refreshAbilities();
+        setViewMode('3d');
+        update3D();
+        draw2D();
+        setStatus('Master scene: all storeys and overlays on.');
+        return true;
+    };
+    // Live cross-page scene: suite drafts saved in another tab (deck,
+    // electrical, framing, kitchen, …) re-apply here so the 3D scene and the
+    // Systems panel update without a reload.
+    window.addEventListener('storage', (event) => {
+        if (!event.key || !/draft|plan|price|schedule|permits/i.test(event.key)) return;
+        try {
+            const touched = [
+                applyRoofEditorDraft(),
+                applyWallEditorDraft(),
+                applyLightingEditorDraft(),
+                applyDeckEditorDraft(),
+                applyElectricalEditorDraft(),
+                applyLandscapeEditorDraft(),
+                applyFramingEditorDraft(),
+                applyKitchenEditorDraft()
+            ].some(Boolean);
+            if (touched) update3D();
+            refreshSystemsPanel();
+        } catch (error) {
+            console.warn('Live suite sync skipped:', error);
+        }
+    });
+}
+
+/** Transient plan notice (invalid placement, new project, master scene). */
+function setStatus(message, isError = false) {
+    if (!message) return;
+    let note = document.getElementById('plan-status');
+    if (!note) {
+        note = document.createElement('div');
+        note.id = 'plan-status';
+        note.setAttribute('role', 'status');
+        note.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full text-xs font-medium shadow-lg pointer-events-none transition-opacity';
+        document.body.appendChild(note);
+    }
+    note.textContent = message;
+    note.style.background = isError ? 'rgba(153,27,27,.92)' : 'rgba(17,24,39,.85)';
+    note.style.color = '#fff';
+    note.style.opacity = '1';
+    clearTimeout(note._hide);
+    note._hide = setTimeout(() => { note.style.opacity = '0'; }, 3200);
 }
 
 function showWelcomeToast() {
@@ -981,12 +1070,13 @@ function showWelcomeToast() {
             <h4 class="font-bold">Welcome to Studio</h4>
             <p class="text-sm text-gray-400">Start drawing walls or upload a plan to begin.</p>
         </div>
-        <button onclick="this.parentElement.remove()" class="text-gray-500 hover:text-white">
+        <button type="button" data-toast-close class="text-gray-500 hover:text-white">
             <span class="material-symbols-outlined">close</span>
         </button>
     `;
+    toast.querySelector('[data-toast-close]')?.addEventListener('click', () => toast.remove());
     document.body.appendChild(toast);
-    
+
     // Animate in
     requestAnimationFrame(() => {
         toast.classList.remove('translate-y-20');

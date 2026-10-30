@@ -77,6 +77,53 @@ const GROUPS = [
     }
 ];
 
+/* Global dark theme (all pages dark by default, toggle persisted). Pages that
+ * already manage `html.dark` themselves (Editor, calc, index, …) are left
+ * alone; light-only suites get shared/dark-mode.css mapped over them. */
+const THEME_KEY = 'fp-theme';
+let nativeDarkPage = false;
+
+function siteTheme() {
+    try {
+        return localStorage.getItem(THEME_KEY) || 'dark';
+    } catch {
+        return 'dark';
+    }
+}
+
+function applySiteTheme(theme) {
+    const dark = theme !== 'light';
+    document.documentElement.classList.toggle('dark', dark);
+    try {
+        localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+    } catch { /* private mode: theme just doesn't persist */ }
+    const btn = document.querySelector('[data-site-theme]');
+    if (btn) {
+        btn.textContent = dark ? '☀️' : '🌙';
+        btn.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+        btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    }
+}
+
+function initSiteTheme() {
+    nativeDarkPage = document.documentElement.classList.contains('dark');
+    applySiteTheme(siteTheme());
+    if (nativeDarkPage) return;
+    if (!document.querySelector('link[data-site-dark]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.dataset.siteDark = 'true';
+        link.href = /\/pages\//.test(window.location.pathname)
+            ? '../shared/dark-mode.css'
+            : 'shared/dark-mode.css';
+        document.head.appendChild(link);
+    }
+}
+
+function toggleSiteTheme() {
+    applySiteTheme(siteTheme() === 'dark' ? 'light' : 'dark');
+}
+
 const STYLE = `
 .site-menu-wrap { position: relative; display: inline-flex; align-items: center; margin-left: 0.5rem; }
 .site-menu-wrap > summary { list-style: none; cursor: pointer; user-select: none; }
@@ -293,6 +340,20 @@ function buildMenu() {
     summary.innerHTML = 'Pages <span class="site-caret">▼</span>';
     wrap.appendChild(summary);
 
+    const themeBtn = document.createElement('button');
+    themeBtn.type = 'button';
+    themeBtn.dataset.siteTheme = 'true';
+    themeBtn.className = 'site-menu-toggle';
+    themeBtn.style.marginLeft = '0.25rem';
+    themeBtn.textContent = siteTheme() === 'dark' ? '☀️' : '🌙';
+    themeBtn.title = 'Toggle dark / light mode';
+    themeBtn.setAttribute('aria-pressed', siteTheme() === 'dark' ? 'true' : 'false');
+    themeBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleSiteTheme();
+    });
+    wrap.appendChild(themeBtn);
+
     const panel = document.createElement('div');
     panel.className = 'site-menu-panel';
     const here = currentPage();
@@ -446,6 +507,7 @@ function mountProjectChrome() {
 }
 
 function mount() {
+    initSiteTheme();
     if (document.getElementById('site-nav-menu') || document.getElementById('site-footer')) { mountProjectChrome(); return; }
 
     const style = document.createElement('style');

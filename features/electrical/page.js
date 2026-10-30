@@ -637,6 +637,13 @@ function wireEvents() {
         if (activeTab === 'design') drawPlan();
         if (activeTab === 'layers') drawLayers();
     });
+    // Live stacked layers: plumbing / framing drafts (or the floorplan) saved
+    // in another tab repaint here without touching this panel's own config.
+    window.addEventListener('storage', (event) => {
+        if (!event.key || !/draft|plan|floorplan3d/i.test(event.key)) return;
+        if (activeTab === 'layers') drawLayers();
+        else if (activeTab === 'design') drawPlan();
+    });
     if (typeof ResizeObserver !== 'undefined') {
         const observer = new ResizeObserver(() => {
             if (activeTab === 'design') drawPlan();
