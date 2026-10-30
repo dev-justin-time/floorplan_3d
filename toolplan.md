@@ -4,11 +4,12 @@ Plan for building the 17 browser utilities listed on RenderHub's
 [3D Toolbox](https://www.renderhub.com/3d-toolbox/) as part of this project, in the same
 static, vendored, gate-checked style as the rest of the tree.
 
-Status: **phases 0–1 and tools 5–7 are built** — the shell, the four conversion tools, the
-seamless generator, the channel packer, the normal-map flipper, `pages/toolbox.html` and
-`scripts/check-toolbox.mjs`. The rest of Group B and Groups C–D are still plans. Counts and
-paths below refer to the tree as it stands after that work (`npm test` → 20 checks, 1,664
-assertions, 29 routes).
+Status: **phases 0–1, tools 5–7 and tool 3's model part are built** — the shell, the four
+conversion tools, the seamless generator, the channel packer, the normal-map flipper, the
+model loader behind the texel-density table, `pages/toolbox.html` and both toolbox harnesses.
+The rest of Group B and Groups C–D are still plans (the loader is shared with tool 14, whose
+report is not built). Counts and paths below refer to the tree as it stands after that work
+(`npm test` → 20 checks, 1,713 assertions, 29 routes).
 
 ## 1. What we are building (and what we are not)
 
@@ -58,7 +59,9 @@ features/toolbox/pbr.js            channel pack + normal flip (pure, built); alb
                                    normal combine and map synthesis still planned
 features/toolbox/io.js             canvas decode/encode, downloads, drop zones (browser, built)
 features/toolbox/png.js            zip for sprite sheets and batches; PNG goes through canvas
-features/toolbox/model.js          GLB/OBJ/STL/PLY loading, mesh stats, UV/texel sampling
+features/toolbox/mesh.js           per-shell 3D/UV areas, density, flags (pure, built)
+features/toolbox/model.js          GLB/glTF/OBJ/STL/PLY loading, world-space buffers (built);
+                                   mesh stats and UV layout still planned
 features/toolbox/texture.js        memory tables, texel density (pure, built)
 features/toolbox/splat.js          Gaussian splat spike (phase 3, behind a flag)
 features/toolbox/panels/*.js       one panel per tool: form + preview + actions
@@ -117,8 +120,10 @@ hint list for the platform's own scales (30 px/m, 96 in walls).
 **3. Texel Density Calculator.** `density = texturePixels / surfaceMetres` (px/m) and the
 inverse (required texture size for a target density), plus the variant using the UV fraction
 actually covered. Presets for the platform's texture sizes (512², 1024², 2048²) and wall
-heights (2.7 m, 96 in). When model loading lands (Group D), the same kernel samples density
-per triangle; until then it is arithmetic only.
+heights (2.7 m, 96 in). **Built:** the third section imports a model and reports per UV shell
+— `mesh.js` sums the 3D and UV areas of each shell and applies
+`density = sqrt(UV × W × H / area)`, with mirrored, outside-0–1, UV-degenerate and spread
+flags, and the sheet selector remeasures without re-reading the file.
 
 **4. Texture Memory Calculator.** Worse-case GPU size tables for uncompressed, BC1–BC7,
 ETC2/EAC, ASTC 4×4…12×12 and float formats, plus `×4/3` for a full mip chain and the
@@ -214,13 +219,15 @@ rotation is a horizontal wrap, exported `.hdr` re-loads with the same dimensions
 | 16 | Polygon Reducer / LOD Generator | `features/toolbox/lod.js` | model → N LODs | XL |
 | 17 | Gaussian Splat Viewer | `features/toolbox/splat.js` | .ply/.splat → viewer | XL (spike) |
 
-**14. Model Inspector.** Wrap the existing `GLTFLoader` (+Draco) and add OBJ/STL/PLY
-parsers (small, text/binary format reading only). Report triangles/vertices, draw calls,
-materials, texture sizes, morph targets, skins, UV sets, degenerate triangles, non-manifold
-edges (edge-count pass), loose vertices, missing UVs and normals, bounding box in metres, and
-per-material texture memory via tool 4. Shaded/wireframe/textured toggles. Tests: stats on a
-generated cube GLB, degenerate triangles counted, missing-UV detection, OBJ/STL/PLY parse of
-in-memory fixtures.
+**14. Model Inspector.** The loader is built: `features/toolbox/model.js` reads
+GLB/glTF/OBJ/STL/PLY through three's loaders (vendored, imported per format) and returns
+world-space position/UV/index buffers, and `mesh.js` already derives shell areas, UV bounds,
+mirrored/outside flags and degenerate counts from them. What is left is the report itself:
+triangles/vertices, draw calls, materials, texture sizes, morph targets, skins, UV sets,
+non-manifold edges (edge-count pass), loose vertices, missing UVs and normals, bounding box in
+metres, and per-material texture memory via tool 4, plus shaded/wireframe/textured toggles.
+Tests: stats on a generated cube GLB, degenerate triangles counted, missing-UV detection, and
+OBJ/STL/PLY fixtures — the browser harness already carries those four fixture files.
 
 **15. UV Layout & Checker.** Rasterise UV triangles into a 1024² PNG (line drawing), report
 out-of-0..1 islands, overlapping/mirrored islands (signed UV area), and stretch via a
@@ -249,14 +256,15 @@ loads a 10k-splat fixture, orbit works, no context loss, frame budget stated.
 | Phase | Work | Tools | Est. | Status |
 | --- | --- | --- | --- | --- |
 | 0 | Shell, registry, kit, `check-toolbox.mjs` skeleton, page in the sweep | — | 3 d | built |
-| 1 | Pure conversions (Group A) | 1, 2, 4, 3 (arithmetic part) | 5 d | built |
+| 1 | Pure conversions (Group A) | 1, 2, 4, 3 (arithmetic part) | 5 d | built (3's model part landed with 14's loader) |
 | 2 | Single-image tools (Group B) | 5, 6, 7, 9, 10, 8 | 12 d | 5, 6, 7 built; 8, 9, 10 next |
 | 3 | Image sets + environment (Group C) | 11, 12, 13 | 14 d |
-| 4 | Model pipeline (Group D) | 14, 15 | 9 d |
+| 4 | Model pipeline (Group D) | 14, 15 | 9 d | loader for 14/3 built; report and 15 next |
 | 5 | LOD + splat spike | 16, 17 | 6 d + spike outcome |
 
-Dependencies that matter: 6 and 16 need `png.js`/`model.js`; 3's per-model part needs 14;
-4 is reused inside 14's report; 12 reuses 6; 15 reuses 3 and 14.
+Dependencies that matter: 6 and 16 need `png.js`/`model.js`; 3's per-model part needed the
+loader, which now ships with 3 and will be reused by 14; 4 is reused inside 14's report;
+12 reuses 6; 15 reuses 3 and 14.
 
 ## 6. Gate and docs
 
@@ -264,13 +272,15 @@ Dependencies that matter: 6 and 16 need `png.js`/`model.js`; 3's per-model part 
   `check-imports`). It pins the pure maths — including the image kernels and the channel/flip
   tables — and imports each panel in Node, so a registry entry without a panel fails the gate.
 - `scripts/check-toolbox-browser.mjs` is the CDP harness, registered right after the Node one
-  and already part of `npm test` (57 assertions, skipped only when no Chrome is installed). It
+  and already part of `npm test` (72 assertions, skipped only when no Chrome is installed). It
   mounts all seven panels through the same `select()` the navigation uses and asserts each
   panel's controls and empty state; for the image tools it loads a synthetic buffer through
   `window.toolboxKit.panel`, checks the readouts and the painted 2×2 preview, then stubs
   `URL.createObjectURL`/the anchor click (the pattern `check-editor-wiring.mjs` uses for the
   BIM CSV) and parses the captured bytes: PNG signature and IHDR for every image, the map
-  sidecar for the packer, and the file names the panels choose.
+  sidecar for the packer, and the file names the panels choose. For the texel-density model
+  section it writes four fixture files (OBJ, GLB, PLY, STL) and one non-model to a temp
+  directory, feeds them through `DOM.setFileInputFiles` and reads the shell table back.
 - Both are registered in `scripts/run-checks.mjs`; the page is also covered by the route
   sweep, which fails on any console error or 404.
 - `pages/toolbox.html` is picked up by `check-pages.mjs` automatically (it walks every

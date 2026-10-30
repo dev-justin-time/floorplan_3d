@@ -44,7 +44,9 @@ import {
     linearToSrgb,
     linearToSrgbColor,
     makeSeamless,
+    meshTexelReport,
     mixImages,
+    modelTexelReport,
     nextPowerOfTwo,
     packChannels,
     packSidecar,
@@ -401,6 +403,104 @@ check('a DirectX name flips back to OpenGL', flippedName('rock_n_dx.png', 'openg
 check('an existing suffix is replaced, not doubled', flippedName('rock_n_gl.png', 'directx') === 'rock_n_dx.png');
 check('a name without an extension gets .png', flippedName('rock_n') === 'rock_n_dx.png');
 
+// --- model UV shells ------------------------------------------------------
+
+console.log('\nModel UV shells');
+
+/**
+ * A quad on the floor plane, `size` metres square, with its UVs placed at
+ * `u, v` covering `span` of the sheet. `mirrored` reverses the UV winding;
+ * `indexed: false` duplicates the four vertices like an OBJ export does.
+ */
+const quadMesh = ({ size = 1, x = 0, z = 0, u = 0, v = 0, span = 1, mirrored = false, indexed = true } = {}) => {
+    const corners = [[x, 0, z], [x + size, 0, z], [x + size, 0, z + size], [x, 0, z + size]];
+    const uv = mirrored
+        ? [[u, v], [u, v + span], [u + span, v + span], [u + span, v]]
+        : [[u, v], [u + span, v], [u + span, v + span], [u, v + span]];
+    const order = [0, 1, 2, 0, 2, 3];
+    return {
+        name: `quad ${size} m`,
+        positions: Float32Array.from((indexed ? corners : order.map((index) => corners[index])).flat()),
+        uvs: Float32Array.from((indexed ? uv : order.map((index) => uv[index])).flat()),
+        indices: indexed ? Uint16Array.from(order) : null
+    };
+};
+
+const mergeMeshes = (...meshes) => {
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+    let base = 0;
+    meshes.forEach((mesh) => {
+        positions.push(...mesh.positions);
+        uvs.push(...mesh.uvs);
+        for (const index of mesh.indices) indices.push(index + base);
+        base += mesh.positions.length / 3;
+    });
+    return {
+        name: 'merged',
+        positions: Float32Array.from(positions),
+        uvs: Float32Array.from(uvs),
+        indices: Uint32Array.from(indices)
+    };
+};
+
+const quadReport = meshTexelReport(quadMesh());
+check('a 1 m quad on a 1024 sheet reads 1024 px/m', near(quadReport.density, 1024, 1e-9), String(quadReport.density));
+check('the quad is one UV shell', quadReport.islands.length === 1 && quadReport.triangleCount === 2, JSON.stringify({ islands: quadReport.islands.length, triangles: quadReport.triangleCount }));
+check('the shell records both areas', near(quadReport.islands[0].area3d, 1, 1e-12) && near(quadReport.islands[0].uvArea, 1, 1e-12));
+check('the shell records its UV bounds', JSON.stringify(quadReport.islands[0].bounds) === '{"minU":0,"maxU":1,"minV":0,"maxV":1}', JSON.stringify(quadReport.islands[0].bounds));
+check('a clean quad has no flags', quadReport.mirrored === false && quadReport.outside === false && quadReport.hasUVs === true);
+check('a 2 m quad at the same UV coverage halves the density', near(meshTexelReport(quadMesh({ size: 2 })).density, 512, 1e-9));
+check('half the sheet per side is a quarter of the area', near(meshTexelReport(quadMesh({ span: 0.5 })).density, 512, 1e-9));
+check('a non-square sheet multiplies both sides', near(meshTexelReport(quadMesh(), { textureWidth: 1024, textureHeight: 512 }).density, Math.sqrt(1024 * 512), 1e-9));
+check('the texture size is honoured at 512', near(meshTexelReport(quadMesh(), { texturePixels: 512 }).density, 512, 1e-9));
+check('the same UV area in a bigger sheet is denser', meshTexelReport(quadMesh(), { texturePixels: 2048 }).density === 2048);
+
+const mirrored = meshTexelReport(quadMesh({ mirrored: true }));
+check('a reversed UV winding is flagged as mirrored', mirrored.mirrored === true && mirrored.islands[0].mirrored === true);
+check('a mirrored shell still has a positive area', near(mirrored.islands[0].uvArea, 1, 1e-12));
+const outside = meshTexelReport(quadMesh({ u: 0.5, span: 1 }));
+check('UVs past the sheet are flagged, not clamped', outside.outside === true && near(outside.islands[0].uvArea, 1, 1e-12));
+
+const twoShells = meshTexelReport(mergeMeshes(
+    quadMesh({ size: 1, u: 0, span: 0.4 }),
+    quadMesh({ size: 2, x: 3, u: 0.5, span: 0.5 })
+));
+check('two disconnected UV islands are two shells', twoShells.islands.length === 2, String(twoShells.islands.length));
+check('shells are ordered by surface area', twoShells.islands[0].area3d > twoShells.islands[1].area3d, JSON.stringify(twoShells.islands.map((island) => island.area3d)));
+check('each shell has its own density', near(twoShells.islands[0].density, 256, 1e-4) && near(twoShells.islands[1].density, 409.6, 1e-4), JSON.stringify(twoShells.islands.map((island) => island.density)));
+check('the mesh density is area-weighted', near(twoShells.density, Math.sqrt((0.41 * 1024 * 1024) / 5), 1e-3), String(twoShells.density));
+
+const unindexed = meshTexelReport(quadMesh({ indexed: false }));
+check('duplicated vertices weld into one shell', unindexed.islands.length === 1 && unindexed.triangleCount === 2);
+const splitTriangles = meshTexelReport({
+    name: 'collinear UVs',
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 1, 0, 1]),
+    uvs: new Float32Array([0, 0, 1, 0, 2, 0]),
+    indices: new Uint16Array([0, 1, 2])
+});
+check('a triangle with no UV area is counted, not divided by', splitTriangles.uvDegenerate === 1 && splitTriangles.density === null);
+check('the UV-degenerate triangle still has surface area', near(splitTriangles.area3d, 0.5, 1e-12));
+
+const noUVs = meshTexelReport({ name: 'STL part', positions: new Float32Array([0, 0, 0, 1, 0, 0, 1, 0, 1]), indices: new Uint16Array([0, 1, 2]) });
+check('a mesh without UVs reports no density', noUVs.hasUVs === false && noUVs.density === null && noUVs.islands.length === 0);
+check('a mesh without UVs still reports its surface', near(noUVs.area3d, 0.5, 1e-12));
+
+check('an empty mesh throws', throws(() => meshTexelReport({ positions: new Float32Array(0) })));
+check('a partial index list throws', throws(() => meshTexelReport({ positions: new Float32Array(9), indices: new Uint16Array([0, 1]) })));
+check('an index past the vertices throws', throws(() => meshTexelReport({ positions: new Float32Array(9), indices: new Uint16Array([0, 1, 5]) })));
+check('a zero texture size throws', throws(() => meshTexelReport(quadMesh(), { texturePixels: 0 })));
+check('a zero weld tolerance throws', throws(() => meshTexelReport(quadMesh(), { uvTolerance: 0 })));
+
+const modelReport = modelTexelReport([quadMesh(), quadMesh({ size: 2 })], { texturePixels: 1024 });
+check('a model report covers every mesh', modelReport.totals.meshes === 2 && modelReport.totals.triangleCount === 4);
+check('the model density is area-weighted', near(modelReport.totals.density, Math.sqrt((2 * 1024 * 1024) / 5), 1e-9), String(modelReport.totals.density));
+check('the model reports the per-shell spread', near(modelReport.totals.spread, 2, 1e-9), String(modelReport.totals.spread));
+check('the model lists its shells for the table', modelReport.islands.length === 2 && modelReport.islands.every((island) => island.mesh && island.shell >= 1));
+check('the model counts meshes without UVs', modelTexelReport([quadMesh(), { name: 'raw', positions: new Float32Array(9), indices: new Uint16Array([0, 1, 2]) }]).totals.withoutUVs === 1);
+check('a model without meshes throws', throws(() => modelTexelReport([])));
+
 // --- registry and page wiring --------------------------------------------
 
 console.log('\nRegistry and page wiring');
@@ -428,6 +528,7 @@ check('the page boots the toolbox', page.includes('../features/toolbox/page.js')
 check('the page mounts the shared chrome', page.includes('../shared/site.js'));
 check('the page loads the error reporter', page.includes('../shared/error-reporting.js'));
 check('the page uses the compiled stylesheet', page.includes('../assets/tailwind.css'));
+check('the page maps three for the model loaders', page.includes('type="importmap"') && page.includes('"/vendor/three/three.module.js"') && page.includes('"/vendor/three/addons/"'));
 check('the page has the nav and work hosts', page.includes('id="toolbox-list"') && page.includes('id="toolbox-work"'));
 check('the page has a live status line', page.includes('id="toolbox-status"') && page.includes('aria-live="polite"'));
 check('the page declares a language and a description', page.includes('lang="en"') && /<meta name="description"/.test(page));

@@ -18,7 +18,7 @@
  * Needs Chrome and the server the runner starts (`BASE_URL`).
  */
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -157,7 +157,91 @@ const PAGE_TOOLS = `
     };
 `;
 
+/** A minimal self-contained GLB: one quad, positions and UVs in one buffer. */
+function buildGlb() {
+    const positions = new Float32Array([0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1]);
+    const uvs = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+    const indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+    const bin = Buffer.concat([
+        Buffer.from(positions.buffer),
+        Buffer.from(uvs.buffer),
+        Buffer.from(indices.buffer)
+    ]);
+    const json = {
+        asset: { version: '2.0' },
+        scene: 0,
+        scenes: [{ nodes: [0] }],
+        nodes: [{ mesh: 0, name: 'Quad' }],
+        meshes: [{ name: 'Quad', primitives: [{ attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2 }] }],
+        buffers: [{ byteLength: bin.length }],
+        bufferViews: [
+            { buffer: 0, byteOffset: 0, byteLength: 48, target: 34962 },
+            { buffer: 0, byteOffset: 48, byteLength: 32, target: 34962 },
+            { buffer: 0, byteOffset: 80, byteLength: 12, target: 34963 }
+        ],
+        accessors: [
+            { bufferView: 0, componentType: 5126, count: 4, type: 'VEC3', min: [0, 0, 0], max: [1, 0, 1] },
+            { bufferView: 1, componentType: 5126, count: 4, type: 'VEC2' },
+            { bufferView: 2, componentType: 5123, count: 6, type: 'SCALAR' }
+        ]
+    };
+    const jsonBytes = Buffer.from(JSON.stringify(json), 'utf8');
+    const jsonChunk = Buffer.concat([jsonBytes, Buffer.alloc((4 - (jsonBytes.length % 4)) % 4, 0x20)]);
+    const binChunk = Buffer.concat([bin, Buffer.alloc((4 - (bin.length % 4)) % 4, 0)]);
+    const header = Buffer.alloc(12);
+    header.writeUInt32LE(0x46546c67, 0);
+    header.writeUInt32LE(2, 4);
+    header.writeUInt32LE(12 + 8 + jsonChunk.length + 8 + binChunk.length, 8);
+    const jsonHeader = Buffer.alloc(8);
+    jsonHeader.writeUInt32LE(jsonChunk.length, 0);
+    jsonHeader.writeUInt32LE(0x4e4f534a, 4);
+    const binHeader = Buffer.alloc(8);
+    binHeader.writeUInt32LE(binChunk.length, 0);
+    binHeader.writeUInt32LE(0x004e4942, 4);
+    return Buffer.concat([header, jsonHeader, jsonChunk, binHeader, binChunk]);
+}
+
 const profile = await mkdtemp(path.join(tmpdir(), 'buffit-toolbox-browser-'));
+const fixtures = {
+    obj: path.join(profile, 'quad.obj'),
+    glb: path.join(profile, 'quad.glb'),
+    stl: path.join(profile, 'tri.stl'),
+    ply: path.join(profile, 'quad.ply'),
+    text: path.join(profile, 'notes.txt')
+};
+await writeFile(fixtures.obj, [
+    'v 0 0 0', 'v 1 0 0', 'v 1 0 1', 'v 0 0 1',
+    'vt 0 0', 'vt 1 0', 'vt 1 1', 'vt 0 1',
+    'f 1/1 2/2 3/3', 'f 1/1 3/3 4/4', ''
+].join('\n'), 'utf8');
+await writeFile(fixtures.glb, buildGlb());
+await writeFile(fixtures.stl, [
+    'solid tri',
+    '  facet normal 0 1 0',
+    '    outer loop',
+    '      vertex 0 0 0',
+    '      vertex 1 0 0',
+    '      vertex 1 0 1',
+    '    endloop',
+    '  endfacet',
+    'endsolid tri', ''
+].join('\n'), 'utf8');
+await writeFile(fixtures.ply, [
+    'ply', 'format ascii 1.0',
+    'element vertex 4',
+    'property float x', 'property float y', 'property float z',
+    'property float s', 'property float t',
+    'element face 2',
+    'property list uchar int vertex_indices',
+    'end_header',
+    '0 0 0 0 0',
+    '1 0 0 1 0',
+    '1 0 1 1 1',
+    '0 0 1 0 1',
+    '3 0 1 2',
+    '3 0 2 3', ''
+].join('\n'), 'utf8');
+await writeFile(fixtures.text, 'not a model\n', 'utf8');
 const chrome = spawn(CHROME, [
     '--headless=new', '--disable-gpu', '--enable-unsafe-swiftshader', '--no-first-run',
     '--no-default-browser-check', '--disable-extensions', `--remote-debugging-port=${PORT}`,
@@ -461,6 +545,92 @@ try {
     check('the flipped download is a 2x1 PNG', flipPng.png && flipPng.width === 2 && flipPng.height === 1, JSON.stringify(flipPng));
     check('switching the target renames the download', flip.listAfter.target === 'rock_n_gl.png', flip.listAfter.target);
     check('switching the target relabels the previews', /OpenGL/.test(flip.listAfter.after) && /DirectX/.test(flip.listAfter.before), JSON.stringify(flip.listAfter));
+
+    // --- model check: real files through the file input -------------------
+    console.log('\nTexel density on a model');
+
+    await cdp.evaluate(`(async () => {
+        await window.toolboxKit.select('texel-density');
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    })()`);
+
+    const setModelFile = async (filePath) => {
+        const document = await cdp.send('DOM.getDocument', { depth: -1 });
+        const input = await cdp.send('DOM.querySelector', {
+            nodeId: document.root.nodeId,
+            selector: '#texel-model-file'
+        });
+        if (!input.nodeId) throw new Error('The model file input is not in the document.');
+        await cdp.send('DOM.setFileInputFiles', { files: [filePath], nodeId: input.nodeId });
+    };
+
+    const waitForModel = (fileName) => cdp.evaluate(`(async () => {
+        for (let attempt = 0; attempt < 200; attempt += 1) {
+            const state = window.toolboxKit.panel.state();
+            if (state.error || (state.file === ${JSON.stringify(fileName)} && !/^Reading/.test(state.note))) return state;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        return window.toolboxKit.panel.state();
+    })()`);
+
+    await setModelFile(fixtures.obj);
+    const objModel = await waitForModel('quad.obj');
+    const objRow = await cdp.evaluate(`(() => ({
+        header: document.getElementById('texel-model-file-name').textContent,
+        cells: [...document.querySelectorAll('#texel-model-table tr:first-child td')].map((cell) => cell.textContent.trim())
+    }))()`);
+    check('an OBJ imports through the file input', objModel.islands === 1 && objModel.triangles === 2, JSON.stringify(objModel));
+    check('the OBJ quad reads 1024 px/m on a 1024 sheet', Math.abs(objModel.density - 1024) < 0.01, String(objModel.density));
+    check('the model note names the sheet', /1 UV shell measured at 1024 × 1024/.test(objModel.note), objModel.note);
+    check('the shell table has one row with its density', objModel.rows === 1 && objRow.cells[4] === '1024', JSON.stringify(objRow.cells));
+    check('the table names the imported mesh', /quad\.obj/.test(objRow.cells[0]), objRow.cells[0]);
+    check('the header names the file and its format', /quad\.obj · OBJ/.test(objRow.header), objRow.header);
+
+    const halfSheet = await cdp.evaluate(`(async () => {
+        const select = document.getElementById('texel-model-sheet');
+        select.value = '512';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        return {
+            ...window.toolboxKit.panel.state(),
+            cell: document.querySelector('#texel-model-table tr:first-child td:nth-child(5)').textContent.trim()
+        };
+    })()`);
+    check('changing the sheet remeasures without reloading', Math.abs(halfSheet.density - 512) < 0.01 && halfSheet.cell === '512', JSON.stringify({ density: halfSheet.density, cell: halfSheet.cell }));
+
+    await cdp.evaluate(`(() => {
+        const select = document.getElementById('texel-model-sheet');
+        select.value = '1024';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await setModelFile(fixtures.glb);
+    const glbModel = await waitForModel('quad.glb');
+    const glbHeader = await cdp.evaluate("document.getElementById('texel-model-file-name').textContent");
+    check('a GLB imports through the same path', glbModel.islands === 1 && Math.abs(glbModel.density - 1024) < 0.01, JSON.stringify(glbModel));
+    check('the header names the GLB and its format', /quad\.glb · GLB/.test(glbHeader), glbHeader);
+
+    await setModelFile(fixtures.stl);
+    const stlModel = await waitForModel('tri.stl');
+    const stlDensity = await cdp.evaluate("document.getElementById('texel-model-density').textContent");
+    check('an STL reports its surface without UV shells', stlModel.islands === 0 && stlModel.triangles === 1, JSON.stringify(stlModel));
+    check('the STL warning explains the missing UVs', /no UVs/.test(stlModel.warnings), stlModel.warnings);
+    check('the STL density cell says no UVs', stlDensity === 'no UVs', stlDensity);
+
+    await setModelFile(fixtures.ply);
+    const plyModel = await waitForModel('quad.ply');
+    check('a PLY imports with its texture coordinates', plyModel.islands === 1 && Math.abs(plyModel.density - 1024) < 0.5, JSON.stringify(plyModel));
+
+    await setModelFile(fixtures.text);
+    const rejected = await cdp.evaluate(`(async () => {
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+            const error = document.getElementById('texel-model-error').textContent;
+            if (error) return { error, note: document.getElementById('texel-model-note').textContent, rows: document.querySelectorAll('#texel-model-table tr').length };
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        return { error: '', note: '', rows: -1 };
+    })()`);
+    check('an unsupported file is refused with a reason', /Unsupported format/.test(rejected.error), rejected.error);
+    check('a failed load clears the previous result', rejected.note === 'notes.txt could not be read.' && rejected.rows === 0, JSON.stringify(rejected));
 
     // --- console ---------------------------------------------------------
     const errors = cdp.errors();

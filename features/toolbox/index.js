@@ -17,6 +17,7 @@ export * from './units.js';
 export * from './texture.js';
 export * from './image.js';
 export * from './pbr.js';
+export * from './mesh.js';
 
 /** Phases from `toolplan.md`; the page shows only the groups that have tools. */
 export const TOOLBOX_GROUPS = [
@@ -46,7 +47,7 @@ export const TOOLBOX = [
         label: 'Texel density',
         group: 'a',
         panel: 'texel.js',
-        summary: 'Pixels per metre, centimetre and inch for a surface, and the texture size a target density needs.'
+        summary: 'Pixels per metre, centimetre and inch for a surface, the texture size a target density needs, and a real model\'s UV shells measured from an imported GLB, glTF, OBJ, STL or PLY.'
     },
     {
         id: 'texture-memory',
