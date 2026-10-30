@@ -1,6 +1,7 @@
         import { SharedViewer } from '../../scene/SharedViewer.js';
         import { processFloorPlan } from '../../engine/floorPlanProcessor.js';
         import { writeDraft } from '../../core/drafts.js';
+        import { loadDemoPlan, createNewPlan } from '../../shared/demo-plan.js';
 
         document.addEventListener('DOMContentLoaded', () => {
             const uploadInput = document.getElementById('floorplan-upload');
@@ -117,6 +118,35 @@
                     uploadInput.value = '';
                 }
             });
+
+            // Farmhouse demo: seed the shared autosave so EVERY page (Editor,
+            // demo, suites) opens on the same default floorplan.
+            const demoButtons = [document.getElementById('load-demo-plan'), document.getElementById('pipeline-demo')].filter(Boolean);
+            demoButtons.forEach((btn) => btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                try {
+                    await loadDemoPlan('../assets/southern-farmhouse-plan.json');
+                    window.showToast('Southern Farmhouse demo loaded — opening the Studio…', 'success');
+                    setTimeout(() => { window.location.href = 'Editor.html'; }, 600);
+                } catch (error) {
+                    console.error('Demo load failed:', error);
+                    window.showToast('Could not load the demo plan.', 'error');
+                    btn.disabled = false;
+                }
+            }));
+
+            // Create New: blank versioned project, then open the Studio.
+            const newButtons = [document.getElementById('create-new-plan'), document.getElementById('pipeline-new')].filter(Boolean);
+            newButtons.forEach((btn) => btn.addEventListener('click', () => {
+                try {
+                    createNewPlan();
+                    window.showToast('New blank plan — opening the Studio…', 'success');
+                    setTimeout(() => { window.location.href = 'Editor.html'; }, 400);
+                } catch (error) {
+                    console.error('Create new failed:', error);
+                    window.showToast('Could not create a new plan (storage blocked).', 'error');
+                }
+            }));
 
             // Modal functionality
             const quicklinksBtn = document.getElementById('quicklinks-btn');

@@ -350,8 +350,8 @@ async function main() {
                     clientX: rect.left + (x / canvas.width) * rect.width,
                     clientY: rect.top + (y / canvas.height) * rect.height
                 };
-                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...point }));
-                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...point }));
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7, ...point }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, ...point }));
             };
             // A stair straight from the palette, not the panel: no explicit size.
             document.querySelector('[data-item="stair"]').click();
@@ -402,13 +402,13 @@ async function main() {
                 clientY: rect.top + (y / canvas.height) * rect.height
             });
             const drag = (from, to) => {
-                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...at(from.x, from.y) }));
-                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, ...at(to.x, to.y) }));
-                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...at(to.x, to.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7, ...at(from.x, from.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, isPrimary: true, pointerId: 7, ...at(to.x, to.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, ...at(to.x, to.y) }));
             };
             const click = (point) => {
-                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...at(point.x, point.y) }));
-                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...at(point.x, point.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7, ...at(point.x, point.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, ...at(point.x, point.y) }));
             };
             const cx = canvas.width / 2;
             const cy = canvas.height / 2;
@@ -487,9 +487,9 @@ async function main() {
                 clientY: rect.top + (y / canvas.height) * rect.height
             });
             const drag = (from, to) => {
-                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...at(from.x, from.y) }));
-                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, ...at(to.x, to.y) }));
-                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...at(to.x, to.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7, ...at(from.x, from.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, isPrimary: true, pointerId: 7, ...at(to.x, to.y) }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, ...at(to.x, to.y) }));
             };
             const cx = canvas.width / 2;
             const cy = canvas.height / 2;
@@ -672,8 +672,8 @@ async function main() {
                 clientX: rect.left + ((canvas.width / 2) / canvas.width) * rect.width,
                 clientY: rect.top + ((canvas.height / 2 - 240) / canvas.height) * rect.height
             };
-            canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...point }));
-            canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...point }));
+            canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7, ...point }));
+            canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, ...point }));
             const selectedWall = !document.getElementById('selection-wall').classList.contains('hidden');
             const swatches = document.querySelectorAll('#finish-colours [data-finish-color]').length;
             document.querySelector('#finish-colours [data-finish-color="#8b5a2b"]').click();
@@ -1066,7 +1066,7 @@ async function main() {
             const canvas = document.getElementById('blueprint-canvas');
             const rect = canvas.getBoundingClientRect();
             const click = (offsetX = 0) => canvas.dispatchEvent(new PointerEvent('pointerdown', {
-                bubbles: true, button: 0, buttons: 1,
+                bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7,
                 clientX: rect.left + rect.width / 2 + offsetX,
                 clientY: rect.top + rect.height / 2
             }));

@@ -109,9 +109,9 @@ try {
         });
         const start = at(canvas.width * 0.25, canvas.height * 0.4);
         const end = at(canvas.width * 0.75, canvas.height * 0.4);
-        canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...start }));
-        canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, ...end }));
-        canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...end }));
+        canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7, ...start }));
+        canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, isPrimary: true, pointerId: 7, ...end }));
+        canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, ...end }));
         await new Promise((resolve) => setTimeout(resolve, 500));
         const wall = window.featureKit.walls()[0];
         const selected = window.selectWallById(wall.id);

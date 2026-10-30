@@ -251,9 +251,9 @@ async function main() {
                 clientY: rect.top + (y / canvas.height) * rect.height
             });
             const draw = (x1, y1, x2, y2) => {
-                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, ...at(x1, y1) }));
-                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, ...at(x2, y2) }));
-                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, ...at(x2, y2) }));
+                canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, isPrimary: true, pointerId: 7, ...at(x1, y1) }));
+                canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1, isPrimary: true, pointerId: 7, ...at(x2, y2) }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, isPrimary: true, pointerId: 7, ...at(x2, y2) }));
             };
             draw(canvas.width * 0.18, canvas.height * 0.4, canvas.width * 0.82, canvas.height * 0.4);
             draw(canvas.width * 0.18, canvas.height * 0.68, canvas.width * 0.82, canvas.height * 0.68);

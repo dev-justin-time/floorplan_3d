@@ -461,6 +461,28 @@ function init() {
     if (saved) {
         restoreState(saved);
         console.log('Restored from autosave');
+    } else {
+        // First run: seed the shared Southern Farmhouse demo so the Editor
+        // (and every suite reading the autosave) opens on a real plan.
+        // A floorplan-editor-draft handed from the landing page wins instead.
+        const hasHandoff = (() => {
+            try { return !!readDraft('floorplan-editor-draft')?.data; } catch { return false; }
+        })();
+        if (!hasHandoff) {
+            fetch('../assets/southern-farmhouse-plan.json', { cache: 'no-store' })
+                .then((res) => (res.ok ? res.json() : null))
+                .then((plan) => {
+                    if (!plan || !Array.isArray(plan.walls) || !plan.walls.length) return;
+                    try {
+                        restoreState(plan);
+                        StorageManager.saveProject('autosave', plan);
+                        console.log('Seeded Southern Farmhouse demo plan');
+                    } catch (error) {
+                        console.warn('Demo plan seed failed:', error);
+                    }
+                })
+                .catch(() => { /* file:// or offline: stay on the blank canvas */ });
+        }
     }
 
     // A plan converted on index.html replaces the autosave's plan first, so the

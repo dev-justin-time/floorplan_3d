@@ -51,10 +51,68 @@ document.addEventListener('DOMContentLoaded', () => {
   init3D();
   wireToolbar();
   wireUploadModal();
+  wireDemoPlanButtons();
   initEmbeddedDemos();
+  seedFarmhouseDemo();
   draw2D();
   animate3D();
 });
+
+// ----------- Default plan: Southern Farmhouse demo -----------
+// The demo opens on the same default floorplan every other page uses. The
+// JSON asset is the Editor autosave shape, so walls/fixtures map 1:1.
+async function seedFarmhouseDemo() {
+  if (AppState.walls.length > 0) return;
+  try {
+    const res = await fetch('../assets/southern-farmhouse-plan.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const plan = await res.json();
+    applyDemoPlan(plan);
+  } catch {
+    // Offline or file:// fetch failure: stay on the blank canvas.
+  }
+}
+
+function applyDemoPlan(plan) {
+  const story = plan?.stories?.[0] || plan || {};
+  const walls = story.walls || plan.walls || [];
+  const fixtures = story.fixtures || plan.fixtures || [];
+  AppState.walls = walls
+    .filter((w) => w?.start && w?.end)
+    .map((w) => ({ start: { x: w.start.x, y: w.start.y }, end: { x: w.end.x, y: w.end.y } }));
+  AppState.fixtures = fixtures.map((f) => ({
+    type: f.type,
+    x: f.x,
+    y: f.y,
+    rotation: f.rotation || 0
+  }));
+  // Remember it as the shared autosave too, so the Editor and suites open
+  // on this same plan without a second fetch.
+  try {
+    if (!localStorage.getItem('floorplan3d_autosave')) {
+      localStorage.setItem('floorplan3d_autosave', JSON.stringify(plan));
+    }
+  } catch {}
+  update3DFrom2D();
+  draw2D();
+}
+
+function wireDemoPlanButtons() {
+  document.getElementById('demo-load-farmhouse')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch('../assets/southern-farmhouse-plan.json', { cache: 'no-store' });
+      applyDemoPlan(await res.json());
+    } catch {
+      alert('Could not load the demo plan.');
+    }
+  });
+  document.getElementById('demo-new-plan')?.addEventListener('click', () => {
+    AppState.walls = [];
+    AppState.fixtures = [];
+    update3DFrom2D();
+    draw2D();
+  });
+}
 
 // ----------- 2D Blueprint ----------
 
