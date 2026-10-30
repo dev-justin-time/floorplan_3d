@@ -8,6 +8,12 @@
  * layout; pages without a header get a floating menu instead.
  */
 
+const SUB_GROUPS = [
+    { title: 'Structure + shell', links: [['plan-studio.html', 'Plan studio'], ['site-plan.html', 'Site plan'], ['Editor.html', 'Floorplan'], ['wall-designer.html', 'Walls'], ['framing-designer.html', 'Framing'], ['foundation-designer.html', 'Foundation'], ['roof-designer.html', 'Roof'], ['stair-designer.html', 'Stairs'], ['stair-l-designer.html', 'L stair'], ['stair-u-designer.html', 'U stair'], ['stair-spiral-designer.html', 'Spiral stair'], ['stair-steep-designer.html', 'Steep stair']] },
+    { title: 'Services', links: [['plumbing-designer.html', 'Plumbing'], ['electrical-designer.html', 'Electrical'], ['lighting-designer.html', 'Lighting'], ['kitchen-designer.html', 'Kitchen']] },
+    { title: 'Outdoor + cost', links: [['deck-designer.html', 'Deck'], ['landscape-designer.html', 'Landscape'], ['price-book.html', 'Prices'], ['bid-builder.html', 'Bid'], ['project-schedule.html', 'Schedule'], ['permits-inspections.html', 'Permits']] }
+];
+
 const GROUPS = [
     {
         title: 'Studio',
@@ -30,7 +36,11 @@ const GROUPS = [
             ['landscape-designer.html', 'Landscape'],
             ['roof-designer.html', 'Roof'],
             ['wall-designer.html', 'Walls & finishes'],
-            ['stair-designer.html', 'Stairs']
+            ['stair-designer.html', 'Stairs'],
+            ['stair-l-designer.html', 'L stair'],
+            ['stair-u-designer.html', 'U stair'],
+            ['stair-spiral-designer.html', 'Spiral stair'],
+            ['stair-steep-designer.html', 'Steep stair']
         ]
     },
     {
@@ -38,6 +48,9 @@ const GROUPS = [
         links: [
             ['calc.html', 'Calculators'],
             ['toolbox.html', '3D toolbox'],
+            ['foundation-designer.html', 'Foundation'],
+            ['project-schedule.html', 'Schedule'],
+            ['permits-inspections.html', 'Permits'],
             ['price-book.html', 'Price book'],
             ['bid-builder.html', 'Bid builder'],
             ['project-dashboard.html', 'Project dashboard']
@@ -385,11 +398,49 @@ function mountProjectChrome() {
             });
             document.body.appendChild(btn);
         };
+        const mountRelated = () => {
+            import('./related-pages.js').then(({ subsFor, relatedFor, PRICING_RELEVANCE }) => {
+                import('./project-context.js').then(({ getProjectSnapshot, renderProgressBar, renderRelatedPricing, onProjectChange }) => {
+                    if (document.getElementById('project-related-strip')) return;
+                    const here = (window.location.pathname.split('/').pop() || 'index.html').split('?')[0];
+                    const subs = subsFor(here);
+                    const related = relatedFor(here);
+                    if (!subs.length && !related.length) return;
+                    const host = document.createElement('div');
+                    host.id = 'project-related-strip';
+                    host.style.cssText = 'background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start';
+                    const subHtml = subs.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><span style="font:700 9px system-ui;letter-spacing:.08em;color:#64748b">IN THIS PAGE:</span>${subs.map((s) => `<button data-subtab="${s.subtab || ''}" data-sub="${s.id}" title="${s.detail}" style="border:1px solid #cbd5e1;background:#fff;border-radius:99px;padding:2px 9px;font:600 10px system-ui;cursor:pointer">${s.label}</button>`).join('')}</div>` : '';
+                    const relHtml = related.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><span style="font:700 9px system-ui;letter-spacing:.08em;color:#64748b">WORKS WITH:</span>${related.map((r) => `<a href="${r.page}" title="${r.reason}" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:2px 8px;font:600 10px system-ui;text-decoration:none;color:#0f172a">${r.page.replace('-designer.html', '').replace('.html', '')} · ${r.reason}</a>`).join('')}</div>` : '';
+                    host.innerHTML = `${subHtml}${relHtml}<div id="pr-progress" style="margin-left:auto;min-width:180px;flex:1;max-width:280px"></div><div id="pr-pricing" style="display:flex;gap:6px;flex-wrap:wrap"></div>`;
+                    const anchor = document.getElementById('project-workflow-strip');
+                    if (anchor?.parentElement) anchor.parentElement.insertBefore(host, anchor.nextSibling);
+                    else document.body.prepend(host);
+                    host.addEventListener('click', (e) => {
+                        const btn = e.target.closest('[data-subtab]');
+                        if (!btn || !btn.dataset.subtab) return;
+                        const tab = document.querySelector(`.tab[data-tab="${btn.dataset.subtab}"]`);
+                        if (tab) tab.click();
+                        else document.getElementById(`panel-${btn.dataset.subtab}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                    const paint = () => {
+                        const snap = getProjectSnapshot();
+                        const p = host.querySelector('#pr-progress');
+                        if (p) renderProgressBar(p, snap);
+                    };
+                    paint();
+                    onProjectChange(paint);
+                    const keys = PRICING_RELEVANCE[here] || [];
+                    if (keys.length) renderRelatedPricing(host.querySelector('#pr-pricing'), keys.slice(0, 3));
+                    else host.querySelector('#pr-pricing')?.remove();
+                }).catch(() => {});
+            }).catch(() => {});
+        };
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => { mountStrip(); mountButton(); }, { once: true });
+            document.addEventListener('DOMContentLoaded', () => { mountStrip(); mountButton(); mountRelated(); }, { once: true });
         } else {
             mountStrip();
             mountButton();
+            mountRelated();
         }
     } catch { /* chrome must never break a suite page */ }
 }

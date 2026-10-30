@@ -88,6 +88,13 @@ import {
     planTextSummary,
     ocrLineLabel
 } from '../features/ocr.js';
+import {
+    detectPlanSymbols,
+    symbolsSummary,
+    symbolLabel,
+    readingNotesAtOrigins,
+    toPlanPoint
+} from '../features/ocr-symbols.js';
 import { DEFAULT_TEXTURES, detectRoomType, getRecommendedTextures } from '../core/metadata.js';
 import { ROOF_STYLES } from '../features/roof/styles.js';
 import { COVERINGS, GUTTER_SYSTEMS } from '../features/roof/materials.js';
@@ -248,9 +255,11 @@ const AppState = {
     // Background
     backgroundImage: null,
     backgroundScale: 1.0, // Added scale property
-    // OCR of the imported plan (features/ocr.js): recognized lines stay in the
-    // session so they can be drawn over the image and copied out.
+    // OCR of the imported plan (features/ocr.js + features/ocr-symbols.js):
+    // recognized words AND plan symbols stay in the session so both are drawn
+    // over the image, printed at their origins and copied out.
     planText: null,
+    planSymbols: null,
     
     // Styles
     fixtureStyles: {},
@@ -574,13 +583,17 @@ function init() {
     window.repeatSelected = repeatSelection;
     window.toggleAxisLock = toggleAxisLock;
     window.exportCutList = exportCutList;
-    // OCR handle: run on the imported plan, read the result, or drive the panel.
+    // OCR handle: words (Tesseract, open source) + symbols (local reader) on
+    // the imported plan; readings print at their location origins.
     window.planOcr = {
         run: (source, options) => runPlanOcr(source, options),
         runCurrent: () => runPlanOcrCurrent(),
+        runSymbols: () => runPlanSymbolsCurrent(),
         parse: parsePlanText,
         result: () => AppState.planText,
-        summary: () => planTextSummary(AppState.planText),
+        symbols: () => AppState.planSymbols,
+        readings: () => readingNotesAtOrigins({ lines: AppState.planText?.lines || [], symbols: AppState.planSymbols?.symbols || [] }),
+        summary: () => [planTextSummary(AppState.planText), symbolsSummary(AppState.planSymbols)].filter((s) => s && !/^No /.test(s)).join(' + ') || 'No readings yet',
         setResult: (result) => {
             AppState.planText = result || null;
             refreshPlanTextPanel();
@@ -596,7 +609,8 @@ function init() {
             rects: AppState.planTextRects || []
         }),
         clear: () => clearPlanText(),
-        copy: () => copyPlanText()
+        copy: () => copyPlanText(),
+        print: () => printReadings()
     };
     // Roof suite handle: the editor's roof options and the takeoff they compute.
     window.roofKit = {
@@ -1025,8 +1039,15 @@ function onPointerDown(e) {
 
     // Handle Tool Interaction
     if (AppState.currentTool === 'wall') {
+        // Only the primary button starts a wall; right/middle buttons pan.
+        if (e.button !== 0 && e.button !== undefined) return;
+        if (e.isPrimary === false) return;
         AppState.isDrawing = true;
         AppState.wallStart = pos;
+        AppState.cursor = pos;
+        try { blueprintCanvas.setPointerCapture(e.pointerId); } catch { /*_mouse: capture is best-effort */ }
+        if (e.cancelable) e.preventDefault();
+        draw2D(pos);
     } else if (AppState.currentTool === 'delete') {
         deleteObjectAt(pos.x, pos.y);
     } else if (AppState.currentTool === 'select') {
@@ -1257,15 +1278,28 @@ function onPointerUp(e) {
     if (AppState.isDrawing && AppState.currentTool === 'wall') {
         const rawEnd = getCanvasCoordinates(e);
         const start = AppState.wallStart;
-        // Shift constrains the angle to 15° steps while drawing.
-        const end = e.shiftKey ? snapAngle(start, rawEnd) : rawEnd;
-        
-        // Min length check (approx 30cm)
-        if (Math.hypot(end.x - start.x, end.y - start.y) > 10) {
-            AppState.walls.push(new Wall(start.x, start.y, end.x, end.y));
-            saveAndSync();
+        try { if (blueprintCanvas.hasPointerCapture?.(e.pointerId)) blueprintCanvas.releasePointerCapture(e.pointerId); } catch { /* best-effort */ }
+        if (start) {
+            // Shift constrains the angle to 15° steps while drawing.
+            const end = e.shiftKey ? snapAngle(start, rawEnd) : rawEnd;
+
+            // Min length check (approx 30cm)
+            if (Math.hypot(end.x - start.x, end.y - start.y) > 10) {
+                AppState.walls.push(new Wall(start.x, start.y, end.x, end.y));
+                saveAndSync();
+            }
         }
-        
+
+        AppState.isDrawing = false;
+        AppState.wallStart = null;
+        draw2D();
+    }
+}
+
+/** A cancelled gesture (touch interrupt, alert, pointer lost) must never leave a stuck wall preview. */
+function onPointerCancel(e) {
+    try { if (blueprintCanvas.hasPointerCapture?.(e.pointerId)) blueprintCanvas.releasePointerCapture(e.pointerId); } catch { /* best-effort */ }
+    if (AppState.isDrawing || AppState.wallStart) {
         AppState.isDrawing = false;
         AppState.wallStart = null;
         draw2D();
@@ -3073,40 +3107,51 @@ function refreshPlanTextPanel() {
     const clearButton = document.getElementById('plan-text-clear');
     const count = document.getElementById('plan-text-count');
 
+    const symbols = AppState.planSymbols?.symbols || [];
     if (runButton) runButton.disabled = planOcrRunning || !AppState.backgroundImage;
-    if (copyButton) copyButton.disabled = !result?.text;
-    if (clearButton) clearButton.disabled = !result;
+    const symButton = document.getElementById('plan-symbols-run');
+    if (symButton) symButton.disabled = planOcrRunning || !AppState.backgroundImage;
+    const printButton = document.getElementById('plan-text-print');
+    if (printButton) printButton.disabled = planOcrRunning || (!result?.text && !symbols.length);
+    if (copyButton) copyButton.disabled = !result?.text && !symbols.length;
+    if (clearButton) clearButton.disabled = !result && !symbols.length;
     if (count) {
-        count.textContent = result
-            ? String((result.counts?.rooms || 0) + (result.counts?.dimensions || 0) + (result.counts?.labels || 0))
+        count.textContent = result || symbols.length
+            ? String(((result?.counts?.rooms || 0) + (result?.counts?.dimensions || 0) + (result?.counts?.labels || 0)) + symbols.length)
             : '0';
     }
 
-    if (!result) {
-        list.innerHTML = `<p class="text-xs text-gray-400">${AppState.backgroundImage ? 'Plan loaded. Read its text to find dimensions.' : 'No text read yet.'}</p>`;
+    if (!result && !symbols.length) {
+        list.innerHTML = `<p class="text-xs text-gray-400">${AppState.backgroundImage ? 'Plan loaded. Read its words + symbols to find dimensions.' : 'No readings yet.'}</p>`;
         if (!planOcrRunning) {
-            ocrStatus(AppState.backgroundImage ? 'Plan loaded. Read text when ready.' : 'Import a plan, then read its dimensions and labels.');
+            ocrStatus(AppState.backgroundImage ? 'Plan loaded. Read words + symbols when ready.' : 'Import a plan, then read its dimensions, labels and symbols.');
         }
         return;
     }
 
-    const lines = result.lines
+    const lines = (result?.lines || [])
         .filter((line) => OCR_CATEGORY_LABEL[line.category])
         .slice(0, 80);
-    if (!lines.length) {
-        list.innerHTML = '<p class="text-xs text-gray-400">No labels or dimensions recognized.</p>';
-    } else {
-        list.innerHTML = lines.map((line) => {
+    const wordsHtml = lines.length
+        ? lines.map((line) => {
             const meta = OCR_CATEGORY_LABEL[line.category];
             return `<div class="flex items-baseline gap-1.5 text-[11px] leading-snug">
                 <span class="text-[9px] font-bold uppercase tracking-wide ${meta.className} w-8 shrink-0">${meta.label}</span>
                 <span class="text-gray-700 dark:text-gray-200 truncate" title="${line.text.replace(/"/g, '&quot;')}">${ocrLineLabel(line)}</span>
             </div>`;
-        }).join('');
-    }
+        }).join('')
+        : '<p class="text-xs text-gray-400">No words recognized yet.</p>';
+    const symHtml = symbols.length
+        ? `<p class="text-[9px] font-bold uppercase tracking-wide text-gray-400 mt-2">Symbols · ${symbolsSummary(AppState.planSymbols)}</p>` +
+          symbols.slice(0, 60).map((s) => `<div class="flex items-baseline gap-1.5 text-[11px] leading-snug">
+                <span class="text-[9px] font-bold uppercase tracking-wide text-orange-600 w-8 shrink-0">Sym</span>
+                <span class="text-gray-700 dark:text-gray-200 truncate" title="${s.kind} ${(s.confidence || 0)}%">${symbolLabel(s)}</span>
+            </div>`).join('')
+        : '<p class="text-[10px] text-gray-400 mt-2">No symbols detected yet — run “Read symbols”.</p>';
+    list.innerHTML = wordsHtml + symHtml;
 
-    const scale = result.scales?.[0]?.scale;
-    ocrStatus(`${planTextSummary(result)}${scale ? ` · ${scale.note}` : ''}`);
+    const scale = result?.scales?.[0]?.scale;
+    ocrStatus(`${planTextSummary(result)}${scale ? ` · ${scale.note}` : ''}${symbols.length ? ` + ${symbolsSummary(AppState.planSymbols)}` : ''}`);
 }
 
 /** Box the high-signal OCR lines over the imported plan image. */
@@ -3127,9 +3172,10 @@ function planBackgroundRect() {
 
 function drawPlanTextOverlay(ctx) {
     const result = AppState.planText;
-    AppState.planTextBoxCount = result ? result.lines.filter((line) => line.bbox).length : 0;
+    const symbols = AppState.planSymbols?.symbols || [];
+    AppState.planTextBoxCount = (result ? result.lines.filter((line) => line.bbox).length : 0) + symbols.length;
     const background = planBackgroundRect();
-    if (!result || !background || !ctx) return;
+    if ((!result && !symbols.length) || !background || !ctx) return;
     const scale = AppState.backgroundScale || 1;
     const originX = background.x;
     const originY = background.y;
@@ -3139,11 +3185,14 @@ function drawPlanTextOverlay(ctx) {
         scale: '#7c3aed',
         area: '#d97706'
     };
+    const toPlan = (ix, iy) => toPlanPoint(ix, iy, background, AppState.planSymbols?.width || AppState.planText?.width || 0, AppState.planSymbols?.height || AppState.planText?.height || 0)
+        || { x: originX + ix * scale, y: originY + iy * scale };
+    const notes = readingNotesAtOrigins({ lines: result?.lines || [], symbols });
     ctx.save();
     ctx.lineWidth = 1.5 / Math.max(AppState.scale || 1, 0.2);
     ctx.globalAlpha = 0.85;
     const drawn = [];
-    result.lines.forEach((line) => {
+    (result?.lines || []).forEach((line) => {
         const colour = colours[line.category];
         if (!colour || !line.bbox) return;
         const x = originX + line.bbox.x0 * scale;
@@ -3152,6 +3201,10 @@ function drawPlanTextOverlay(ctx) {
         const height = Math.max((line.bbox.y1 - line.bbox.y0) * scale, 4);
         ctx.strokeStyle = colour;
         ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        ctx.arc(x, y, 3 / Math.max(AppState.scale || 1, 0.2), 0, Math.PI * 2);
+        ctx.fill();
         drawn.push({
             category: line.category,
             x: x * AppState.scale + AppState.offset.x,
@@ -3160,7 +3213,81 @@ function drawPlanTextOverlay(ctx) {
             height: height * AppState.scale
         });
     });
+    symbols.forEach((symbol) => {
+        if (!symbol.bbox) return;
+        const x = originX + symbol.bbox.x0 * scale;
+        const y = originY + symbol.bbox.y0 * scale;
+        const width = Math.max((symbol.bbox.x1 - symbol.bbox.x0) * scale, 4);
+        const height = Math.max((symbol.bbox.y1 - symbol.bbox.y0) * scale, 4);
+        ctx.strokeStyle = '#ea580c';
+        ctx.setLineDash([4 / Math.max(AppState.scale || 1, 0.2), 3 / Math.max(AppState.scale || 1, 0.2)]);
+        ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath();
+        ctx.arc(x, y, 3 / Math.max(AppState.scale || 1, 0.2), 0, Math.PI * 2);
+        ctx.fill();
+        drawn.push({
+            category: `symbol:${symbol.kind}`,
+            x: x * AppState.scale + AppState.offset.x,
+            y: y * AppState.scale + AppState.offset.y,
+            width: width * AppState.scale,
+            height: height * AppState.scale
+        });
+    });
     AppState.planTextRects = drawn;
+    ctx.restore();
+    // Print every reading/note AT its location origin: a numbered badge plus
+    // the short reading, offset upward with a leader so origins stay visible.
+    printReadingNotes(ctx, notes, toPlan);
+}
+
+/** Numbered reading badges + short notes pinned at each origin on the plan. */
+function printReadingNotes(ctx, notes, toPlan) {
+    if (!notes?.length || !ctx) return;
+    const zoom = Math.max(AppState.scale || 1, 0.2);
+    const fontPx = 11 / zoom;
+    ctx.save();
+    ctx.font = `700 ${fontPx}px ui-monospace, monospace`;
+    ctx.textBaseline = 'bottom';
+    notes.slice(0, 140).forEach((note, index) => {
+        const plan = toPlan(note.origin.x0, note.origin.y0);
+        if (!plan) return;
+        const n = String(index + 1);
+        const short = note.kind === 'symbol'
+            ? `#${note.origin && note.id.replace(/^s/, '')} ${note.text}`.slice(0, 26)
+            : String(note.text || '').slice(0, 28);
+        const label = `${n} ${short}`;
+        const pad = 3 / zoom;
+        const textW = ctx.measureText(label).width;
+        const badgeR = 7 / zoom;
+        const bx = plan.x;
+        const by = plan.y - (10 / zoom);
+        // Leader from the origin dot to the note.
+        ctx.strokeStyle = note.kind === 'symbol' ? '#ea580c' : '#334155';
+        ctx.lineWidth = 1 / zoom;
+        ctx.beginPath();
+        ctx.moveTo(plan.x, plan.y);
+        ctx.lineTo(bx + badgeR, by);
+        ctx.stroke();
+        // Badge.
+        ctx.fillStyle = note.kind === 'symbol' ? '#ea580c' : '#0f172a';
+        ctx.beginPath();
+        ctx.arc(bx, by - (fontPx / 2), badgeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(n, bx, by);
+        // Note pill.
+        const pillX = bx + badgeR + pad;
+        ctx.fillStyle = 'rgba(255,255,255,0.94)';
+        ctx.fillRect(pillX - pad, by - fontPx - pad, textW + pad * 2, fontPx + pad * 2);
+        ctx.strokeStyle = note.kind === 'symbol' ? '#ea580c' : '#64748b';
+        ctx.strokeRect(pillX - pad, by - fontPx - pad, textW + pad * 2, fontPx + pad * 2);
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'left';
+        ctx.fillText(label.slice(n.length + 1), pillX, by);
+    });
     ctx.restore();
 }
 
@@ -3170,6 +3297,25 @@ function showOcrToast(message = 'Reading plan text…') {
     el.innerHTML = `<span class="material-symbols-outlined text-base">document_scanner</span><span class="ocr-label text-xs font-semibold">${message}</span>`;
     document.body.appendChild(el);
     return { el, label: el.querySelector('.ocr-label') };
+}
+
+async function runPlanSymbols(image) {
+    const source = image || AppState.backgroundImage;
+    if (!source) {
+        ocrStatus('Import a plan image first.');
+        return null;
+    }
+    try {
+        const result = await detectPlanSymbols(source.src || source);
+        AppState.planSymbols = result;
+        refreshPlanTextPanel();
+        draw2D();
+        return result;
+    } catch (error) {
+        console.error('Plan symbol reader failed', error);
+        ocrStatus(`Symbol reader failed: ${error?.message || error}`);
+        return null;
+    }
 }
 
 async function runPlanOcr(source, { quiet = false, recognize } = {}) {
@@ -3185,17 +3331,23 @@ async function runPlanOcr(source, { quiet = false, recognize } = {}) {
     const toast = showOcrToast();
     const onProgress = (message) => {
         const percent = Math.round((message?.progress || 0) * 100);
-        const text = `${message?.status || 'Reading plan text'} ${percent}%`;
+        const text = `${message?.status || 'Reading plan words'} ${percent}%`;
         toast.label.textContent = text;
         ocrStatus(text);
     };
 
     try {
-        const result = await recognizePlanText(image, { onProgress, recognize });
+        // Open-source word OCR (Tesseract.js) + local symbol reader on upload:
+        // one pass yields both readings at their origins.
+        const [result, symbols] = await Promise.all([
+            recognizePlanText(image, { onProgress, recognize }),
+            detectPlanSymbols(AppState.backgroundImage || image).catch(() => null)
+        ]);
         AppState.planText = result;
+        if (symbols) AppState.planSymbols = symbols;
         refreshPlanTextPanel();
         draw2D();
-        toast.label.textContent = planTextSummary(result);
+        toast.label.textContent = `${planTextSummary(result)}${symbols?.symbols?.length ? ` + ${symbolsSummary(symbols)}` : ''}`;
         setTimeout(() => toast.el.remove(), 2400);
         return result;
     } catch (error) {
@@ -3220,12 +3372,35 @@ async function runPlanOcrCurrent() {
     return runPlanOcr(AppState.backgroundImage.src || null);
 }
 
+async function runPlanSymbolsCurrent() {
+    if (planOcrRunning) return null;
+    if (!AppState.backgroundImage) {
+        ocrStatus('Import a plan image first.');
+        return null;
+    }
+    planOcrRunning = true;
+    refreshPlanTextPanel();
+    ocrStatus('Reading plan symbols…');
+    try {
+        const result = await runPlanSymbols(AppState.backgroundImage);
+        ocrStatus(result?.symbols?.length ? symbolsSummary(result) : 'No symbols detected.');
+        return result;
+    } finally {
+        planOcrRunning = false;
+        refreshPlanTextPanel();
+    }
+}
+
 async function copyPlanText() {
-    const text = AppState.planText?.text;
-    if (!text) {
+    const notes = readingNotesAtOrigins({ lines: AppState.planText?.lines || [], symbols: AppState.planSymbols?.symbols || [] });
+    if (!notes.length) {
         ocrStatus('Nothing to copy yet.');
         return false;
     }
+    const text = notes.map((note, index) => {
+        const origin = note.origin;
+        return `${index + 1}. [${note.kind}:${note.category}] "${note.text}" @ origin (${Math.round(origin.x0)}, ${Math.round(origin.y0)})`;
+    }).join('\n');
     try {
         await navigator.clipboard.writeText(text);
     } catch (error) {
@@ -3240,12 +3415,43 @@ async function copyPlanText() {
         document.execCommand('copy');
         area.remove();
     }
-    ocrStatus(`Copied ${text.length} characters of plan text.`);
+    ocrStatus(`Copied ${notes.length} readings with origins.`);
+    return true;
+}
+
+/** Print sheet: every reading/note grouped at its location origin. */
+function printReadings() {
+    const notes = readingNotesAtOrigins({ lines: AppState.planText?.lines || [], symbols: AppState.planSymbols?.symbols || [] });
+    if (!notes.length) {
+        ocrStatus('Nothing to print yet — read words or symbols first.');
+        return false;
+    }
+    const rows = notes.map((note, index) => {
+        const o = note.origin;
+        const plan = (() => {
+            try {
+                const bg = planBackgroundRect();
+                const p = toPlanPoint(o.x0, o.y0, bg, AppState.planSymbols?.width || AppState.planText?.width || 0, AppState.planSymbols?.height || AppState.planText?.height || 0);
+                return p ? `${Math.round(p.x)}, ${Math.round(p.y)} px` : '—';
+            } catch { return '—'; }
+        })();
+        const safe = String(note.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        return `<tr><td>${index + 1}</td><td>${note.kind}</td><td>${note.category}</td><td>${safe}</td><td>(${Math.round(o.x0)}, ${Math.round(o.y0)})</td><td>${plan}</td><td>${note.confidence ?? ''}</td></tr>`;
+    }).join('');
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) {
+        ocrStatus('Pop-up blocked — allow pop-ups to print readings.');
+        return false;
+    }
+    win.document.write(`<!DOCTYPE html><html><head><title>Plan readings at origins</title><style>body{font:12px system-ui,sans-serif;padding:24px;color:#111}h1{font-size:16px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #cbd5e1;padding:4px 6px;text-align:left;font-size:11px}th{background:#f1f5f9}@media print{.no-print{display:none}}</style></head><body><h1>Plan readings at location origins</h1><p>${notes.length} readings · words + symbols · origins in image px and plan px · ${new Date().toLocaleString()}</p><table><thead><tr><th>#</th><th>Kind</th><th>Category</th><th>Reading / note</th><th>Origin (image)</th><th>Origin (plan)</th><th>Conf</th></tr></thead><tbody>${rows}</tbody></table><p class="no-print"><button onclick="window.print()">Print</button></p></body></html>`);
+    win.document.close();
+    ocrStatus(`Print sheet opened with ${notes.length} readings at origins.`);
     return true;
 }
 
 function clearPlanText() {
     AppState.planText = null;
+    AppState.planSymbols = null;
     refreshPlanTextPanel();
     draw2D();
 }
@@ -5273,6 +5479,7 @@ function setupEventListeners() {
     blueprintCanvas.addEventListener('pointerdown', onPointerDown);
     blueprintCanvas.addEventListener('pointermove', onPointerMove);
     blueprintCanvas.addEventListener('pointerup', onPointerUp);
+    blueprintCanvas.addEventListener('pointercancel', onPointerCancel);
     blueprintCanvas.addEventListener('wheel', onWheel);
     blueprintCanvas.addEventListener('dblclick', onDoubleClick);
     
@@ -5493,6 +5700,7 @@ function wireUploadModal() {
                     alert(drawing.warnings.join('\n') || 'That file has no linework to import.');
                 } else {
                     AppState.planText = null;
+                    AppState.planSymbols = null;
                     AppState.backgroundImage = null;
                     AppState.backgroundScale = 1;
                     AppState.offset = { x: 0, y: 0 };
@@ -5512,23 +5720,31 @@ function wireUploadModal() {
             reader.onload = (evt) => {
                 const img = new Image();
                 img.onload = () => {
-                    // A new plan invalidates the previous plan's OCR boxes.
+                    // A new plan invalidates the previous plan's readings.
                     AppState.planText = null;
+                    AppState.planSymbols = null;
                     AppState.backgroundImage = img;
                     AppState.backgroundScale = 1.0;
                     refreshPlanTextPanel();
                     draw2D();
+                    // Open-source pass on every image upload: runPlanOcr
+                    // reads plan words (Tesseract.js) + plan symbols (local
+                    // reader) together, so one upload yields both readings
+                    // at their origins.
+                    runPlanOcr(file);
                 };
                 img.src = evt.target.result;
             };
             reader.readAsDataURL(file);
         } else if (uploadMode === 'ocr') {
-            // Load the plan for reference, then read its text with Tesseract.js.
+            // Load the plan for reference, then read words (Tesseract.js,
+            // open source) + symbols (local reader) in one pass.
             const reader = new FileReader();
             reader.onload = (evt) => {
                 const img = new Image();
                 img.onload = () => {
                     AppState.planText = null;
+                    AppState.planSymbols = null;
                     AppState.backgroundImage = img;
                     AppState.backgroundScale = 1.0;
                     draw2D();
@@ -5554,6 +5770,7 @@ function wireUploadModal() {
                     const img = new Image();
                     img.onload = () => {
                         AppState.planText = null;
+                        AppState.planSymbols = null;
                         AppState.backgroundImage = img;
                         
                         // Scale walls to fit canvas reasonable size (approx 20m width)
@@ -5614,6 +5831,9 @@ function setTool(tool) {
     AppState.drag = null;
     AppState.groupDrag = null;
     AppState.selectedFixture = null;
+    // Switching tools abandons an in-progress wall so the preview can never stick.
+    AppState.isDrawing = false;
+    AppState.wallStart = null;
     // Leaving the cutout tool drops its in-progress rectangle and handles, but
     // the holes themselves stay on the storey.
     if (tool !== 'cutout') {

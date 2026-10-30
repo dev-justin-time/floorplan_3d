@@ -300,15 +300,17 @@
                         <span id="plan-text-count" class="text-[10px] font-mono text-gray-400">0</span>
                     </div>
                     <div class="mt-2 grid grid-cols-3 gap-1">
-                        <button id="plan-text-run" data-click="planOcr.runCurrent" class="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold disabled:opacity-40" title="OCR the imported plan image">Read text</button>
-                        <button id="plan-text-copy" data-click="planOcr.copy" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-bold disabled:opacity-40" title="Copy every recognized line">Copy</button>
-                        <button id="plan-text-clear" data-click="planOcr.clear" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-bold disabled:opacity-40" title="Remove the OCR overlay and results">Clear</button>
+                        <button id="plan-text-run" data-click="planOcr.runCurrent" class="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold disabled:opacity-40" title="Read plan words with open-source Tesseract.js (dimensions, rooms, scale, areas)">Read text</button>
+                        <button id="plan-symbols-run" data-click="planOcr.runSymbols" class="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 text-[11px] font-bold disabled:opacity-40" title="Read plan symbols locally (doors, windows, fixtures, markers) — no download">Read symbols</button>
+                        <button id="plan-text-print" data-click="planOcr.print" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-bold disabled:opacity-40" title="Print every reading/note at its location origin">Print</button>
+                        <button id="plan-text-copy" data-click="planOcr.copy" class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-bold disabled:opacity-40" title="Copy every reading with its image + plan origin">Copy</button>
+                        <button id="plan-text-clear" data-click="planOcr.clear" class="col-span-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-bold disabled:opacity-40" title="Remove the OCR overlay and results">Clear</button>
                     </div>
-                    <p id="plan-text-status" class="text-[10px] text-gray-400 mt-1">Import a plan, then read its dimensions and labels.</p>
+                    <p id="plan-text-status" class="text-[10px] text-gray-400 mt-1">Import a plan, then read its words + symbols.</p>
                     <div id="plan-text-list" class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
-                        <p class="text-xs text-gray-400">No text read yet.</p>
+                        <p class="text-xs text-gray-400">No readings yet.</p>
                     </div>
-                    <p class="text-[10px] text-gray-400 leading-snug mt-1">Tesseract.js runs in the browser; boxes mark dimensions, rooms, scale notes and areas on the plan.</p>
+                    <p class="text-[10px] text-gray-400 leading-snug mt-1">Words via open-source Tesseract.js, symbols via the local reader; every reading prints on the plan at its location origin.</p>
                 </div>
 
                 <!-- Per-room floor materials (features/studio/room-surfaces.js) -->
@@ -946,17 +948,17 @@
                     <p class="text-xs text-gray-500">DXF linework, or a KML/KMZ/GeoJSON site boundary</p>
                 </div>
 
-                <!-- OCR Upload -->
-                <div id="upload-ocr-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-amber-500 dark:hover:border-amber-500 rounded-xl p-6 text-center cursor-pointer transition-colors group" title="Read dimensions, room names and scale notes from a plan image (Tesseract.js, in the browser)">
+                <!-- OCR Upload: words (Tesseract.js, open source) + symbols (local) -->
+                <div id="upload-ocr-btn" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-amber-500 dark:hover:border-amber-500 rounded-xl p-6 text-center cursor-pointer transition-colors group" title="Read plan words (Tesseract.js, open source) and plan symbols (local reader) in one pass; readings print at their location origins">
                     <div class="w-12 h-12 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                         <span class="material-symbols-outlined text-2xl">document_scanner</span>
                     </div>
-                    <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Read Text</h4>
-                    <p class="text-xs text-gray-500">OCR dimensions, room labels and scale notes</p>
+                    <h4 class="font-bold text-sm text-gray-900 dark:text-white mb-1">Read Text + Symbols</h4>
+                    <p class="text-xs text-gray-500">OCR words + symbols, pinned at their origins</p>
                 </div>
             </div>
 
-            <p id="upload-ocr-status" class="text-[10px] text-gray-400 text-center -mt-2 mb-4">Read Text runs a local OCR pass; the image is not uploaded.</p>
+            <p id="upload-ocr-status" class="text-[10px] text-gray-400 text-center -mt-2 mb-4">Read Text + Symbols runs fully locally; the image is not uploaded. Every reading prints at its origin.</p>
 
             <div class="relative">
                 <div class="absolute inset-0 flex items-center">
