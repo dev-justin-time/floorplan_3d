@@ -662,6 +662,7 @@ function init() {
     };
     // Selection handle: 3D wall picking and the 2D/3D highlight share one path.
     window.selectWallById = (id) => selectWallById(id);
+    window.editorKit.perf = () => perfCache;
     window.editorKit = {
         // Read-only handles for the harnesses and for support: the 3D scene and
         // its renderer are otherwise module-private.
@@ -4580,6 +4581,9 @@ function init3D() {
     renderLoop.start();
     controls3D.addEventListener('change', () => renderLoop?.requestRender());
     orthoControls3D.addEventListener('change', () => renderLoop?.requestRender());
+    // Perf HUD sampling (labs dashboard, docs/audit.md §7): twice a second,
+    // independent of the dirty-flag loop, so fps is honest even when idle.
+    window.setInterval(refreshPerfHud, 500);
 
     // The canvas has to follow its panel, not just the window: collapsing a
     // sidebar, opening devtools or an animated layout changes the host with no
@@ -4974,6 +4978,7 @@ function setViewMode(mode) {
 
     refreshGizmo();
     updateViewButtons();
+    refreshPerfHud();
 }
 
 function updateViewButtons() {
@@ -6156,6 +6161,45 @@ function activeStoreyHeight() {
 /** Height of the active storey's floor above the ground floor, in metres. */
 function activeStoreyElevation() {
     return storeyStack(AppState.stories || [])[AppState.currentStoryIndex || 0]?.elevation || 0;
+}
+
+/** Perf HUD: the labs FPS dashboard as a 3D-view status chip (docs/audit.md §7).
+ *  Reads the dirty render loop (fps/frames) plus three.js renderer info
+ *  (draw calls/triangles of the last frame) and optional JS heap. Null-safe:
+ *  a failed renderer or a hidden 3D view hides the chip instead of throwing. */
+let perfCache = null;
+function perfReading() {
+    try {
+        const stats = renderLoop?.stats || null;
+        const info = renderer3D?.info;
+        if (!stats || !info) return null;
+        const heap = (typeof performance !== 'undefined' && performance.memory)
+            ? performance.memory.usedJSHeapSize : null;
+        return {
+            fps: stats.fps || 0,
+            frames: stats.frames || 0,
+            calls: info.render?.calls ?? 0,
+            tris: info.render?.triangles ?? 0,
+            heapMB: heap == null ? null : Math.round(heap / 1048576)
+        };
+    } catch {
+        return null;
+    }
+}
+function refreshPerfHud() {
+    const el = document.getElementById('perf-hud');
+    if (!el) return perfCache;
+    const on = AppState.viewMode === '3d' && abilitiesState().perfHud !== false && !render3DFailed;
+    const reading = on ? perfReading() : null;
+    perfCache = reading;
+    if (!reading) {
+        el.classList.add('hidden');
+        return null;
+    }
+    el.classList.remove('hidden');
+    const tris = reading.tris >= 1000 ? `${(reading.tris / 1000).toFixed(1)}k` : String(reading.tris);
+    el.textContent = `${reading.fps} fps · ${reading.calls} calls · ${tris} tris${reading.heapMB == null ? '' : ` · ${reading.heapMB} MB`}`;
+    return reading;
 }
 
 /** Legacy app.html Walk button: first person, eye level, WASD + mouse look. */

@@ -42,6 +42,7 @@ export const ABILITY_DEFAULTS = {
     fog3D: false,
     turntable: false,
     hideWalls3D: false,
+    perfHud: true,
     // Feature kit (features/ folder)
     dimensionChains: false,
     roomLabels: true,
@@ -170,6 +171,7 @@ export function createAbilityList() {
         toggleAbility('fog3D', 'Fog', THREE_GROUP),
         toggleAbility('turntable', 'Turntable', THREE_GROUP),
         toggleAbility('hideWalls3D', 'Hide walls in 3D', THREE_GROUP),
+        toggleAbility('perfHud', 'Perf HUD (fps/calls/tris)', THREE_GROUP),
         actionAbility('cutlistCSV', 'Cut-list CSV', THREE_GROUP, (state, host) => host.exportCutList()),
         actionAbility('savePreset', 'Save ability preset', THREE_GROUP, (state, host) => host.savePreset()),
         actionAbility('loadPreset', 'Load ability preset', THREE_GROUP, (state, host) => host.loadPreset()),

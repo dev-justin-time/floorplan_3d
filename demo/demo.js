@@ -97,6 +97,23 @@ function applyDemoPlan(plan) {
   draw2D();
 }
 
+function refreshDemoPerfHud() {
+  const el = document.getElementById('demo-perf-hud');
+  if (!el) return;
+  try {
+    const info = renderer3D?.info;
+    if (!info || (AppState.viewMode !== '3d' && AppState.viewMode !== 'first-person')) {
+      el.classList.add('hidden');
+      return;
+    }
+    const tris = info.render?.triangles ?? 0;
+    el.classList.remove('hidden');
+    el.textContent = `${demoPerfFps} fps · ${info.render?.calls ?? 0} calls · ${tris >= 1000 ? `${(tris / 1000).toFixed(1)}k` : tris} tris`;
+  } catch {
+    el.classList.add('hidden');
+  }
+}
+
 function wireDemoPlanButtons() {
   document.getElementById('demo-load-farmhouse')?.addEventListener('click', async () => {
     try {
@@ -448,10 +465,21 @@ function update3DFrom2D() {
   });
 }
 
+let demoPerfFrames = 0, demoPerfLast = 0, demoPerfFps = 0;
+
 function animate3D() {
   requestAnimationFrame(animate3D);
   if (!renderer3D || !camera3D || !scene3D) return;
   if (AppState.viewMode !== '3d' && AppState.viewMode !== 'first-person') return;
+  // Perf HUD (labs dashboard, docs/audit.md §7): fps + last-frame renderer info.
+  const now = performance.now();
+  demoPerfFrames += 1;
+  if (now - demoPerfLast >= 500) {
+    demoPerfFps = Math.round((demoPerfFrames * 1000) / Math.max(now - demoPerfLast, 1));
+    demoPerfFrames = 0;
+    demoPerfLast = now;
+    refreshDemoPerfHud();
+  }
 
   const delta = Math.min(walkClock.getDelta(), 0.05);
   if (AppState.viewMode === 'first-person' && walkControls.isLocked) {

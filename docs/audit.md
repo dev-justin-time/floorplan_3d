@@ -107,10 +107,16 @@ adding `isPrimary: true, pointerId: 7` to all 19 synthetic dispatches:
 
 Editor logic intentionally untouched — the guard is correct.
 
-## 8. Genuinely without an equivalent (accepted)
+## 8. Genuinely without an equivalent (accepted) — one since restored
 
-1. `pages/labs.html` live FPS/memory/draw-call dashboard — dev-only; harness
-   assertion counts + `renderLoop.stats` are the coverage now.
+1. ~~`pages/labs.html` live FPS/memory/draw-call dashboard — dev-only~~
+   **Restored 2026-10-30** as a Perf HUD status chip: `perfHud` ability toggle
+   (`scene/scene-abilities.js`, default on, `3D & export` group) driving
+   `#perf-hud` in the Editor 3D view (`editor/editor.js` `refreshPerfHud` on a
+   500 ms sampler + every view switch; fps from `renderLoop.stats`, draw
+   calls/triangles from `renderer.info`, JS heap when available; hidden in 2D
+   or when WebGL fails) and `#demo-perf-hud` in `demo.html`/`demo/demo.js`.
+   Harness handle: `window.editorKit.perf()` returns the last reading.
 2. R3F/drei-specific conveniences (`ContactShadows`, `useGLTF` hot-reload) —
    prototype scaffolding; the vanilla three.js scenes are the product.
 3. Agent scratch files (`TXT2.TXT`, Qwen outputs) — not abilities.
@@ -119,8 +125,8 @@ Editor logic intentionally untouched — the guard is correct.
 
 - `browser-check.mjs` is long; run it via `npm test` on CI rather than locally
   to confirm the `isPrimary` corrections there end to end.
-- Consider a `renderLoop.stats` line in the Editor status bar to replace the
-  labs FPS readout users never had but developers miss.
+- ~~Consider a `renderLoop.stats` line in the Editor status bar~~ Done: Perf
+  HUD chip in the Editor 3D view + demo 3D view, toggleable, harness-readable.
 - `https://errors.example.com/collect` is still a placeholder beacon
   (ERR_CONNECTION_REFUSED in headless logs); needs the §10.13 retention
   decision recorded in the production audit.
