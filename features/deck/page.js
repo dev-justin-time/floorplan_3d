@@ -8,7 +8,7 @@ import {
 } from './engine.js';
 import { writeDraft } from '../../core/drafts.js';
 import { applyPriceBookToDesign } from '../pricing/book.js';
-import { createDeckPlan, drawDeckPlan, postAt, stairAt } from './plan.js';
+import { createDeckPlan, drawDeckAxonometric, drawDeckFootingDetail, drawDeckPlan, drawDeckSection, postAt, stairAt } from './plan.js';
 import {
     BEAM_PLIES,
     BEAM_SIZES,
@@ -80,7 +80,7 @@ let glossaryQuery = '';
 let saveTimer = null;
 let statusTimer = null;
 const openRules = new Set(['joist-span', 'beam-span', 'guard-required']);
-const show = { joists: true, posts: true, footings: true, guard: true, stairs: true, dimensions: true };
+const show = { decking: true, joists: true, posts: true, footings: true, guard: true, stairs: true, hardware: true, labels: true, dimensions: true };
 
 const FIELDS = [
     { id: 'd-shape', key: 'shape', type: 'select', options: DECK_SHAPES.map((key) => [key, DECK_SHAPE_LABELS[key]]) },
@@ -350,15 +350,29 @@ function renderGlossary() {
 
 // --- Plan canvas ---------------------------------------------------------
 
-function drawPlan() {
-    const canvas = $('plan');
-    if (!canvas) return;
+function sizeCanvas(id, minH = 200) {
+    const canvas = $(id);
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
+    const w = Math.max(280, Math.floor(rect.width));
+    const h = Math.max(minH, Math.floor(rect.height || minH));
+    if (!w || !h) return null;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(320, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(240, Math.floor(rect.height * dpr));
-    const ctx = canvas.getContext('2d');
-    drawDeckPlan(ctx, rect.width, rect.height, plan, design, { view, show, dpr });
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    return { canvas, w, h, dpr };
+}
+
+function drawPlan() {
+    const sized = sizeCanvas('plan', 240);
+    if (!sized) return;
+    drawDeckPlan(sized.canvas.getContext('2d'), sized.w, sized.h, plan, design, { view, show, dpr: sized.dpr });
+    const section = sizeCanvas('view-section', 200);
+    if (section) drawDeckSection(section.canvas.getContext('2d'), section.w, section.h, plan, design, { show, dpr: section.dpr });
+    const footing = sizeCanvas('view-footing', 200);
+    if (footing) drawDeckFootingDetail(footing.canvas.getContext('2d'), footing.w, footing.h, plan, design, { show, dpr: footing.dpr });
+    const axono = sizeCanvas('view-axonometric', 200);
+    if (axono) drawDeckAxonometric(axono.canvas.getContext('2d'), axono.w, axono.h, plan, design, { show, dpr: axono.dpr });
 }
 
 function planPoint(event) {
@@ -445,7 +459,8 @@ function switchTab(name) {
         const panel = $(`panel-${tab}`);
         if (!panel) return;
         panel.classList.toggle('hidden', tab !== name);
-        panel.classList.toggle('flex', tab === name);
+        if (tab === 'design') panel.classList.toggle('block', tab === name);
+        else panel.classList.toggle('flex', tab === name);
     });
     if (name === 'design') window.requestAnimationFrame(drawPlan);
 }
@@ -522,7 +537,7 @@ function wireEvents() {
         button.addEventListener('click', () => switchTab(button.dataset.tab));
     });
 
-    ['joists', 'posts', 'footings', 'guard', 'stairs', 'dimensions'].forEach((key) => {
+    ['decking', 'joists', 'posts', 'footings', 'guard', 'stairs', 'hardware', 'dimensions'].forEach((key) => {
         const node = $(`show-${key}`);
         if (!node) return;
         node.addEventListener('change', () => {
@@ -587,7 +602,8 @@ function wireEvents() {
     window.addEventListener('resize', () => { if (activeTab === 'design') drawPlan(); });
     if (typeof ResizeObserver !== 'undefined') {
         const observer = new ResizeObserver(() => { if (activeTab === 'design') drawPlan(); });
-        observer.observe($('plan').parentElement);
+        if ($('panel-design')) observer.observe($('panel-design'));
+        else if ($('plan')) observer.observe($('plan').parentElement);
     }
 }
 

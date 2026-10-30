@@ -14,6 +14,7 @@ import {
 import { writeDraft } from '../../core/drafts.js';
 import { applyPriceBookToDesign } from '../pricing/book.js';
 import { circuitAt, createElectricalPlan, drawElectricalPlan } from './plan.js';
+import { drawElectricalLayer, drawFramingLayer, drawPlumbingLayer, drawStackedLayers, readLayerSources, resolveFootprint } from '../layers/mep-layers.js';
 import {
     CODE_SCOPE,
     FORMULAS,
@@ -87,6 +88,7 @@ let ruleIssuesOnly = false;
 let glossaryQuery = '';
 let selectedCircuit = null;
 let showLabels = true;
+let layerShow = { framing: true, plumbing: true, electrical: true };
 let saveTimer = null;
 let statusTimer = null;
 const openRules = new Set(['demand-standard', 'service-size', 'gfci']);
@@ -189,6 +191,7 @@ function refresh() {
     renderTakeoff();
     renderRules();
     if (activeTab === 'design') window.requestAnimationFrame(drawPlan);
+    if (activeTab === 'layers') window.requestAnimationFrame(drawLayers);
 }
 
 function renderMetrics() {
@@ -416,18 +419,55 @@ function wirePlan() {
 
 // --- Wiring --------------------------------------------------------------
 
+function sizeLayerCanvas(id, minH = 200) {
+    const canvas = $(id);
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(280, Math.floor(rect.width));
+    const h = Math.max(minH, Math.floor(rect.height || minH));
+    if (!w || !h) return null;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    return { canvas, w, h, dpr };
+}
+
+function drawLayers() {
+    const sources = readLayerSources();
+    const footprint = resolveFootprint(sources);
+    const sourceNode = $('layers-source');
+    if (sourceNode) {
+        const parts = [`footprint: ${footprint.source} ${footprint.width.toFixed(1)}×${footprint.depth.toFixed(1)} m`];
+        if (sources.plumbingDesign) parts.push('plumbing: live draft');
+        else parts.push('plumbing: default (open Plumbing suite)');
+        if (sources.framingRaw?.storeys?.length) parts.push('framing: live draft');
+        else parts.push('framing: default rectangle');
+        sourceNode.textContent = parts.join(' · ');
+    }
+    const stacked = sizeLayerCanvas('layer-stacked', 280);
+    if (stacked) drawStackedLayers(stacked.canvas.getContext('2d'), stacked.w, stacked.h, sources, design, footprint, { show: layerShow, dpr: stacked.dpr });
+    const elec = sizeLayerCanvas('layer-electrical', 200);
+    if (elec) drawElectricalLayer(elec.canvas.getContext('2d'), elec.w, elec.h, design, footprint, { dpr: elec.dpr });
+    const plumb = sizeLayerCanvas('layer-plumbing', 200);
+    if (plumb) drawPlumbingLayer(plumb.canvas.getContext('2d'), plumb.w, plumb.h, sources, footprint, { dpr: plumb.dpr });
+    const fram = sizeLayerCanvas('layer-framing', 200);
+    if (fram) drawFramingLayer(fram.canvas.getContext('2d'), fram.w, fram.h, sources, footprint, { dpr: fram.dpr });
+}
+
 function switchTab(name) {
     activeTab = name;
     document.querySelectorAll('.tab').forEach((button) => {
         button.classList.toggle('active', button.dataset.tab === name);
     });
-    ['design', 'schedule', 'demand', 'takeoff', 'rules', 'glossary'].forEach((tab) => {
+    ['design', 'layers', 'schedule', 'demand', 'takeoff', 'rules', 'glossary'].forEach((tab) => {
         const panel = $(`panel-${tab}`);
         if (!panel) return;
         panel.classList.toggle('hidden', tab !== name);
-        panel.classList.toggle('flex', tab === name);
+        if (tab === 'layers') panel.classList.toggle('block', tab === name);
+        else panel.classList.toggle('flex', tab === name);
     });
     if (name === 'design') window.requestAnimationFrame(drawPlan);
+    if (name === 'layers') window.requestAnimationFrame(drawLayers);
 }
 
 function download(filename, text) {
@@ -557,6 +597,18 @@ function wireEvents() {
         renderGlossary();
     });
 
+    $('open-project-3d')?.addEventListener('click', () => {
+        import('../../shared/project-viewer.js').then(({ openProjectViewer }) => openProjectViewer());
+    });
+    try {
+        const raw = localStorage.getItem('floorplan3d_autosave');
+        const walls = raw ? (JSON.parse(raw).walls?.length ?? JSON.parse(raw).stories?.[0]?.walls?.length ?? 0) : 0;
+        const node = $('project-context');
+        if (node) node.textContent = raw
+            ? `Main floorplan found (${walls} walls). This design stacks onto it — open Project 3D to see walls + framing + plumbing + this panel together.`
+            : 'No main floorplan yet. Draw walls in the Editor first, then this panel stacks onto that plan in Project 3D.';
+    } catch { /* context line is advisory */ }
+
     $('reset').addEventListener('click', resetAll);
     $('takeoff-csv').addEventListener('click', () => {
         download('electrical-takeoff.csv', electricalTakeoffCsv(design));
@@ -572,10 +624,26 @@ function wireEvents() {
     });
     $('send-editor').addEventListener('click', sendToEditor);
 
-    window.addEventListener('resize', () => { if (activeTab === 'design') drawPlan(); });
+    [['layer-show-framing', 'framing'], ['layer-show-plumbing', 'plumbing'], ['layer-show-electrical', 'electrical']].forEach(([id, key]) => {
+        const node = $(id);
+        if (!node) return;
+        node.addEventListener('change', () => {
+            layerShow[key] = node.checked;
+            drawLayers();
+        });
+    });
+
+    window.addEventListener('resize', () => {
+        if (activeTab === 'design') drawPlan();
+        if (activeTab === 'layers') drawLayers();
+    });
     if (typeof ResizeObserver !== 'undefined') {
-        const observer = new ResizeObserver(() => { if (activeTab === 'design') drawPlan(); });
+        const observer = new ResizeObserver(() => {
+            if (activeTab === 'design') drawPlan();
+            if (activeTab === 'layers') drawLayers();
+        });
         observer.observe($('plan').parentElement);
+        if ($('panel-layers')) observer.observe($('panel-layers'));
     }
 }
 
@@ -603,7 +671,8 @@ function init() {
             drawPlan();
             return Boolean(design.circuits.find((circuit) => circuit.id === id));
         },
-        redraw: () => drawPlan()
+        redraw: () => drawPlan(),
+        redrawLayers: () => drawLayers()
     };
     window.setElectricalField = (key, value) => setField(key, value);
     window.setApplianceLoad = (key, value) => setAppliance(key, value);

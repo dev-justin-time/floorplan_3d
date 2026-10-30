@@ -351,8 +351,51 @@ function buildFooter() {
     return footer;
 }
 
+function mountProjectChrome() {
+    // Construction-flow stepper + shared 3D viewer on every page.
+    // Suite pages opt out with <body data-no-flow>. The strip mounts under
+    // the header; the 3D button floats bottom-right and opens one overlay
+    // built from the MAIN floorplan (Editor autosave) plus suite layers.
+    try {
+        if (document.body?.dataset?.noFlow !== undefined && document.body.dataset.noFlow !== 'false') return;
+        if (document.getElementById('project-workflow-strip')) return;
+        const mountStrip = () => {
+            import('./project-workflow.js').then(({ renderWorkflowStrip }) => {
+                if (document.getElementById('project-workflow-strip')) return;
+                const host = document.createElement('div');
+                host.id = 'project-workflow-strip';
+                const header = document.querySelector('header');
+                if (header?.parentElement) header.parentElement.insertBefore(host, header.nextSibling);
+                else document.body.prepend(host);
+                renderWorkflowStrip(host);
+            }).catch(() => {});
+        };
+        const mountButton = () => {
+            if (document.getElementById('project-3d-fab')) return;
+            const btn = document.createElement('button');
+            btn.id = 'project-3d-fab';
+            btn.type = 'button';
+            btn.title = 'Open the shared project 3D (main floorplan + suite layers)';
+            btn.textContent = '⬢ Project 3D';
+            btn.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:400;background:#0f172a;color:#fff;border:1px solid #334155;border-radius:999px;padding:9px 14px;font:700 12px system-ui;cursor:pointer;box-shadow:0 10px 28px rgba(15,23,42,.35)';
+            btn.addEventListener('click', () => {
+                import('./project-viewer.js').then(({ openProjectViewer }) => openProjectViewer()).catch(() => {
+                    window.location.assign('Editor.html');
+                });
+            });
+            document.body.appendChild(btn);
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => { mountStrip(); mountButton(); }, { once: true });
+        } else {
+            mountStrip();
+            mountButton();
+        }
+    } catch { /* chrome must never break a suite page */ }
+}
+
 function mount() {
-    if (document.getElementById('site-nav-menu') || document.getElementById('site-footer')) return;
+    if (document.getElementById('site-nav-menu') || document.getElementById('site-footer')) { mountProjectChrome(); return; }
 
     const style = document.createElement('style');
     style.textContent = STYLE;
@@ -368,6 +411,7 @@ function mount() {
     }
 
     document.body.appendChild(buildFooter());
+    mountProjectChrome();
 }
 
 if (document.readyState === 'loading') {

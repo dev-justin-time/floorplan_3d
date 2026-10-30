@@ -26,6 +26,7 @@
         canvas { display: block; }
         #plan { width: 100%; height: 100%; touch-action: none; cursor: grab; }
         #plan.dragging { cursor: grabbing; }
+        #view-section, #view-footing, #view-axonometric { width: 100%; height: 100%; display: block; }
         .tab.active { background: #0f172a; color: white; }
         .severity-ok { color: #15803d; }
         .severity-info { color: #475569; }
@@ -212,30 +213,59 @@
                 <span class="text-[10px] text-slate-400 ml-auto pr-1">drag to pan · wheel to zoom</span>
             </nav>
 
-            <div id="panel-design" class="flex-1 min-h-0 flex flex-col">
-                <section class="flex-1 min-h-0 bg-white m-3 rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+            <div id="panel-design" class="flex-1 min-h-0 overflow-y-auto">
+                <section class="bg-white m-3 rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-b border-slate-100">
-                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Framing plan</h2>
+                        <h2 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Framing plan · actual lumber</h2>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-decking" checked> Boards</label>
                         <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-joists" checked> Joists</label>
                         <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-posts" checked> Posts</label>
                         <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-footings" checked> Footings</label>
                         <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-guard" checked> Guard</label>
                         <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-stairs" checked> Stairs</label>
+                        <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-hardware" checked> Hardware</label>
                         <label class="flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" id="show-dimensions" checked> Dimensions</label>
                         <div class="flex items-center gap-2 ml-auto text-[10px] text-slate-400">
-                            <span><i class="legend-dot" style="background:#8a5a2b"></i> deck</span>
+                            <span><i class="legend-dot" style="background:#c9a87a"></i> boards</span>
+                            <span><i class="legend-dot" style="background:#8a5a2b"></i> joist</span>
                             <span><i class="legend-dot" style="background:#b45309"></i> beam</span>
                             <span><i class="legend-dot" style="background:#7c2d12"></i> post</span>
                             <span><i class="legend-dot" style="background:#0f766e"></i> guard</span>
                             <button id="fit-plan" class="px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-600 hover:bg-slate-50">Fit</button>
                         </div>
                     </div>
-                    <div class="flex-1 min-h-0 relative">
+                    <div class="h-[420px] min-h-[320px] relative">
                         <canvas id="plan"></canvas>
-                        <div id="plan-hint" class="absolute left-3 bottom-3 text-[10px] font-mono text-slate-400 pointer-events-none">Framing plan at 1:50 · dimensions in millimetres</div>
+                        <div id="plan-hint" class="absolute left-3 bottom-3 text-[10px] font-mono text-slate-400 pointer-events-none">Framing plan at 1:50 · dimensions in millimetres · boards, hangers, bolts, pads</div>
                         <div id="hover-readout" class="absolute right-3 top-2 text-[10px] font-mono text-slate-400 pointer-events-none"></div>
                     </div>
                 </section>
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-3 mx-3 mb-3">
+                    <section class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                        <div class="px-3 py-1.5 border-b border-slate-100 flex items-baseline justify-between">
+                            <h3 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Section · ledger → footing</h3>
+                            <span class="text-[9px] font-mono text-slate-400">side elevation</span>
+                        </div>
+                        <div class="h-[260px] relative"><canvas id="view-section"></canvas></div>
+                        <p class="px-3 py-1.5 text-[10px] text-slate-500 border-t border-slate-100">Joist on beam on post on pad — guard, hanger and frost depth to scale.</p>
+                    </section>
+                    <section class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                        <div class="px-3 py-1.5 border-b border-slate-100 flex items-baseline justify-between">
+                            <h3 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Footing detail</h3>
+                            <span class="text-[9px] font-mono text-slate-400">close-up</span>
+                        </div>
+                        <div class="h-[260px] relative"><canvas id="view-footing"></canvas></div>
+                        <p class="px-3 py-1.5 text-[10px] text-slate-500 border-t border-slate-100">Post base, anchor and bell footing with diameter + depth callouts.</p>
+                    </section>
+                    <section class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                        <div class="px-3 py-1.5 border-b border-slate-100 flex items-baseline justify-between">
+                            <h3 class="text-[11px] uppercase tracking-wider font-bold text-slate-500">Framing view · 3D</h3>
+                            <span class="text-[9px] font-mono text-slate-400">axonometric</span>
+                        </div>
+                        <div class="h-[260px] relative"><canvas id="view-axonometric"></canvas></div>
+                        <p class="px-3 py-1.5 text-[10px] text-slate-500 border-t border-slate-100">Boards, joists, beam plies, posts, guard and stair in one assembly view.</p>
+                    </section>
+                </div>
             </div>
 
             <div id="panel-framing" class="hidden flex-1 min-h-0 overflow-y-auto m-3 bg-white rounded-xl border border-slate-200 shadow-sm">
