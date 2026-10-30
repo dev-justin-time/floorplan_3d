@@ -2,3 +2,5 @@ node_modules/
 .freebuff/
 .server.log
 *.log
+# §10.5: untracked ML notebook — not part of the app, keep out of deploys
+*.ipynb

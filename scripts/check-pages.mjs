@@ -353,7 +353,13 @@ async function main() {
         // Handlers are now zero everywhere: every one is a `data-*` action run
         // from shared/site.js. Inline blocks are the remaining half, so their
         // count is a ratchet that may only fall.
-        const INLINE_SCRIPT_BUDGET = 32;
+        // §10.4 phase 2: every non-importmap block was externalised to
+        // assets/page-scripts/ (25 blocks, 2026-10-30). What remains is one
+        // inline import map per three.js page — import maps must be inline
+        // (external src is not processed), so 20 is the floor until a build
+        // step bundles them. The count below covers ALL inline blocks; the
+        // ratchet still holds: it may only fall.
+        const INLINE_SCRIPT_BUDGET = 20;
         const handlerCounts = new Map();
         const scriptCounts = new Map();
         let handlerTotal = 0;

@@ -94,16 +94,20 @@ sweep (`check-pages`) + the legacy page sweep (`browser-pages`) + 1 repricing sc
 5. **Support matrix — closed.** `pages/features.html` has a “What you need” section: current
    desktop Chrome/Edge/Firefox/Safari, WebGL 2 (WebGPU demo needs Chrome/Edge 113+), mouse
    and keyboard for the studio, 1024 px minimum width, and the local-storage durability note.
-6. **CSP — handlers done, inline blocks left.** Removing the CDNs made a policy possible.
-   All **130 inline event handlers** are gone: each control declares a `data-click` /
-   `data-input` / `data-change` / `data-go` action that `shared/site.js` runs from one
-   delegated listener, and `check-pages` fails if a handler comes back. What still requires
-   `'unsafe-inline'` is **32 inline `<script>` blocks** (16 inline import maps plus the classic
-   and module bootstraps). Move those into files, then ship
+6. **CSP — handlers done, non-importmap blocks externalised (2026-10-30).** Removing the
+   CDNs made a policy possible. All **130 inline event handlers** are gone: each control
+   declares a `data-click` / `data-input` / `data-change` / `data-go` action that
+   `shared/site.js` runs from one delegated listener, and `check-pages` fails if a handler
+   comes back. The 25 non-importmap `<script>` blocks were moved to
+   `assets/page-scripts/*.js` (26 files including the root redirect); what still requires
+   `'unsafe-inline'` is **20 inline import maps** (one per three.js page — import maps must
+   be inline, external `src` is not processed). `check-pages` budgets 20 and the 2026-10-30
+   sweep is green (38/38). Move the import maps into a build step, then ship
    `Content-Security-Policy: default-src 'self'`.
-7. **One stray file — still on disk.** `resnet-18-classification-paddleocr.ipynb` (830 KB,
-   unrelated ML notebook) is untracked; it is not committed, but a folder-upload deploy would
-   include it. It was left alone rather than deleted because it is not part of this project.
+7. **One stray file — excluded from deploys (2026-10-30).**
+   `resnet-18-classification-paddleocr.ipynb` (830 KB, unrelated ML notebook) stays on disk
+   (only copy — not deleted) but `*.ipynb` is now in `.gitignore`, so deploys that respect
+   ignore rules no longer ship it.
 
 ## 4. What is production-quality
 
@@ -396,6 +400,13 @@ Targeted probes (run, then removed):
 - Earlier audits' fixed findings (dead wall selection, always-true `isValidPosition`, fixed
   1 m grid, unversioned project schema, unused `footprint()`, noisy autosave) are recorded
   in git history and are no longer true.
+- **CSP phase 2 + notebook ignore (2026-10-30).** The 25 non-importmap inline `<script>`
+  blocks were extracted verbatim to `assets/page-scripts/*.js` (26 files with the root
+  redirect); relative imports inside them were rewritten `../` → `../../` for the new
+  location. `scripts/check-pages.mjs` budget is now 20 (import maps only) and the sweep is
+  green at 38/38 pages, 0 failures — sitemap/canonical/og:url hold at 37 pages plus the
+  root redirect. `*.ipynb` added to `.gitignore` (§10.5) so the stray notebook no longer
+  ships in a deploy. No engine code was touched; all extracted files pass `node --check`.
 
 ## 10. Issue register — pros and cons of every open item
 
@@ -497,9 +508,12 @@ nothing silently. Two expressions that were statements in markup moved into the 
 owns them: the demo's slider label is `setBgScaleAndLabel` in `demo/demo.js`, the calculator's
 theme switch is `toggleTheme` in its page script.
 
-**What is left.** 32 inline `<script>` blocks still need `'unsafe-inline'`: 16 import maps and
-16 classic/module bootstraps. Externalising an import map needs either `src=` support or a
-build step, so this half belongs with 10.3 rather than on its own.
+**What is left (2026-10-30).** 20 inline `<script>` blocks still need `'unsafe-inline'`,
+and all 20 are import maps (one per three.js page). The other 25 blocks were externalised to
+`assets/page-scripts/*.js` with import paths rewritten (`../` → `../../`); `check-pages`
+budgets 20 and the sweep is green (38/38). Externalising an import map needs `src=`
+support (not processed by browsers) or a build step, so this remainder belongs with 10.3
+rather than on its own.
 
 **Cost.** The handlers took two hours of mechanical work rather than a day; the blocks are the
 rest.
@@ -518,7 +532,9 @@ the app; a folder-upload deploy would ship it.
   contains.
 - **Fix cons.** It is the only copy on disk — deletion is not recoverable from this repository.
 - **Cost.** One `rm`.
-- **Verdict.** Safe only on an explicit decision; left in place for that reason.
+- **Verdict (2026-10-30).** Fixed without deletion: `*.ipynb` added to `.gitignore`.
+  The file stays on disk but no longer ships in a deploy; deletion still needs an explicit
+  decision.
 
 ### 10.6 One 5,876-line controller with no exports
 
