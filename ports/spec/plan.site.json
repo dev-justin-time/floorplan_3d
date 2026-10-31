@@ -1,0 +1,74 @@
+{
+  "project": "pool-house",
+  "units": "m",
+  "wallHeight": 3.0,
+  "studSpacingMm": 406,
+  "rooms": [
+    { "name": "Pavilion", "polygon": [[0, 0], [7.2, 0], [7.2, 5.4], [0, 5.4]] }
+  ],
+  "walls": [
+    { "x1": 0, "y1": 0, "x2": 7.2, "y2": 0, "openings": [{ "width": 1.8, "height": 2.4, "type": "door" }] },
+    { "x1": 7.2, "y1": 0, "x2": 7.2, "y2": 5.4, "openings": [{ "width": 2.4, "height": 1.4, "type": "window" }] },
+    { "x1": 7.2, "y1": 5.4, "x2": 0, "y2": 5.4, "openings": [] },
+    { "x1": 0, "y1": 5.4, "x2": 0, "y2": 0, "openings": [] }
+  ],
+  "roof": {
+    "style": "hip",
+    "span": 12.0,
+    "length": 18.0,
+    "pitch": 5,
+    "overhang": 0.6,
+    "spacing": 0.61,
+    "sheathing": "ply-1932",
+    "underlayment": "felt-30",
+    "covering": "clay-tile",
+    "gutter": "k6-alum",
+    "gutters": 1,
+    "iceShield": 1,
+    "ridgeVent": 1,
+    "soffitVent": 1,
+    "chimney": 1,
+    "pipeVents": 3,
+    "tearOff": 1,
+    "waste": 0.12,
+    "climate": "cold"
+  },
+  "landscape": {
+    "feature": {
+      "type": "spa",
+      "shape": "circular",
+      "width": 2.6,
+      "length": 2.6,
+      "shallow": 0.9,
+      "deep": 0.95,
+      "deck": 1.5,
+      "turnoverHours": 0.5,
+      "head": 55,
+      "waterTempF": 100,
+      "suctionOutlets": 2
+    },
+    "site": {
+      "width": 10,
+      "depth": 12,
+      "featureX": 5,
+      "featureZ": 6,
+      "deckSlopePercent": 2.5,
+      "overheadClearance": 7.8,
+      "receptacleDistance": 3.2,
+      "equipmentClearance": 1.4,
+      "bonded": 1,
+      "gfci": 1,
+      "luminairesListed": 1,
+      "emergencyShutoff": 1,
+      "signage": 1,
+      "heater": 1,
+      "filterMedia": "sand",
+      "skimmers": 2,
+      "ph": 7.5,
+      "freeChlorine": 2.0,
+      "alkalinity": 100,
+      "cya": 40,
+      "calcium": 300
+    }
+  }
+}

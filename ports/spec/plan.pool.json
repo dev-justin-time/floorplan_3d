@@ -1,0 +1,78 @@
+{
+  "project": "deficient-pool",
+  "units": "m",
+  "wallHeight": 2.7,
+  "studSpacingMm": 610,
+  "rooms": [
+    { "name": "Cabana", "polygon": [[0, 0], [4.8, 0], [4.8, 3.6], [0, 3.6]] }
+  ],
+  "walls": [
+    { "x1": 0, "y1": 0, "x2": 4.8, "y2": 0, "openings": [] },
+    { "x1": 4.8, "y1": 0, "x2": 4.8, "y2": 3.6, "openings": [{ "width": 0.9, "height": 2.1, "type": "door" }] },
+    { "x1": 4.8, "y1": 3.6, "x2": 0, "y2": 3.6, "openings": [] },
+    { "x1": 0, "y1": 3.6, "x2": 0, "y2": 0, "openings": [] }
+  ],
+  "roof": {
+    "style": "gambrel",
+    "span": 8.0,
+    "length": 11.0,
+    "pitch": 4,
+    "overhang": 1.1,
+    "spacing": 0.61,
+    "sheathing": "osb-716",
+    "underlayment": "peel-stick",
+    "covering": "metal-standing-seam",
+    "gutter": "box-4",
+    "gutters": 0,
+    "iceShield": 0,
+    "ridgeVent": 0,
+    "soffitVent": 1,
+    "chimney": 0,
+    "pipeVents": 0,
+    "tearOff": 0,
+    "waste": 0.03,
+    "climate": "cold"
+  },
+  "landscape": {
+    "feature": {
+      "type": "pool",
+      "shape": "rectangle",
+      "width": 5.2,
+      "length": 9.5,
+      "shallow": 0.9,
+      "deep": 1.7,
+      "deck": 0.9,
+      "turnoverHours": 9,
+      "head": 45,
+      "suctionOutlets": 1
+    },
+    "site": {
+      "width": 8,
+      "depth": 10,
+      "featureX": 2.6,
+      "featureZ": 5,
+      "deckSlopePercent": 0.8,
+      "overheadClearance": 6,
+      "receptacleDistance": 7,
+      "equipmentClearance": 0.8,
+      "bonded": 0,
+      "gfci": 0,
+      "luminairesListed": 0,
+      "emergencyShutoff": 0,
+      "signage": 0,
+      "publicPool": 1,
+      "accessibleEntry": 0,
+      "freezeClimate": 1,
+      "winterized": 0,
+      "safetyCover": 0,
+      "heater": 0,
+      "filterMedia": "de",
+      "skimmers": 1,
+      "ph": 8.2,
+      "freeChlorine": 0.5,
+      "alkalinity": 60,
+      "cya": 120,
+      "calcium": 150
+    }
+  }
+}

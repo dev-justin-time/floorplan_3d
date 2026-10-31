@@ -1,0 +1,71 @@
+{
+  "project": "boolean-flags",
+  "units": "m",
+  "wallHeight": 2.7,
+  "rooms": [
+    { "name": "Studio", "polygon": [[0, 0], [4.2, 0], [4.2, 3.4], [0, 3.4]] }
+  ],
+  "walls": [
+    { "x1": 0, "y1": 0, "x2": 4.2, "y2": 0, "openings": [{ "width": 0.9, "height": 2.1, "type": "door" }] },
+    { "x1": 4.2, "y1": 0, "x2": 4.2, "y2": 3.4, "openings": [] },
+    { "x1": 4.2, "y1": 3.4, "x2": 0, "y2": 3.4, "openings": [] },
+    { "x1": 0, "y1": 3.4, "x2": 0, "y2": 0, "openings": [] }
+  ],
+  "roof": {
+    "style": "gable-fink",
+    "span": 9.0,
+    "length": 12.0,
+    "pitch": 7,
+    "overhang": 0.45,
+    "gutters": false,
+    "iceShield": true,
+    "ridgeVent": true,
+    "soffitVent": false,
+    "chimney": true,
+    "tearOff": true,
+    "waste": 0.1
+  },
+  "lighting": {
+    "width": 4.2,
+    "depth": 3.4,
+    "targetLux": 200,
+    "steps": 8,
+    "luminaires": [
+      { "id": "L1", "x": 1.2, "y": 1.0, "lumens": 1100, "watts": 14, "on": true },
+      { "id": "L2", "x": 3.0, "y": 1.0, "lumens": 1100, "watts": 14, "on": false },
+      { "id": "L3", "x": 1.2, "y": 2.4, "lumens": 800, "watts": 10, "on": true }
+    ],
+    "circuits": [
+      { "id": "c1", "name": "Lights", "voltage": 120, "breakerA": 15,
+        "devices": [{ "kind": "luminaire", "watts": 14 }, { "kind": "luminaire", "watts": 14 }] },
+      { "id": "c2", "name": "Dedicated", "voltage": 120, "breakerA": 20,
+        "devices": [{ "kind": "socket", "dedicated": true, "ratingA": 12, "voltage": 120 }] }
+    ]
+  },
+  "landscape": {
+    "feature": {
+      "type": "pond",
+      "shape": "kidney",
+      "width": 3.0,
+      "length": 4.2,
+      "deep": 0.5,
+      "deck": 0.0,
+      "turnoverHours": 4
+    },
+    "site": {
+      "width": 9,
+      "depth": 11,
+      "featureX": 4.5,
+      "featureZ": 5.5,
+      "bonded": false,
+      "gfci": true,
+      "luminairesListed": true,
+      "freezeClimate": true,
+      "winterized": false,
+      "safetyCover": true,
+      "heater": false,
+      "filterMedia": "cartridge",
+      "skimmers": 1
+    }
+  }
+}

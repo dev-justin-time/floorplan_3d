@@ -35,6 +35,65 @@
     "heatingVa": 15000,
     "coolingVa": 20000
   },
+  "plumbing": {
+    "width": 9.0,
+    "depth": 6.2,
+    "staticPressure": 48,
+    "meterSize": "3/4",
+    "serviceMaterial": "copper",
+    "mainLength": 16,
+    "sewerSlope": 0.02,
+    "sewerInvert": -0.5,
+    "sewerMainLength": 12,
+    "sewerSize": "4",
+    "gasType": "natural",
+    "gasMainLength": 24,
+    "gasMeterCapacity": 200,
+    "gasHookupX": 0.3,
+    "gasHookupY": 0.3,
+    "waterHookupX": 8.6,
+    "waterHookupY": 0.3,
+    "sewerHookupX": 8.6,
+    "sewerHookupY": 5.9,
+    "heater": { "x": 8.2, "y": 5.4, "btu": 50000 },
+    "fixtures": [
+      { "id": "wc1", "type": "toilet", "tag": "WC1", "x": 0.9, "y": 0.4 },
+      { "id": "lav1", "type": "lavatory", "tag": "L1", "x": 1.7, "y": 0.35 },
+      { "id": "wc2", "type": "toilet", "tag": "WC2", "x": 2.9, "y": 0.4 },
+      { "id": "sh1", "type": "shower", "tag": "SH1", "x": 3.9, "y": 0.5 },
+      { "id": "ks1", "type": "kitchen-sink", "tag": "KS1", "x": 5.8, "y": 0.35 },
+      { "id": "dw1", "type": "dishwasher", "tag": "DW1", "x": 6.6, "y": 0.4 },
+      { "id": "wm1", "type": "washing-machine", "tag": "WM1", "x": 7.6, "y": 0.4 },
+      { "id": "fd1", "type": "floor-drain", "tag": "FD1", "x": 8.4, "y": 5.7 },
+      { "id": "rg1", "type": "gas-range", "tag": "RG1", "x": 5.0, "y": 0.35 },
+      { "id": "fn1", "type": "gas-furnace", "tag": "FN1", "x": 8.5, "y": 5.0 },
+      { "id": "gd1", "type": "gas-dryer", "tag": "DR1", "x": 8.3, "y": 0.4 }
+    ]
+  },
+  "lighting": {
+    "width": 9.0,
+    "depth": 6.2,
+    "mountingHeight": 2.7,
+    "workPlane": 0.75,
+    "targetLux": 300,
+    "llf": 0.75,
+    "steps": 12,
+    "reflectances": { "ceiling": 0.7, "wall": 0.4 },
+    "luminaires": [
+      { "id": "L1", "x": 1.5, "y": 1.5, "lumens": 1100, "watts": 14, "spacingRatio": 1.1 },
+      { "id": "L2", "x": 4.5, "y": 1.5, "lumens": 1100, "watts": 14, "spacingRatio": 1.1 },
+      { "id": "L3", "x": 7.5, "y": 1.5, "lumens": 1100, "watts": 14, "spacingRatio": 1.1 },
+      { "id": "L4", "x": 1.5, "y": 4.5, "lumens": 1100, "watts": 14, "spacingRatio": 1.1 },
+      { "id": "L5", "x": 4.5, "y": 4.5, "lumens": 1100, "watts": 14, "spacingRatio": 1.1 },
+      { "id": "L6", "x": 7.5, "y": 4.5, "lumens": 1100, "watts": 14, "spacingRatio": 1.1 }
+    ],
+    "circuits": [
+      { "id": "c1", "name": "Lighting", "voltage": 120, "breakerA": 15,
+        "devices": [{ "kind": "luminaire", "watts": 14 }, { "kind": "luminaire", "watts": 14 }, { "kind": "luminaire", "watts": 14 }, { "kind": "luminaire", "watts": 14 }, { "kind": "luminaire", "watts": 14 }, { "kind": "luminaire", "watts": 14 }] },
+      { "id": "c2", "name": "General receptacles", "voltage": 120, "breakerA": 20,
+        "devices": [{ "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }, { "kind": "socket" }] }
+    ]
+  },
   "sizing": {
     "species": "dfl-2",
     "limit": 360,

@@ -14,7 +14,8 @@
     "textures": "node scripts/generate-textures.mjs",
     "sitemap": "node scripts/generate-sitemap.mjs",
     "test": "node scripts/run-checks.mjs",
-    "check:pages": "node scripts/check-pages.mjs"
+    "check:pages": "node scripts/check-pages.mjs",
+    "check:ports": "node ports/run-parity.mjs ports/spec/plan.example.json ports/spec/plan.load.json"
   },
   "engines": {
     "node": ">=18"
