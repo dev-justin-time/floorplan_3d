@@ -10,3 +10,7 @@ ports/rust/target/
 
 # Chrome user-data dirs written by the .demo-work audits: scratch, not source
 .demo-work/probe-profile*/
+
+# 129 MB Layout sheet archive: over GitHub's 100 MB per-file limit, kept local
+# (track it with Git LFS if it has to be versioned on the remote)
+Layout Files-*.zip
