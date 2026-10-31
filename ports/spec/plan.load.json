@@ -1,0 +1,54 @@
+{
+  "project": "two-storey-extension",
+  "units": "m",
+  "wallHeight": 2.85,
+  "studSpacingMm": 610,
+  "wastePct": 12,
+  "rooms": [
+    { "name": "Studio", "polygon": [[0, 0], [6.0, 0], [6.0, 5.0], [0, 5.0]] },
+    { "name": "Utility", "polygon": [[6.0, 0], [9.0, 0], [9.0, 5.0], [6.0, 5.0]] },
+    { "name": "Hall", "polygon": [[0, 5.0], [9.0, 5.0], [9.0, 6.2], [0, 6.2]] }
+  ],
+  "walls": [
+    { "x1": 0, "y1": 0, "x2": 9.0, "y2": 0, "openings": [{ "width": 1.2, "height": 2.4, "type": "door" }, { "width": 2.4, "height": 1.5, "type": "window" }] },
+    { "x1": 9.0, "y1": 0, "x2": 9.0, "y2": 6.2, "openings": [{ "width": 0.9, "height": 2.1, "type": "door" }] },
+    { "x1": 9.0, "y1": 6.2, "x2": 0, "y2": 6.2, "openings": [] },
+    { "x1": 0, "y1": 6.2, "x2": 0, "y2": 0, "openings": [{ "width": 1.8, "height": 1.2, "type": "window" }] },
+    { "x1": 6.0, "y1": 0, "x2": 6.0, "y2": 5.0, "openings": [] },
+    { "x1": 0, "y1": 5.0, "x2": 9.0, "y2": 5.0, "height": 2.4, "openings": [{ "width": 0.9, "height": 2.1, "type": "door" }] }
+  ],
+  "stairs": { "rise": 2.95, "runAvailable": 0, "width": 1.1 },
+  "deck": {
+    "joistSpan": 4.2,
+    "joistSpacing": 0.406,
+    "postSpacing": 2.4,
+    "soil": "sand",
+    "depth": 1.2,
+    "width": 4.2
+  },
+  "roof": { "planArea": 180.0, "pitch": 10 },
+  "electrical": {
+    "areaM2": 120.0,
+    "smallApplianceCircuits": 4,
+    "laundryCircuits": 1,
+    "appliancesVa": 24000,
+    "heatingVa": 15000,
+    "coolingVa": 20000
+  },
+  "sizing": {
+    "species": "dfl-2",
+    "limit": 360,
+    "members": [
+      { "id": "floor-joist", "group": "framing", "size": "2x12", "spacing": 0.406, "load": 50, "span": 4.2 },
+      { "id": "girder", "group": "framing", "size": "6x6", "spacing": 2.4, "load": 40, "span": 2.0, "limit": 480 },
+      { "id": "deck-joist", "group": "deck", "size": "2x10", "spacing": 0.406, "load": 50, "span": 4.2 }
+    ]
+  },
+  "fixtures": [
+    { "id": "b1", "type": "cabinet_base", "width": 0.9, "depth": 0.6, "height": 0.9, "label": "Base cabinet" },
+    { "id": "b2", "type": "cabinet_base", "width": 0.6, "depth": 0.6, "height": 0.9, "label": "Base cabinet" },
+    { "id": "w1", "type": "cabinet_wall", "width": 0.6, "depth": 0.35, "height": 0.7, "label": "Wall cabinet" },
+    { "id": "r1", "type": "fridge", "width": 0.9, "depth": 0.7, "height": 1.8, "label": "Refrigerator" },
+    { "id": "b3", "type": "cabinet_base", "width": 0.6, "depth": 0.6, "height": 0.9, "label": "Base cabinet" }
+  ]
+}

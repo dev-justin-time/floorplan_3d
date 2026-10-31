@@ -305,7 +305,13 @@ function installActions() {
         }
         const action = closestAction(event.target, 'data-click');
         if (action) {
-            event.preventDefault();
+            // Checkbox/radio switches (Dims, Ceiling, Roof, …) show their state
+            // through the native toggle: preventing the default would flip the
+            // box and then revert it after dispatch, clobbering the handler's
+            // own sync and leaving the switch visually stuck.
+            const nativeToggle = action.tagName === 'INPUT'
+                && (action.type === 'checkbox' || action.type === 'radio');
+            if (!nativeToggle) event.preventDefault();
             if (action.dataset.confirm && !window.confirm(action.dataset.confirm)) return;
             callAction(action, action.dataset.click, declaredArgs(action));
         }
@@ -453,7 +459,11 @@ function mountProjectChrome() {
             btn.textContent = '⬢ Project 3D';
             btn.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:400;background:#0f172a;color:#fff;border:1px solid #334155;border-radius:999px;padding:9px 14px;font:700 12px system-ui;cursor:pointer;box-shadow:0 10px 28px rgba(15,23,42,.35)';
             btn.addEventListener('click', () => {
-                import('./project-viewer.js').then(({ openProjectViewer }) => openProjectViewer()).catch(() => {
+                import('./project-viewer.js').then(({ openProjectViewer }) => openProjectViewer({
+                    // The Editor opens the master scene full-page; every other
+                    // page gets the same scene with grid as a dialog overlay.
+                    full: currentPage() === 'Editor.html'
+                })).catch(() => {
                     window.location.assign('Editor.html');
                 });
             });

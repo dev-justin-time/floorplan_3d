@@ -1,0 +1,10 @@
+[package]
+name = "floorplan_core"
+version = "0.1.0"
+edition = "2021"
+
+# No dependencies: the JSON reader and writer are in main.rs so the port builds
+# offline and cannot drift with a crate version.
+[[bin]]
+name = "floorplan_core"
+path = "src/main.rs"

@@ -4,3 +4,6 @@ node_modules/
 *.log
 # §10.5: untracked ML notebook — not part of the app, keep out of deploys
 *.ipynb
+
+# Rust build output for the ports
+ports/rust/target/

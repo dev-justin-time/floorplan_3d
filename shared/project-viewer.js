@@ -9,9 +9,61 @@
  * viewer says which page starts it, so the 3D is always tied to the same
  * project instead of a per-page mock.
  */
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// Relative vendor imports (not bare `three`): most suite pages have no import
+// map, and the master scene must open from every page, so this module cannot
+// depend on one. Self-contained: its own renderer/scene never share objects
+// with a page's own three instance.
+import * as THREE from '../vendor/three/three.module.js';
 import { readMainFloorplan, stageStatus } from './project-workflow.js';
+
+/** Minimal orbit/zoom/pan rig (no addons import: three's addons use a bare
+ *  `three` specifier, which only resolves where a page defines an import
+ *  map — most suite pages do not, and this viewer must open from all of them). */
+function createViewerControls(camera, dom, target) {
+    const sph = new THREE.Spherical(16, 1.02, 0.8);
+    const apply = () => {
+        camera.position.set(
+            target.x + sph.radius * Math.sin(sph.phi) * Math.sin(sph.theta),
+            target.y + sph.radius * Math.cos(sph.phi),
+            target.z + sph.radius * Math.sin(sph.phi) * Math.cos(sph.theta)
+        );
+        camera.lookAt(target);
+    };
+    let drag = null;
+    dom.style.touchAction = 'none';
+    dom.addEventListener('pointerdown', (e) => {
+        drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
+        try { dom.setPointerCapture(e.pointerId); } catch { /* best-effort */ }
+    });
+    dom.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        const dx = e.clientX - drag.x;
+        const dy = e.clientY - drag.y;
+        drag.x = e.clientX; drag.y = e.clientY;
+        if (drag.pan) {
+            const s = sph.radius / 600;
+            const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+            const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+            target.addScaledVector(right, -dx * s);
+            target.addScaledVector(up, dy * s);
+        } else {
+            sph.theta -= dx * 0.008;
+            sph.phi = Math.min(1.5, Math.max(0.15, sph.phi - dy * 0.008));
+        }
+        apply();
+    });
+    const end = () => { drag = null; };
+    dom.addEventListener('pointerup', end);
+    dom.addEventListener('pointercancel', end);
+    dom.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        sph.radius = Math.min(60, Math.max(3, sph.radius * (e.deltaY > 0 ? 1.12 : 0.89)));
+        apply();
+    }, { passive: false });
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+    apply();
+    return { update() {}, target };
+}
 
 const PIXELS_PER_METER = 30;
 const WALL_H = 2.44;
@@ -59,6 +111,16 @@ function buildProjectScene(scene, project, layers) {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     root.add(ground);
+
+    // 1 m master grid, on by default (chip toggles it like any layer).
+    if (layers.grid !== false) {
+        const grid = new THREE.GridHelper(40, 40, 0x38bdf8, 0x334155);
+        grid.name = 'master-grid';
+        grid.position.y = 0.02;
+        grid.material.transparent = true;
+        grid.material.opacity = 0.55;
+        root.add(grid);
+    }
 
     const wallList = fallback
         ? [{ x1: -W / 2, z1: -D / 2, x2: W / 2, z2: -D / 2 }, { x1: W / 2, z1: -D / 2, x2: W / 2, z2: D / 2 }, { x1: W / 2, z1: D / 2, x2: -W / 2, z2: D / 2 }, { x1: -W / 2, z1: D / 2, x2: -W / 2, z2: -D / 2 }]
@@ -160,7 +222,7 @@ function buildProjectScene(scene, project, layers) {
     return { root, center: new THREE.Vector3(0, 1, 0) };
 }
 
-export function openProjectViewer() {
+export function openProjectViewer({ full = false } = {}) {
     if (overlay) {
         overlay.style.display = 'flex';
         return;
@@ -168,8 +230,12 @@ export function openProjectViewer() {
     overlay = document.createElement('div');
     overlay.id = 'project-3d-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.55);padding:18px';
+    if (full) {
+        overlay.style.padding = '0';
+        overlay.dataset.full = 'true';
+    }
     overlay.innerHTML = `
-        <div style="width:min(1060px,96vw);height:min(700px,90vh);background:#0b1220;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;border:1px solid #334155">
+        <div id="pv-panel" style="width:${full ? '100vw' : 'min(1060px,96vw)'};height:${full ? '100dvh' : 'min(700px,90vh)'};background:#0b1220;border-radius:${full ? '0' : '14px'};overflow:hidden;display:flex;flex-direction:column;border:${full ? 'none' : '1px solid #334155'}">
             <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#111c2e;color:#e2e8f0">
                 <b style="font:700 12px system-ui">Project 3D · main floorplan + suite layers</b>
                 <span id="pv-status" style="font:400 10px ui-monospace,monospace;color:#94a3b8"></span>
@@ -178,7 +244,7 @@ export function openProjectViewer() {
                 <button id="pv-close" style="background:#1e293b;color:#fff;border:1px solid #334155;border-radius:8px;padding:4px 10px;font:600 11px system-ui;cursor:pointer">Close ✕</button>
             </div>
             <div id="pv-canvas-wrap" style="flex:1;min-height:0;position:relative"></div>
-            <div id="pv-foot" style="padding:8px 12px;background:#111c2e;color:#94a3b8;font:400 10px system-ui">Drag to orbit · wheel to zoom · right-drag to pan · same project as the Editor autosave</div>
+            <div id="pv-foot" style="padding:8px 12px;background:#111c2e;color:#94a3b8;font:400 10px system-ui">Drag to orbit · wheel to zoom · right-drag to pan · 1 m grid + layers stack the Editor autosave project</div>
         </div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('#pv-close').addEventListener('click', () => { overlay.style.display = 'none'; });
@@ -199,11 +265,9 @@ export function openProjectViewer() {
     scene.add(sun);
     const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
     camera.position.set(9, 8, 11);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1, 0);
-    controls.enableDamping = true;
+    const controls = createViewerControls(camera, renderer.domElement, new THREE.Vector3(0, 1, 0));
 
-    const layers = { framing: true, roof: true, plumbing: true, electrical: true, deck: true };
+    const layers = { grid: true, framing: true, roof: true, plumbing: true, electrical: true, deck: true };
     const project = readMainFloorplan();
     let built = buildProjectScene(scene, project, layers);
     const chips = overlay.querySelector('#pv-chips');

@@ -456,7 +456,11 @@ function init() {
     refreshStairPresetPalette();
     refreshLandscapePanel();
     
-    // Load Autosave
+    // Load autosave + suite drafts. User data must never half-boot the
+    // editor: a corrupt payload used to throw here, skipping the global
+    // handlers, the first draw and the view buttons — every control dead.
+    // Now it falls back to a blank plan and keeps going.
+    try {
     const saved = StorageManager.loadProject('autosave');
     if (saved) {
         restoreState(saved);
@@ -530,7 +534,17 @@ function init() {
             console.warn('Stair designer draft was not placed', error);
         }
     }
-    
+    } catch (error) {
+        console.warn('Saved project or suite drafts could not be loaded; starting blank.', error);
+        window.reportClientError?.(error, { source: 'editor:boot:restore', kind: 'restore' });
+        try {
+            clearProject();
+            setTool('wall');
+            setActiveToolBtn('wall');
+        } catch { /* the blank boot state is enough to draw on */ }
+        setStatus('The saved plan could not be loaded, so a blank plan was started. Your files are untouched — import a backup to recover.', true);
+    }
+
     // Expose Global API
     window.undo = () => { stateManager.undo(); updateUI(); };
     window.redo = () => { stateManager.redo(); updateUI(); };
@@ -552,6 +566,7 @@ function init() {
     window.toggleDimensions = () => {
         if (abilities) abilities.toggle('dimensions');
         else { AppState.showDimensions = !AppState.showDimensions; draw2D(); }
+        syncDimensionsSwitch();
     };
     window.toggleCeiling = () => {
         setCeiling(AppState, !AppState.showCeiling);
@@ -1132,6 +1147,9 @@ function onPointerDown(e) {
 
     const pos = getCanvasCoordinates(e);
     AppState.cursor = pos;
+    // A zero-size canvas (or a zoomed-out embed) yields NaN/Infinity: no tool
+    // can use that, and drawing it would poison the plan. Ignore the gesture.
+    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
 
     // Comment mode turns a plan click into a pin (or selects an existing pin).
     if (abilitiesState().comments) {
@@ -1392,12 +1410,13 @@ function onPointerUp(e) {
         const rawEnd = getCanvasCoordinates(e);
         const start = AppState.wallStart;
         try { if (blueprintCanvas.hasPointerCapture?.(e.pointerId)) blueprintCanvas.releasePointerCapture(e.pointerId); } catch { /* best-effort */ }
-        if (start) {
+        if (start && [start.x, start.y, rawEnd.x, rawEnd.y].every(Number.isFinite)) {
             // Shift constrains the angle to 15° steps while drawing.
             const end = e.shiftKey ? snapAngle(start, rawEnd) : rawEnd;
 
             // Min length check (approx 30cm)
             if (Math.hypot(end.x - start.x, end.y - start.y) > 10) {
+                if (!Array.isArray(AppState.walls)) AppState.walls = [];
                 AppState.walls.push(new Wall(start.x, start.y, end.x, end.y));
                 saveAndSync();
             }
@@ -1796,6 +1815,15 @@ function refreshAbilities() {
     draw2D();
 }
 
+/** Keep the header Dims switch on the ability flag (the abilities panel and
+ *  undo/redo can move the flag without touching the header). */
+function syncDimensionsSwitch() {
+    const on = abilitiesState().dimensions !== false;
+    document.querySelectorAll('[data-click="toggleDimensions"]')?.forEach((node) => {
+        if (node instanceof HTMLInputElement && node.type === 'checkbox') node.checked = on;
+    });
+}
+
 /** Re-reads toggle state into the rendered panel (actions do not need it). */
 function applyAbilityPanel() {
     const container = document.getElementById('abilities-list');
@@ -1807,6 +1835,7 @@ function applyAbilityPanel() {
         const checkbox = node.querySelector('input');
         if (checkbox) checkbox.checked = Boolean(abilities.state[ability.key]);
     });
+    syncDimensionsSwitch();
 }
 
 function renderAbilityPanel() {
@@ -6005,6 +6034,42 @@ function toggleView() {
     setViewMode(AppState.viewMode === '2d' ? '3d' : '2d');
 }
 
+/** Restored walls/fixtures/openings, skipping single bad entries.
+ *  One corrupt wall in storage must never abort the whole boot (and with it
+ *  every button and the wall tool). */
+function cleanRestoredWalls(walls) {
+    if (!Array.isArray(walls)) return [];
+    const out = [];
+    for (const wall of walls) {
+        try {
+            const restored = Wall.fromJSON(wall);
+            const pts = [restored?.start?.x, restored?.start?.y, restored?.end?.x, restored?.end?.y];
+            if (pts.every(Number.isFinite)) out.push(restored);
+        } catch { /* skip one bad wall, keep the plan */ }
+    }
+    return out;
+}
+
+function cleanRestoredFixtures(fixtures) {
+    if (!Array.isArray(fixtures)) return [];
+    const out = [];
+    for (const fixture of fixtures) {
+        try {
+            const restored = ItemFactory.fromJSON(fixture);
+            if (restored && Number.isFinite(restored.x) && Number.isFinite(restored.y)) out.push(restored);
+        } catch { /* skip one bad fixture, keep the plan */ }
+    }
+    return out;
+}
+
+function cleanRestoredOpenings(openings) {
+    try {
+        return cloneOpenings(Array.isArray(openings) ? openings : []);
+    } catch {
+        return [];
+    }
+}
+
 function restoreState(data) {
     // Schema guard (feature 28): old files are migrated, newer ones refused.
     const migration = migrateProject(data);
@@ -6036,9 +6101,9 @@ function restoreState(data) {
                 floorDepth: construction.floorDepth,
                 height: construction.pitch,
                 visible: story.visible !== false,
-                walls: (story.walls || []).map((wall) => Wall.fromJSON(wall)),
-                fixtures: (story.fixtures || []).map((fixture) => ItemFactory.fromJSON(fixture)),
-                openings: cloneOpenings(story.openings || [])
+                walls: cleanRestoredWalls(story.walls),
+                fixtures: cleanRestoredFixtures(story.fixtures),
+                openings: cleanRestoredOpenings(story.openings)
             };
         })
         : [{
@@ -6046,8 +6111,8 @@ function restoreState(data) {
             name: 'Ground floor',
             ...constructionOptions(),
             visible: true,
-            walls: project.walls.map((wall) => Wall.fromJSON(wall)),
-            fixtures: project.fixtures.map((fixture) => ItemFactory.fromJSON(fixture)),
+            walls: cleanRestoredWalls(project.walls),
+            fixtures: cleanRestoredFixtures(project.fixtures),
             openings: []
         }];
 
