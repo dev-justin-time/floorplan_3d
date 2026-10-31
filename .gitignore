@@ -7,3 +7,6 @@ node_modules/
 
 # Rust build output for the ports
 ports/rust/target/
+
+# Chrome user-data dirs written by the .demo-work audits: scratch, not source
+.demo-work/probe-profile*/
