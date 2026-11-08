@@ -19,6 +19,8 @@ const GROUPS = [
         title: 'Studio',
         links: [
             ['Editor.html', '3D studio editor'],
+            ['plan-studio.html', 'Plan hub'],
+            ['site-plan.html', 'Site plan'],
             ['kitchen-designer.html', 'Kitchen suite'],
             ['demo.html', 'Guided demo'],
             ['app.html', 'Full app (legacy)'],
@@ -336,6 +338,17 @@ function installActions() {
 installActions();
 
 function buildMenu() {
+    // Every page gets a visible way home; the menu beside it lists the rest.
+    const host = document.createElement('span');
+    host.className = 'site-menu-host';
+    host.style.cssText = 'display:inline-flex;align-items:center;gap:0.35rem';
+    const home = document.createElement('a');
+    home.className = 'site-menu-toggle';
+    home.href = 'index.html';
+    home.textContent = 'Home';
+    home.title = 'Back to the Floorplan 3D home page';
+    host.appendChild(home);
+
     const wrap = document.createElement('details');
     wrap.className = 'site-menu-wrap';
     wrap.id = 'site-nav-menu';
@@ -389,7 +402,8 @@ function buildMenu() {
         if (event.key === 'Escape') wrap.open = false;
     });
 
-    return wrap;
+    host.appendChild(wrap);
+    return host;
 }
 
 function buildFooter() {
@@ -400,8 +414,9 @@ function buildFooter() {
     const inner = document.createElement('div');
     inner.className = 'site-footer-inner';
 
-    const brand = document.createElement('div');
+    const brand = document.createElement('a');
     brand.className = 'site-footer-brand';
+    brand.href = 'index.html';
     brand.textContent = 'Shaker 3D Floorplan';
     inner.appendChild(brand);
 
